@@ -6,6 +6,7 @@
 	import Window from '$lib/components/Window.svelte';
 	import LoginScreen from '$lib/components/LoginScreen.svelte';
 	import Settings from '$lib/components/Settings.svelte';
+	import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 
 	// Derived state for the active app object
@@ -65,6 +66,8 @@
 					</div>
 				</div>
 			</header>
+
+			<OnboardingCard />
 
 			<div class="relative grid flex-1 grid-cols-1 content-start gap-6 p-6 md:grid-cols-12">
 				<div

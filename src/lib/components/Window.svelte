@@ -3,8 +3,8 @@
 	import { elasticOut } from 'svelte/easing';
 	import { X, ExternalLink } from 'lucide-svelte';
 	import { os } from '$lib/os.svelte';
-	import Icon from '@iconify/svelte'
-	import {FaviconExtractor} from '@iocium/favicon-extractor';
+	import Icon from '@iconify/svelte';
+	import { FaviconExtractor } from '@iocium/favicon-extractor';
 
 	import type { AppDefinition } from '$lib/data';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
@@ -14,10 +14,10 @@
 	async function getFaviconUrl(url?: string) {
 		if (!url) return FallbackFavicon;
 		const extractor = new FaviconExtractor();
-  
+
 		// Extracts from <link> tags, <meta> tags, and manifest.json
 		const icons = await extractor.fetchAndExtract(url);
-		
+
 		// Get the largest available icon
 		const largestIcon = extractor.getLargestIconsByMimeType(icons);
 		return largestIcon?.[0]?.url || FallbackFavicon;
@@ -109,10 +109,17 @@
 					allow="clipboard-read; clipboard-write; encrypted-media; picture-in-picture"
           title={app.name}
 				></iframe> -->
-				<div class="py-2 px-3">
+				<div class="px-3 py-2">
 					<h1 class="text-2xl">{app.name}</h1>
 					<p class="my-3">app description</p>
-					<a href={app.url} target="_blank" class="rounded-xl bg-amber-400 px-3 py-2.5 text-solar-900 flex items-center gap-2 justify-center">Open {app.name} <Icon icon="tabler:link" /></a>
+					<button
+						type="button"
+						onclick={openNative}
+						class="flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-3 py-2.5 text-solar-900"
+					>
+						Open {app.name}
+						<Icon icon="tabler:link" />
+					</button>
 				</div>
 			{:else}
 				<div class="text-solar-100/70 p-8 text-center">Unable to load application</div>
