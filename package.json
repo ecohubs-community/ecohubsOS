@@ -57,7 +57,8 @@
 		"@iconify/svelte": "^5.1.0",
 		"@iocium/favicon-extractor": "^1.1.0",
 		"better-sqlite3": "^12.5.0",
-		"lucide-svelte": "^0.562.0"
+		"lucide-svelte": "^0.562.0",
+		"nodemailer": "^7.0.12"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
