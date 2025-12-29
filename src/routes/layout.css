@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+@theme {
+	/* ... existing palette ... */
+	--color-solar-900: #0f2e2e;
+	--color-gold-400: #fbbf24;
+}
+
+/* Base resets */
+body {
+	@apply overflow-hidden font-sans text-white antialiased;
+}
+
+/* --- DYNAMIC THEME CLASSES --- */
+
+/* 1. Light Glass (Default for Dark Backgrounds) */
+/* "Frosted White" look */
+.theme-light {
+	--bg-panel: rgba(255, 255, 255, 0.08);
+	--bg-panel-hover: rgba(255, 255, 255, 0.15);
+	--border-panel: rgba(255, 255, 255, 0.15);
+	--text-main: #f0fdf4; /* solar-50 */
+	--text-muted: rgba(255, 255, 255, 0.6);
+}
+
+/* 2. Dark Glass (For Bright Backgrounds) */
+/* "Smoked Black" look - ensures white text is readable on bright wallpapers */
+.theme-dark {
+	--bg-panel: rgba(15, 46, 46, 0.75); /* Deep Solar with opacity */
+	--bg-panel-hover: rgba(15, 46, 46, 0.9);
+	--border-panel: rgba(255, 255, 255, 0.1); /* Subtle white border remains */
+	--text-main: #ffffff;
+	--text-muted: rgba(255, 255, 255, 0.7);
+}
+
+/* Utility class to apply these vars */
+.glass-panel {
+	background-color: var(--bg-panel);
+	border: 1px solid var(--border-panel);
+	color: var(--text-main);
+	backdrop-filter: blur(12px);
+	transition: all 0.3s ease;
+}
+
+.glass-panel:hover {
+	background-color: var(--bg-panel-hover);
+}

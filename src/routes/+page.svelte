@@ -1,0 +1,208 @@
+<script lang="ts">
+	import { fly } from 'svelte/transition';
+	import { Bell, LayoutGrid, Battery, Wifi, Leaf } from 'lucide-svelte';
+	import { os } from '$lib/os.svelte';
+	import { MOCK_APPS, MOCK_USER, MOCK_NOTIFICATIONS } from '$lib/data';
+	import Window from '$lib/components/Window.svelte';
+	import LoginScreen from '$lib/components/LoginScreen.svelte';
+	import Settings from '$lib/components/Settings.svelte';
+	import FallbackFavicon from '$lib/assets/favicon.svg';
+
+	// Derived state for the active app object
+	let activeApp = $derived(MOCK_APPS.find((a) => a.id === os.activeWindow));
+
+	// Date time logic
+	let time = $state(new Date());
+	$effect(() => {
+		const interval = setInterval(() => (time = new Date()), 1000);
+		return () => clearInterval(interval);
+	});
+
+	function getFaviconUrl(url?: string) {
+		if (!url) return FallbackFavicon;
+		return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
+	}
+
+	function imgError(e: Event) {
+		(e.currentTarget as HTMLImageElement).src = FallbackFavicon;
+	}
+</script>
+
+<svelte:head>
+	<title>ecohubsOS</title>
+</svelte:head>
+
+<main
+	class="text-solar-50 selection:bg-solar-500/30 h-screen w-screen overflow-hidden bg-solar-900 bg-[url('/wallpapers/solar01.webp')] bg-cover"
+>
+	{#if !os.isLoggedIn}
+		<LoginScreen />
+	{:else}
+		<div
+			class="relative flex h-full w-full flex-col bg-cover bg-center transition-all duration-700 {os.uiTheme}"
+			style:background-image={os.currentWallpaper.url ? `url(${os.currentWallpaper.url})` : 'none'}
+			style:background-color={os.currentWallpaper.color || '#0f2e2e'}
+		>
+			<header
+				class="text-solar-100/80 z-20 flex h-8 items-center justify-between bg-black/20 px-4 text-xs font-medium backdrop-blur-md"
+			>
+				<div class="flex items-center gap-4">
+					<span class="cursor-pointer font-bold hover:text-white">ecohubsOS</span>
+					<div class="hidden gap-3 md:flex">
+						<span class="cursor-pointer hover:text-white">Blueprint</span>
+						<span class="cursor-pointer hover:text-white">Network</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-4">
+					<span class="flex items-center gap-1.5">
+						<Leaf size={12} class="text-green-400" />
+						{MOCK_USER.xp} XP
+					</span>
+					<span>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+					<div class="flex gap-2 opacity-70">
+						<Wifi size={14} />
+						<Battery size={14} />
+					</div>
+				</div>
+			</header>
+
+			<div class="relative grid flex-1 grid-cols-1 content-start gap-6 p-6 md:grid-cols-12">
+				<div
+					class="glass-panel group col-span-1 cursor-default rounded-2xl p-5 md:col-span-3"
+					in:fly={{ y: 20, delay: 200 }}
+				>
+					<div class="mb-4 flex items-center gap-3">
+						<div
+							class="from-solar-400 to-solar-600 flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br font-bold text-solar-900"
+						>
+							{MOCK_USER.name[0]}
+						</div>
+						<div>
+							<h3 class="leading-tight font-bold text-white">{MOCK_USER.name}</h3>
+							<p class="text-solar-300 text-xs">{MOCK_USER.role} • Lvl {MOCK_USER.level}</p>
+						</div>
+					</div>
+					<div class="space-y-2">
+						<div class="flex justify-between text-xs opacity-70">
+							<span>Next Level</span>
+							<span>75%</span>
+						</div>
+						<div class="h-1.5 w-full overflow-hidden rounded-full bg-black/20">
+							<div class="from-solar-400 h-full w-[75%] bg-linear-to-r to-gold-400"></div>
+						</div>
+					</div>
+				</div>
+
+				<div
+					class="glass-panel col-span-1 cursor-default rounded-2xl p-5 md:col-span-3"
+					in:fly={{ y: 20, delay: 300 }}
+				>
+					<div class="mb-3 flex items-center justify-between">
+						<h3 class="flex items-center gap-2 font-bold text-white">
+							<Bell size={14} /> Updates
+						</h3>
+						<span class="rounded-md bg-red-500/20 px-1.5 py-0.5 text-xs text-red-300"
+							>{MOCK_NOTIFICATIONS.length}</span
+						>
+					</div>
+					<div class="space-y-3">
+						{#each MOCK_NOTIFICATIONS as notif (notif.id)}
+							<div class="group flex cursor-pointer items-start gap-3 text-sm">
+								<div class="bg-solar-400 mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"></div>
+								<div>
+									<p
+										class="text-solar-50 group-hover:text-solar-300 leading-tight transition-colors"
+									>
+										{notif.title}
+									</p>
+									<p class="mt-0.5 text-xs text-white/30">{notif.time}</p>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+
+				<div class="col-span-6 hidden md:block"></div>
+			</div>
+
+			<div class="z-30 flex shrink-0 justify-center pb-6">
+				<div
+					class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
+					in:fly={{ y: 50, duration: 800, delay: 500 }}
+				>
+					{#each MOCK_APPS as app (app.id)}
+						<button
+							class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
+							onclick={() => os.openApp(app.id)}
+						>
+							<span
+								class="pointer-events-none absolute -top-10 rounded border border-white/10 bg-black/80 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100"
+							>
+								{app.name}
+							</span>
+
+							<div
+								class="from-solar-800 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br to-solar-900 text-2xl shadow-md transition-transform duration-200 group-hover:-translate-y-2"
+							>
+								{#if app.isInternalApp}
+									<img
+										src={typeof app.icon === 'string' ? app.icon : FallbackFavicon}
+										alt={app.name}
+										class="h-8 w-8"
+										onerror={imgError}
+									/>
+								{:else}
+									<img
+										src={getFaviconUrl(app.url)}
+										alt={app.name}
+										class="h-8 w-8"
+										onerror={imgError}
+									/>
+								{/if}
+							</div>
+
+							{#if os.activeWindow === app.id}
+								<div class="bg-solar-300 absolute bottom-1 h-1 w-1 rounded-full"></div>
+							{/if}
+						</button>
+					{/each}
+
+					<button
+						onclick={() => os.openApp('settings')}
+						class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
+					>
+						<span
+							class="pointer-events-none absolute -top-10 rounded border border-white/10 bg-black/80 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100"
+						>
+							Display Settings
+						</span>
+						<div
+							class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br to-solar-900 text-2xl shadow-lg transition-transform duration-200 group-hover:-translate-y-2"
+						>
+							⚙️
+						</div>
+					</button>
+
+					<div class="mx-1 h-10 w-px bg-white/10"></div>
+
+					<button
+						class="group relative flex flex-col items-center p-2"
+						onclick={() => alert('App Grid View')}
+					>
+						<div
+							class="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
+						>
+							<LayoutGrid size={24} class="opacity-70 group-hover:opacity-100" />
+						</div>
+					</button>
+				</div>
+			</div>
+
+			{#if os.activeWindow === 'settings'}
+				<Settings />
+			{:else if os.activeWindow && activeApp}
+				<Window app={activeApp!} />
+			{/if}
+		</div>
+	{/if}
+</main>
