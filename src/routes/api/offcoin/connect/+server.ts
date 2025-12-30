@@ -1,5 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { getOffcoinClient } from '$lib/server/offcoin';
+import { NotFoundError } from '@offcoin/sdk';
 
 /**
  * Connect a wallet address to an Offcoin member via Puckstack User ID
@@ -7,9 +9,7 @@ import type { RequestHandler } from './$types';
  * Flow:
  * 1. Look up Offcoin member by puckstack:<userId> alias
  * 2. If found, add wallet:<walletAddress> alias to the member
- * 3. Return member data
- *
- * TODO: Replace mock implementation with actual Offcoin API calls
+ * 3. Return member data including XP, level, and token balance
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Verify user is authenticated
@@ -33,28 +33,40 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	try {
-		// TODO: Replace with actual Offcoin API call
-		// const member = await offcoinApi.findMemberByAlias(`puckstack:${puckstackUserId}`);
-		// if (!member) { error(404, 'No Offcoin member found with this Puckstack ID'); }
-		// await offcoinApi.addAlias(member.id, `wallet:${walletAddress}`);
+		const offcoin = getOffcoinClient();
+		const alias = `puckstack:${puckstackUserId}`;
 
-		// MOCK IMPLEMENTATION - simulates successful connection
-		// In production, this would call the Offcoin API
-		const mockMember = {
-			id: `mock-${puckstackUserId}`,
-			name: 'EcoBuilder',
-			xp: 2450,
-			level: 5,
-			eco: 125,
-			role: 'Gardener',
-			aliases: [`puckstack:${puckstackUserId}`, `wallet:${walletAddress.toLowerCase()}`]
-		};
+		// Get member by Puckstack alias
+		const member = await offcoin.members.get(alias);
+
+		// Add wallet alias if not already present
+		const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
+		if (!member.aliases?.includes(walletAlias)) {
+			await offcoin.members.addAlias(alias, walletAlias);
+		}
+
+		// Get XP/level and token balance in parallel
+		const [xpData, balanceData] = await Promise.all([
+			offcoin.members.getXp(alias),
+			offcoin.members.getBalance(alias)
+		]);
 
 		return json({
 			success: true,
-			member: mockMember
+			member: {
+				id: member.id,
+				name: member.name,
+				xp: xpData.xp,
+				level: xpData.level,
+				eco: balanceData.balance,
+				role: (member.metadata as Record<string, string>)?.role ?? 'Member',
+				aliases: member.aliases || []
+			}
 		});
 	} catch (err) {
+		if (err instanceof NotFoundError) {
+			error(404, 'No Offcoin member found with this Puckstack ID. Please ensure you have created a Puckstack account first.');
+		}
 		console.error('Offcoin connection error:', err);
 		error(500, 'Failed to connect to Offcoin');
 	}

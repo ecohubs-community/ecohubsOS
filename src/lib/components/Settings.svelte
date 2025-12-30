@@ -32,7 +32,7 @@
 		<div class="flex-1 space-y-8 overflow-y-auto p-6">
 			<section class="space-y-3">
 				<h3 class="flex items-center gap-2 text-sm font-bold tracking-wider uppercase opacity-70">
-					<Monitor size={14} /> UI Contrast
+					<Icon icon="tabler:contrast" class="h-4 w-4" /> UI Contrast
 				</h3>
 				<div class="grid grid-cols-3 gap-3">
 					<button
@@ -53,7 +53,7 @@
 						class:border-transparent={os.contrastMode !== 'light'}
 						onclick={() => (os.contrastMode = 'light')}
 					>
-						<Icon icon="tabler:moon" class="text-solar-400" />	
+						<Icon icon="tabler:snowflake" class="text-solar-400" />	
 						<span class="text-sm">Frost (Light)</span>
 					</button>
 
@@ -64,7 +64,7 @@
 						class:border-transparent={os.contrastMode !== 'dark'}
 						onclick={() => (os.contrastMode = 'dark')}
 					>
-						<Icon icon="tabler:sun" class="text-solar-400" />
+						<Icon icon="tabler:moon" class="text-solar-400" />
 						<span class="text-sm">Smoke (Dark)</span>
 					</button>
 				</div>

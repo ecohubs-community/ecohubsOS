@@ -1,10 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { getOffcoinClient } from '$lib/server/offcoin';
+import { NotFoundError } from '@offcoin/sdk';
 
 /**
  * Get Offcoin member data by Puckstack User ID
- *
- * TODO: Replace mock implementation with actual Offcoin API calls
  */
 export const GET: RequestHandler = async ({ url, locals }) => {
 	// Verify user is authenticated
@@ -19,26 +19,34 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	}
 
 	try {
-		// TODO: Replace with actual Offcoin API call
-		// const member = await offcoinApi.findMemberByAlias(`puckstack:${puckstackUserId}`);
-		// if (!member) { error(404, 'Member not found'); }
+		const offcoin = getOffcoinClient();
+		const alias = `puckstack:${puckstackUserId}`;
 
-		// MOCK IMPLEMENTATION
-		const mockMember = {
-			id: `mock-${puckstackUserId}`,
-			name: 'EcoBuilder',
-			xp: 2450,
-			level: 5,
-			eco: 125,
-			role: 'Gardener',
-			aliases: [`puckstack:${puckstackUserId}`, `wallet:${locals.user.address.toLowerCase()}`]
-		};
+		// Get member data
+		const member = await offcoin.members.get(alias);
+
+		// Get XP/level and token balance in parallel
+		const [xpData, balanceData] = await Promise.all([
+			offcoin.members.getXp(alias),
+			offcoin.members.getBalance(alias)
+		]);
 
 		return json({
 			success: true,
-			member: mockMember
+			member: {
+				id: member.id,
+				name: member.name,
+				xp: xpData.xp,
+				level: xpData.level,
+				eco: balanceData.balance,
+				role: (member.metadata as Record<string, string>)?.role ?? 'Member',
+				aliases: member.aliases || []
+			}
 		});
 	} catch (err) {
+		if (err instanceof NotFoundError) {
+			error(404, 'Member not found');
+		}
 		console.error('Offcoin member lookup error:', err);
 		error(500, 'Failed to fetch member data');
 	}

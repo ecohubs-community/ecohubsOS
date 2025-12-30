@@ -170,7 +170,7 @@
 															: 'Locked'}
 												</p>
 											</div>
-											{#if !sub.completed}
+											{#if !sub.completed || sub.actions[0]?.type === 'url'}
 												{@const btn = getActionButton(sub)}
 												{#if btn}
 													<button

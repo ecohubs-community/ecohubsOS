@@ -40,12 +40,12 @@ export function createDefaultSteps(): Step[] {
 				{
 					id: 'puckstack-signup',
 					title: 'Sign up for Puckstack',
-					actions: [{ type: 'url', url: 'https://puckstack.xyz/signup' }]
+					actions: [{ type: 'url', url: 'https://puckstack.xyz/join' }]
 				},
 				{
 					id: 'puckstack-copy-id',
 					title: 'Copy your Puckstack User ID from settings',
-					actions: [{ type: 'url', url: 'https://puckstack.xyz/settings' }]
+					actions: [{ type: 'url', url: 'https://puckstack.xyz/ecohubs/profile' }]
 				},
 				{
 					id: 'offcoin-connect',
@@ -120,11 +120,6 @@ export function createDefaultSteps(): Step[] {
 					actions: [{ type: 'none' }]
 				}
 			]
-		},
-		{
-			id: 'admin-login',
-			title: 'Login with wallet at Admin area',
-			url: 'https://ecohubs.community/admin'
 		},
 		{
 			id: 'snapshot',

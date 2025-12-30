@@ -15,6 +15,7 @@ export interface OffcoinMember {
 	eco: number;
 	role: string;
 	aliases: string[];
+	avatarUrl?: string;
 }
 
 interface StoredConnection {
@@ -63,6 +64,7 @@ class OffcoinState {
 	eco = $derived(this.member?.eco ?? 0);
 	role = $derived(this.member?.role ?? 'Member');
 	name = $derived(this.member?.name ?? 'Anonymous');
+	avatarUrl = $derived(this.member?.avatarUrl ?? null);
 
 	constructor() {
 		// Load saved connection on init (client-side only)
