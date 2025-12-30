@@ -1,6 +1,7 @@
 import type { Component } from 'svelte';
 import Onboarding from './apps/onboarding/Onboarding.svelte';
 import OnboardingFavicon from './apps/onboarding/favicon.svg';
+import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
 
 export interface AppDefinition {
 	id: string;
@@ -11,6 +12,7 @@ export interface AppDefinition {
 	isInternalApp?: boolean;
 	component?: Component;
 	description: string;
+	hidden?: boolean; // Hidden apps don't appear in the dock
 }
 
 export interface Notification {
@@ -30,6 +32,16 @@ export const MOCK_APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: Onboarding,
 		description: 'Start your journey. Complete steps to earn permissions.'
+	},
+	{
+		id: 'offcoin-connect',
+		name: 'Connect to Offcoin',
+		icon: 'link-2',
+		category: 'system',
+		isInternalApp: true,
+		component: OffcoinConnect,
+		description: 'Link your wallet to Offcoin to unlock XP and rewards.',
+		hidden: true // Only accessible via onboarding, not shown in dock
 	},
 	{
 		id: 'snapshot',

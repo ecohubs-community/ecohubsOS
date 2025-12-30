@@ -1,8 +1,9 @@
-export type ActionType = 'url' | 'email' | 'none';
+export type ActionType = 'url' | 'email' | 'none' | 'app';
 
 export interface SubStepAction {
 	type: ActionType;
 	url?: string;
+	appId?: string; // For 'app' type - opens an internal app in ecohubsOS
 	email?: {
 		to: string | string[];
 		subject: string;
@@ -32,6 +33,27 @@ const STORAGE_KEY = 'onboarding-steps';
 
 export function createDefaultSteps(): Step[] {
 	return [
+		{
+			id: 'puckstack',
+			title: 'Create Puckstack Account & Connect Offcoin',
+			subSteps: [
+				{
+					id: 'puckstack-signup',
+					title: 'Sign up for Puckstack',
+					actions: [{ type: 'url', url: 'https://puckstack.xyz/signup' }]
+				},
+				{
+					id: 'puckstack-copy-id',
+					title: 'Copy your Puckstack User ID from settings',
+					actions: [{ type: 'url', url: 'https://puckstack.xyz/settings' }]
+				},
+				{
+					id: 'offcoin-connect',
+					title: 'Link your wallet to Puckstack (Offcoin)',
+					actions: [{ type: 'app', appId: 'offcoin-connect' }]
+				}
+			]
+		},
 		{
 			id: 'discord',
 			title: 'Join Private Discord Channel',
@@ -189,16 +211,45 @@ export function markStepCompleted(steps: Step[], stepId: string): Step[] {
 	return next;
 }
 
-export function getActionButton(sub: SubStep): { label: string; type: ActionType } | null {
+/**
+ * Mark a substep as completed by its ID (searches all steps)
+ * Useful for app actions that complete asynchronously
+ */
+export function markSubStepCompletedById(subStepId: string): void {
+	const steps = loadSteps();
+	for (const step of steps) {
+		if (!step.subSteps) continue;
+		const subStep = step.subSteps.find((s) => s.id === subStepId);
+		if (subStep) {
+			const updated = markSubStepCompleted(steps, step.id, subStepId);
+			saveSteps(updated);
+			// Dispatch custom event so OnboardingCard can update its state
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('onboarding-step-completed', {
+					detail: { stepId: step.id, subStepId }
+				}));
+			}
+			return;
+		}
+	}
+}
+
+export function getActionButton(sub: SubStep): { label: string; type: ActionType; appId?: string } | null {
 	if (!sub.actions || sub.actions.length === 0) return null;
 	const action = sub.actions[0];
 	if (action.type === 'url') return { label: 'Open Site', type: 'url' };
 	if (action.type === 'email') return { label: 'Request', type: 'email' };
+	if (action.type === 'app') return { label: 'Open', type: 'app', appId: action.appId };
 	if (action.type === 'none') return { label: 'Mark Done', type: 'none' };
 	return null;
 }
 
-export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'none'> {
+/**
+ * Perform an action for a sub-step
+ * Note: 'app' type actions should be handled by the UI component (opens app in ecohubsOS)
+ * This function returns 'app' for app actions so the caller can handle opening the app
+ */
+export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'none' | 'app'> {
 	const action = sub.actions[0];
 	if (!action) return 'none';
 	if (action.type === 'url' && action.url) {
@@ -221,6 +272,10 @@ export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'n
 		} catch {
 			return 'error';
 		}
+	}
+	if (action.type === 'app') {
+		// Return 'app' so the caller can handle opening the app via os.openApp()
+		return 'app';
 	}
 	if (action.type === 'none') {
 		return 'done';

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
-	import { Bell, LayoutGrid, Battery, Wifi, Leaf } from 'lucide-svelte';
 	import { os } from '$lib/os.svelte';
 	import { auth } from '$lib/auth.svelte';
-	import { MOCK_APPS, MOCK_USER, MOCK_NOTIFICATIONS } from '$lib/data';
+	import { offcoin } from '$lib/offcoin.svelte';
+	import { MOCK_APPS, MOCK_NOTIFICATIONS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
+	import Icon from '@iconify/svelte';
 
 	let { data } = $props();
 
@@ -61,14 +62,20 @@
 					</div>
 				</div>
 				<div class="flex items-center gap-4">
-					<span class="flex items-center gap-1.5">
-						<Leaf size={12} class="text-green-400" />
-						{MOCK_USER.xp} XP
-					</span>
+					{#if offcoin.isConnected}
+						<span class="flex items-center gap-1.5">
+							<Icon icon="tabler:leaf" class="h-3 w-3 text-green-400" />
+							{offcoin.xp} XP
+						</span>
+						<span class="flex items-center gap-1.5">
+							<Icon icon="tabler:coins" class="h-3 w-3 text-amber-400" />
+							{offcoin.eco} ECO
+						</span>
+					{/if}
 					<span>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
 					<div class="flex gap-2 opacity-70">
-						<Wifi size={14} />
-						<Battery size={14} />
+						<Icon icon="tabler:wifi" class="h-5 w-5" />
+						<Icon icon="tabler:battery-4" class="h-5 w-5" />
 					</div>
 				</div>
 			</header>
@@ -84,22 +91,34 @@
 						<div
 							class="from-solar-400 to-solar-600 flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br font-bold text-solar-900"
 						>
-							{MOCK_USER.name[0]}
+							{offcoin.isConnected ? offcoin.name[0] : auth.shortAddress?.[0] ?? '?'}
 						</div>
 						<div>
-							<h3 class="leading-tight font-bold text-white">{MOCK_USER.name}</h3>
-							<p class="text-solar-300 text-xs">{MOCK_USER.role} • Lvl {MOCK_USER.level}</p>
+							<h3 class="leading-tight font-bold text-white">
+								{offcoin.isConnected ? offcoin.name : auth.shortAddress ?? 'Anonymous'}
+							</h3>
+							{#if offcoin.isConnected}
+								<p class="text-solar-300 text-xs">{offcoin.role} • Lvl {offcoin.level}</p>
+							{:else}
+								<p class="text-solar-300 text-xs">Member</p>
+							{/if}
 						</div>
 					</div>
-					<div class="space-y-2">
-						<div class="flex justify-between text-xs opacity-70">
-							<span>Next Level</span>
-							<span>75%</span>
+					{#if offcoin.isConnected}
+						<div class="space-y-2">
+							<div class="flex justify-between text-xs opacity-70">
+								<span>Next Level</span>
+								<span>75%</span>
+							</div>
+							<div class="h-1.5 w-full overflow-hidden rounded-full bg-black/20">
+								<div class="from-solar-400 h-full w-[75%] bg-linear-to-r to-gold-400"></div>
+							</div>
 						</div>
-						<div class="h-1.5 w-full overflow-hidden rounded-full bg-black/20">
-							<div class="from-solar-400 h-full w-[75%] bg-linear-to-r to-gold-400"></div>
-						</div>
-					</div>
+					{:else}
+						<p class="text-solar-300/60 text-xs">
+							Connect to Offcoin via onboarding to see your XP and level.
+						</p>
+					{/if}
 				</div>
 
 				<div
@@ -108,7 +127,7 @@
 				>
 					<div class="mb-3 flex items-center justify-between">
 						<h3 class="flex items-center gap-2 font-bold text-white">
-							<Bell size={14} /> Updates
+							<Icon icon="tabler:bell" class="h-4 w-4" /> Updates
 						</h3>
 						<span class="rounded-md bg-red-500/20 px-1.5 py-0.5 text-xs text-red-300"
 							>{MOCK_NOTIFICATIONS.length}</span
@@ -139,7 +158,7 @@
 					class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
 					in:fly={{ y: 50, duration: 800, delay: 500 }}
 				>
-					{#each MOCK_APPS as app (app.id)}
+					{#each MOCK_APPS.filter((a) => !a.hidden) as app (app.id)}
 						<button
 							class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
 							onclick={() => os.openApp(app.id)}
@@ -201,7 +220,7 @@
 						<div
 							class="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
 						>
-							<LayoutGrid size={24} class="opacity-70 group-hover:opacity-100" />
+							<Icon icon="tabler:layout-grid" class="opacity-70 group-hover:opacity-100" />
 						</div>
 					</button>
 				</div>

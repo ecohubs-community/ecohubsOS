@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
+	import { os } from '$lib/os.svelte';
 	// Props for future composition
 	let { title = 'Onboarding', defaultHeightVh = 65 } = $props();
 
@@ -35,10 +36,17 @@
 	}
 
 	async function handleSubAction(stepId: string, sub: SubStep) {
+		const btn = getActionButton(sub);
 		const result = await performAction(sub);
-		if (result === 'done') {
+
+		if (result === 'app' && btn?.appId) {
+			// Open the app in ecohubsOS - the app will handle completion via markSubStepCompletedById
+			os.openApp(btn.appId);
+			// Don't mark as completed here - the app will call markSubStepCompletedById on success
+		} else if (result === 'done') {
 			steps = markSubStepCompleted(steps, stepId, sub.id);
 		}
+		// 'error' result: don't mark as completed
 	}
 
 	function toggle() {
@@ -57,6 +65,16 @@
 		} else {
 			isExpanded = !isCompleted;
 		}
+
+		// Listen for step completion events from apps (e.g., OffcoinConnect)
+		const handleStepCompleted = () => {
+			steps = loadSteps();
+		};
+		window.addEventListener('onboarding-step-completed', handleStepCompleted);
+
+		return () => {
+			window.removeEventListener('onboarding-step-completed', handleStepCompleted);
+		};
 	});
 </script>
 

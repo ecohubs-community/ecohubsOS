@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
-	import { X, Check, Monitor, Sun, Moon, Wand2 } from 'lucide-svelte';
 	import { os, WALLPAPERS } from '$lib/os.svelte';
+	import Icon from '@iconify/svelte';
 
 	function close() {
 		os.closeApp();
@@ -25,7 +25,7 @@
 		>
 			<span class="font-medium">System Settings</span>
 			<button onclick={close} class="rounded-full p-1.5 hover:bg-white/10">
-				<X size={16} />
+				<Icon icon="tabler:x" class="h-4 w-4" />
 			</button>
 		</div>
 
@@ -42,7 +42,7 @@
 						class:border-transparent={os.contrastMode !== 'auto'}
 						onclick={() => (os.contrastMode = 'auto')}
 					>
-						<Wand2 size={20} class="text-gold-400" />
+						<Icon icon="tabler:wand" class="text-gold-400" />
 						<span class="text-sm">Auto</span>
 					</button>
 
@@ -53,7 +53,7 @@
 						class:border-transparent={os.contrastMode !== 'light'}
 						onclick={() => (os.contrastMode = 'light')}
 					>
-						<Moon size={20} />
+						<Icon icon="tabler:moon" class="text-solar-400" />	
 						<span class="text-sm">Frost (Light)</span>
 					</button>
 
@@ -64,7 +64,7 @@
 						class:border-transparent={os.contrastMode !== 'dark'}
 						onclick={() => (os.contrastMode = 'dark')}
 					>
-						<Sun size={20} />
+						<Icon icon="tabler:sun" class="text-solar-400" />
 						<span class="text-sm">Smoke (Dark)</span>
 					</button>
 				</div>
@@ -99,7 +99,7 @@
 
 							{#if os.currentWallpaper.id === wp.id}
 								<div class="absolute inset-0 flex items-center justify-center bg-black/40">
-									<Check class="text-gold-400 drop-shadow-md" size={24} />
+									<Icon icon="tabler:check" class="text-gold-400 drop-shadow-md" />
 								</div>
 							{/if}
 

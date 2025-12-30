@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { fly } from 'svelte/transition';
-	import { Fingerprint, Wallet, AlertCircle, LoaderCircle, Shield } from 'lucide-svelte';
+	import Icon from '@iconify/svelte';
 
 	let loading = $state(false);
 	let error = $state('');
@@ -84,7 +84,7 @@
 		<div
 			class="from-solar-400 shadow-solar-500/20 mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-tr to-gold-400 shadow-lg"
 		>
-			<Fingerprint class="text-solar-900" size={32} />
+			<Icon icon="tabler:fingerprint" class="text-solar-900 w-8 h-8" />
 		</div>
 
 		<!-- Title -->
@@ -102,7 +102,7 @@
 			<div
 				class="flex w-full items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-left text-sm text-red-200"
 			>
-				<AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0" />
+				<Icon icon="tabler:alert-circle" class="mt-0.5 h-4 w-4 shrink-0" />
 				<span>{error}</span>
 			</div>
 		{/if}
@@ -112,7 +112,7 @@
 			<div
 				class="flex w-full items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"
 			>
-				<Wallet class="h-4 w-4 flex-shrink-0" />
+				<Icon icon="tabler:wallet" class="h-4 w-4 shrink-0" />
 				<span class="font-mono"
 					>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span
 				>
@@ -127,10 +127,10 @@
 				class="group flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 font-medium text-white transition-all hover:bg-white/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{#if loading}
-					<LoaderCircle class="h-5 w-5 animate-spin" />
+					<Icon icon="tabler:loader-2" class="h-5 w-5 animate-spin" />
 					Authenticating...
 				{:else}
-					<Shield class="h-5 w-5" />
+					<Icon icon="tabler:shield-check" class="h-5 w-5" />
 					Connect Wallet & Verify
 				{/if}
 			</button>

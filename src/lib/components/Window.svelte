@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
 	import { elasticOut } from 'svelte/easing';
-	import { X, ExternalLink } from 'lucide-svelte';
 	import { os } from '$lib/os.svelte';
 	import Icon from '@iconify/svelte';
 	import { FaviconExtractor } from '@iocium/favicon-extractor';
@@ -60,7 +59,7 @@
 					onclick={close}
 					class="rounded-full p-1.5 text-white/50 transition-colors hover:bg-red-500/20 hover:text-red-400"
 				>
-					<X size={16} />
+					<Icon icon="tabler:x" class="h-4 w-4" />
 				</button>
 				<div
 					class="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-black/20"
@@ -89,7 +88,7 @@
 						onclick={openNative}
 						class="text-solar-300 flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs transition-colors hover:bg-white/10 hover:text-white"
 					>
-						Open Native <ExternalLink size={12} />
+						Open Native <Icon icon="tabler:external-link" class="h-4 w-4" />
 					</button>
 				{/if}
 			</div>
