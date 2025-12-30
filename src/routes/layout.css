@@ -13,6 +13,10 @@ body {
 	@apply overflow-hidden font-sans text-white antialiased;
 }
 
+button {
+	@apply cursor-pointer;
+}
+
 /* --- DYNAMIC THEME CLASSES --- */
 
 /* 1. Light Glass (Default for Dark Backgrounds) */

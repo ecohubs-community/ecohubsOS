@@ -2,12 +2,21 @@
 	import { fly } from 'svelte/transition';
 	import { Bell, LayoutGrid, Battery, Wifi, Leaf } from 'lucide-svelte';
 	import { os } from '$lib/os.svelte';
+	import { auth } from '$lib/auth.svelte';
 	import { MOCK_APPS, MOCK_USER, MOCK_NOTIFICATIONS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
-	import LoginScreen from '$lib/components/LoginScreen.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
+
+	let { data } = $props();
+
+	// Initialize auth store with server data
+	$effect(() => {
+		if (data.user) {
+			auth.setUser(data.user);
+		}
+	});
 
 	// Derived state for the active app object
 	let activeApp = $derived(MOCK_APPS.find((a) => a.id === os.activeWindow));
@@ -34,16 +43,13 @@
 </svelte:head>
 
 <main
-	class="text-solar-50 selection:bg-solar-500/30 h-screen w-screen overflow-hidden bg-solar-900 bg-[url('/wallpapers/solar01.webp')] bg-cover"
+	class="text-solar-50 selection:bg-solar-500/30 h-screen w-screen overflow-hidden bg-solar-900"
 >
-	{#if !os.isLoggedIn}
-		<LoginScreen />
-	{:else}
-		<div
-			class="relative flex h-full w-full flex-col bg-cover bg-center transition-all duration-700 {os.uiTheme}"
-			style:background-image={os.currentWallpaper.url ? `url(${os.currentWallpaper.url})` : 'none'}
-			style:background-color={os.currentWallpaper.color || '#0f2e2e'}
-		>
+	<div
+		class="relative flex h-full w-full flex-col bg-cover bg-center transition-all duration-700 {os.uiTheme}"
+		style:background-image={os.currentWallpaper.url ? `url(${os.currentWallpaper.url})` : 'none'}
+		style:background-color={os.currentWallpaper.color || '#0f2e2e'}
+	>
 			<header
 				class="text-solar-100/80 z-20 flex h-8 items-center justify-between bg-black/20 px-4 text-xs font-medium backdrop-blur-md"
 			>
@@ -201,11 +207,10 @@
 				</div>
 			</div>
 
-			{#if os.activeWindow === 'settings'}
-				<Settings />
-			{:else if os.activeWindow && activeApp}
-				<Window app={activeApp!} />
-			{/if}
-		</div>
-	{/if}
+		{#if os.activeWindow === 'settings'}
+			<Settings />
+		{:else if os.activeWindow && activeApp}
+			<Window app={activeApp!} />
+		{/if}
+	</div>
 </main>

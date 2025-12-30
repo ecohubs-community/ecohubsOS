@@ -30,11 +30,10 @@ export const WALLPAPERS = [
 
 class OSState {
 	// State
-	isLoggedIn = $state(false);
 	activeWindow = $state<string | null>(null); // App ID
 	dockOpen = $state(true);
 
-	// User State (Mock Offcoin integration)
+	// User State
 	xp = $state(1250);
 	notifications = $state([...MOCK_NOTIFICATIONS]);
 
@@ -57,9 +56,10 @@ class OSState {
 
 	constructor() {}
 
-	login() {
-		this.isLoggedIn = true;
-		// Play sound or trigger anim logic here
+	async logout() {
+		await fetch('/api/auth/logout', { method: 'POST' });
+		// The server will redirect to /login
+		window.location.href = '/login';
 	}
 
 	openApp(appId: string) {

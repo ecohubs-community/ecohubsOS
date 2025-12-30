@@ -56,7 +56,10 @@
 	"dependencies": {
 		"@iconify/svelte": "^5.1.0",
 		"@iocium/favicon-extractor": "^1.1.0",
+		"@safe-global/api-kit": "^4.0.1",
 		"better-sqlite3": "^12.5.0",
+		"ethers": "^6.16.0",
+		"jose": "^6.1.3",
 		"lucide-svelte": "^0.562.0",
 		"nodemailer": "^7.0.12"
 	},
