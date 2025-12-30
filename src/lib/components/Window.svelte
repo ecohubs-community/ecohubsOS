@@ -48,7 +48,9 @@
 		class="relative flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-solar-900/80 shadow-2xl ring-1 ring-white/20 backdrop-blur-2xl"
 		transition:scale={{ duration: 400, easing: elasticOut, start: 0.95 }}
 		onclick={(e) => e.stopPropagation()}
+		onkeydown={(e) => e.stopPropagation()}
 		role="dialog"
+		tabindex="0"
 	>
 		<div
 			class="flex h-12 shrink-0 items-center justify-between border-b border-white/10 bg-white/5 px-4"
