@@ -1,4 +1,4 @@
-export type ActionType = 'url' | 'email' | 'none' | 'app';
+export type ActionType = 'url' | 'email' | 'none' | 'app' | 'discord';
 
 export interface SubStepAction {
 	type: ActionType;
@@ -56,31 +56,16 @@ export function createDefaultSteps(): Step[] {
 		},
 		{
 			id: 'discord',
-			title: 'Join Private Discord Channel',
+			title: 'Connect Discord & Join Community',
 			subSteps: [
 				{
-					id: 'discord-request',
-					title: 'Request Access',
-					actions: [
-						{
-							type: 'email',
-							email: {
-								to: 'admin@ecohubs.community',
-								subject: 'Discord Access Request',
-								text: 'Please grant me access to the private Discord channel.',
-								html: '<p>Please grant me access to the private Discord channel.</p>'
-							}
-						}
-					]
-				},
-				{
-					id: 'discord-join',
-					title: 'Join Channel',
-					actions: [{ type: 'none' }]
+					id: 'discord-connect',
+					title: 'Connect your Discord account',
+					actions: [{ type: 'discord' }]
 				},
 				{
 					id: 'discord-introduce',
-					title: 'Introduce yourself in the channel',
+					title: 'Introduce yourself in the community',
 					actions: [{ type: 'none' }]
 				}
 			]
@@ -235,6 +220,7 @@ export function getActionButton(sub: SubStep): { label: string; type: ActionType
 	if (action.type === 'url') return { label: 'Open Site', type: 'url' };
 	if (action.type === 'email') return { label: 'Request', type: 'email' };
 	if (action.type === 'app') return { label: 'Open', type: 'app', appId: action.appId };
+	if (action.type === 'discord') return { label: 'Connect', type: 'discord' };
 	if (action.type === 'none') return { label: 'Mark Done', type: 'none' };
 	return null;
 }
@@ -244,7 +230,7 @@ export function getActionButton(sub: SubStep): { label: string; type: ActionType
  * Note: 'app' type actions should be handled by the UI component (opens app in ecohubsOS)
  * This function returns 'app' for app actions so the caller can handle opening the app
  */
-export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'none' | 'app'> {
+export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'none' | 'app' | 'discord'> {
 	const action = sub.actions[0];
 	if (!action) return 'none';
 	if (action.type === 'url' && action.url) {
@@ -271,6 +257,10 @@ export async function performAction(sub: SubStep): Promise<'done' | 'error' | 'n
 	if (action.type === 'app') {
 		// Return 'app' so the caller can handle opening the app via os.openApp()
 		return 'app';
+	}
+	if (action.type === 'discord') {
+		// Return 'discord' so the caller can handle fetching the invite link
+		return 'discord';
 	}
 	if (action.type === 'none') {
 		return 'done';

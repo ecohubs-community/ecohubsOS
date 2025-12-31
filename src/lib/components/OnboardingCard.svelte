@@ -11,6 +11,7 @@
 	let contentId = $state(`onboarding-content-${Math.floor(Math.random() * 1e6)}`);
 
 	// Hierarchical steps and actions
+	import { browser } from '$app/environment';
 	import {
 		createDefaultSteps,
 		loadSteps,
@@ -18,6 +19,7 @@
 		isSubStepEnabled,
 		markSubStepCompleted,
 		markStepCompleted,
+		markSubStepCompletedById,
 		getActionButton,
 		performAction
 	} from '$lib/onboarding/stepManager';
@@ -43,6 +45,9 @@
 			// Open the app in ecohubsOS - the app will handle completion via markSubStepCompletedById
 			os.openApp(btn.appId);
 			// Don't mark as completed here - the app will call markSubStepCompletedById on success
+		} else if (result === 'discord') {
+			// Redirect to Discord OAuth2 flow
+			window.location.href = '/api/discord/auth';
 		} else if (result === 'done') {
 			steps = markSubStepCompleted(steps, stepId, sub.id);
 		}
@@ -64,6 +69,26 @@
 			isExpanded = JSON.parse(persisted);
 		} else {
 			isExpanded = !isCompleted;
+		}
+
+		// Check if returning from Discord OAuth (via query param or cookie)
+		if (browser) {
+			const urlParams = new URLSearchParams(window.location.search);
+			const hasDiscordQueryParam = urlParams.get('discord') === 'connected';
+			const hasDiscordCookie = document.cookie.includes('discord_connected=');
+
+			if (hasDiscordQueryParam || hasDiscordCookie) {
+				// Mark Discord step as completed
+				markSubStepCompletedById('discord-connect');
+				// Reload steps to reflect the change
+				steps = loadSteps();
+				// Clean up URL if query param present
+				if (hasDiscordQueryParam) {
+					window.history.replaceState({}, '', window.location.pathname);
+				}
+				// Clean up cookie
+				document.cookie = 'discord_connected=; path=/; max-age=0';
+			}
 		}
 
 		// Listen for step completion events from apps (e.g., OffcoinConnect)
