@@ -8,21 +8,38 @@
 		id: string;
 		fullName: string;
 		email: string;
-		location: string | null;
-		timeAvailability: string | null;
-		languages: string | null;
-		motivation: string;
-		contribution: string;
-		experienceAreas: string | null;
-		proudProject: string | null;
-		resonanceCombined: string | null;
-		natureCommunityMeaning: string | null;
-		values: string | null;
+		formData: string; // JSON string containing all form fields
 		status: string;
 		submittedAt: string;
 		snapshotProposalId: string | null;
 		snapshotProposalLink: string | null;
 		aiRecommendation: string | null;
+	}
+
+	// Parsed form data interface (flexible to support all 41+ fields)
+	interface FormData {
+		fullName: string;
+		email: string;
+		motivation?: string;
+		contribution?: string;
+		location?: string;
+		timeAvailability?: string;
+		languages?: string;
+		experienceAreas?: string;
+		proudProject?: string;
+		resonanceCombined?: string;
+		natureCommunityMeaning?: string;
+		values?: string;
+		[key: string]: string | undefined; // Allow any additional fields
+	}
+
+	function parseFormData(app: Application): FormData {
+		try {
+			return JSON.parse(app.formData);
+		} catch {
+			// Fallback for legacy data or parse errors
+			return { fullName: app.fullName, email: app.email };
+		}
 	}
 
 	interface SnapshotConfig {
@@ -221,25 +238,26 @@
 	}
 
 	function formatProposalBody(app: Application): string {
+		const data = parseFormData(app);
 		const sections = [
 			`## Applicant Information`,
-			`- **Name:** ${app.fullName}`,
-			`- **Email:** ${app.email}`,
-			app.location ? `- **Location:** ${app.location}` : null,
-			app.timeAvailability ? `- **Time Availability:** ${app.timeAvailability}` : null,
-			app.languages ? `- **Languages:** ${app.languages}` : null,
+			`- **Name:** ${data.fullName}`,
+			`- **Email:** ${data.email}`,
+			data.location ? `- **Location:** ${data.location}` : null,
+			data.timeAvailability ? `- **Time Availability:** ${data.timeAvailability}` : null,
+			data.languages ? `- **Languages:** ${data.languages}` : null,
 			``,
 			`## Motivation`,
-			app.motivation,
+			data.motivation || 'Not provided',
 			``,
 			`## Contribution`,
-			app.contribution,
-			app.experienceAreas ? `\n## Experience Areas\n${app.experienceAreas}` : null,
-			app.proudProject ? `\n## Proud Project\n${app.proudProject}` : null,
-			app.values ? `\n## Values\n${app.values}` : null,
-			app.resonanceCombined ? `\n## Resonance\n${app.resonanceCombined}` : null,
-			app.natureCommunityMeaning
-				? `\n## Nature & Community Meaning\n${app.natureCommunityMeaning}`
+			data.contribution || 'Not provided',
+			data.experienceAreas ? `\n## Experience Areas\n${data.experienceAreas}` : null,
+			data.proudProject ? `\n## Proud Project\n${data.proudProject}` : null,
+			data.values ? `\n## Values\n${data.values}` : null,
+			data.resonanceCombined ? `\n## Resonance\n${data.resonanceCombined}` : null,
+			data.natureCommunityMeaning
+				? `\n## Nature & Community Meaning\n${data.natureCommunityMeaning}`
 				: null,
 			app.aiRecommendation ? `\n## AI Recommendation\n${app.aiRecommendation}` : null,
 			``,
@@ -355,40 +373,45 @@
 
 					<!-- Expanded Content -->
 					{#if expandedId === app.id}
+						{@const formData = parseFormData(app)}
 						<div class="border-t border-white/10 p-4" transition:slide>
 							<!-- Motivation Preview -->
-							<div class="mb-4">
-								<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Motivation</h4>
-								<p class="text-sm text-solar-100/80">
-									{app.motivation.length > 200
-										? app.motivation.slice(0, 200) + '...'
-										: app.motivation}
-								</p>
-							</div>
+							{#if formData.motivation}
+								<div class="mb-4">
+									<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Motivation</h4>
+									<p class="text-sm text-solar-100/80">
+										{formData.motivation.length > 200
+											? formData.motivation.slice(0, 200) + '...'
+											: formData.motivation}
+									</p>
+								</div>
+							{/if}
 
 							<!-- Contribution Preview -->
-							<div class="mb-4">
-								<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Contribution</h4>
-								<p class="text-sm text-solar-100/80">
-									{app.contribution.length > 200
-										? app.contribution.slice(0, 200) + '...'
-										: app.contribution}
-								</p>
-							</div>
+							{#if formData.contribution}
+								<div class="mb-4">
+									<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Contribution</h4>
+									<p class="text-sm text-solar-100/80">
+										{formData.contribution.length > 200
+											? formData.contribution.slice(0, 200) + '...'
+											: formData.contribution}
+									</p>
+								</div>
+							{/if}
 
 							<!-- Additional Info -->
-							{#if app.location || app.languages}
+							{#if formData.location || formData.languages}
 								<div class="mb-4 flex flex-wrap gap-2 text-xs text-solar-300/60">
-									{#if app.location}
+									{#if formData.location}
 										<span class="flex items-center gap-1">
 											<Icon icon="tabler:map-pin" class="h-3 w-3" />
-											{app.location}
+											{formData.location}
 										</span>
 									{/if}
-									{#if app.languages}
+									{#if formData.languages}
 										<span class="flex items-center gap-1">
 											<Icon icon="tabler:language" class="h-3 w-3" />
-											{app.languages}
+											{formData.languages}
 										</span>
 									{/if}
 								</div>

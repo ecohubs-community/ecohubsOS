@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 		const body = await request.json();
 
 		// Validate required fields
-		const { fullName, email, motivation, contribution } = body;
+		const { fullName, email } = body;
 
 		if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
 			error(400, 'Full name is required');
@@ -87,30 +87,13 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 			error(400, 'Valid email is required');
 		}
 
-		if (!motivation || typeof motivation !== 'string' || motivation.trim().length === 0) {
-			error(400, 'Motivation is required');
-		}
-
-		if (!contribution || typeof contribution !== 'string' || contribution.trim().length === 0) {
-			error(400, 'Contribution is required');
-		}
-
-		// Insert application
+		// Insert application with all form data stored as JSON
 		const [newApplication] = await db
 			.insert(applications)
 			.values({
 				fullName: fullName.trim(),
 				email: email.trim().toLowerCase(),
-				location: body.location?.trim() || null,
-				timeAvailability: body.timeAvailability?.trim() || null,
-				languages: body.languages?.trim() || null,
-				motivation: motivation.trim(),
-				contribution: contribution.trim(),
-				experienceAreas: body.experienceAreas?.trim() || null,
-				proudProject: body.proudProject?.trim() || null,
-				resonanceCombined: body.resonanceCombined?.trim() || null,
-				natureCommunityMeaning: body.natureCommunityMeaning?.trim() || null,
-				values: body.values?.trim() || null
+				formData: JSON.stringify(body)
 			})
 			.returning();
 

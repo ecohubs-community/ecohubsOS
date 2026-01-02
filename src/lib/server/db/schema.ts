@@ -11,18 +11,12 @@ export const applications = sqliteTable('applications', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
+	// Core identifying fields (kept for querying)
 	fullName: text('full_name').notNull(),
 	email: text('email').notNull(),
-	location: text('location'),
-	timeAvailability: text('time_availability'),
-	languages: text('languages'),
-	motivation: text('motivation').notNull(),
-	contribution: text('contribution').notNull(),
-	experienceAreas: text('experience_areas'),
-	proudProject: text('proud_project'),
-	resonanceCombined: text('resonance_combined'),
-	natureCommunityMeaning: text('nature_community_meaning'),
-	values: text('values'),
+	// All form data stored as JSON (supports all 41+ fields)
+	formData: text('form_data').notNull(),
+	// Administrative fields
 	status: text('status').notNull().default('pending'), // pending, proposal_created, approved, rejected
 	submittedAt: text('submitted_at')
 		.notNull()
