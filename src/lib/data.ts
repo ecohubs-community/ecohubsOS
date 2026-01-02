@@ -2,6 +2,8 @@ import type { Component } from 'svelte';
 import Onboarding from './apps/onboarding/Onboarding.svelte';
 import OnboardingFavicon from './apps/onboarding/favicon.svg';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
+import MembershipManager from './apps/membership-manager/MembershipManager.svelte';
+import MembershipManagerFavicon from './apps/membership-manager/favicon.svg';
 
 export interface AppDefinition {
 	id: string;
@@ -82,6 +84,15 @@ export const MOCK_APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.'
+	},
+	{
+		id: 'membership-manager',
+		name: 'Membership Applications',
+		icon: MembershipManagerFavicon,
+		category: 'ops',
+		isInternalApp: true,
+		component: MembershipManager,
+		description: 'Review and manage membership applications.'
 	}
 ];
 

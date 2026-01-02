@@ -58,6 +58,7 @@
 		"@iocium/favicon-extractor": "^1.1.0",
 		"@offcoin/sdk": "^0.0.9",
 		"@safe-global/api-kit": "^4.0.1",
+		"@snapshot-labs/snapshot.js": "^0.14.18",
 		"better-sqlite3": "^12.5.0",
 		"ethers": "^6.16.0",
 		"jose": "^6.1.3",
