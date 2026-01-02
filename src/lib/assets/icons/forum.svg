@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="forumGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Main chat bubble -->
+  <path d="M4 6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3 3v-3H6a2 2 0 0 1-2-2V6z" fill="url(#forumGrad)" stroke="#047857" stroke-width="1"/>
+  <!-- Second chat bubble -->
+  <path d="M10 16h6a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2" fill="none" stroke="#047857" stroke-width="1"/>
+  <path d="M10 16v2l2-2h6a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-2" fill="#a7f3d0" stroke="#047857" stroke-width="1"/>
+  <!-- Chat lines -->
+  <line x1="6" y1="7" x2="12" y2="7" stroke="#065f46" stroke-width="1" stroke-linecap="round"/>
+  <line x1="6" y1="10" x2="10" y2="10" stroke="#065f46" stroke-width="1" stroke-linecap="round"/>
+</svg>

@@ -3,6 +3,7 @@
 	import { os } from '$lib/os.svelte';
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
+	import { badges } from '$lib/badges.svelte';
 	import { MOCK_APPS, MOCK_NOTIFICATIONS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
@@ -17,6 +18,8 @@
 	$effect(() => {
 		if (data.user) {
 			auth.setUser(data.user);
+			// Refresh badge counts when user is authenticated
+			badges.refresh();
 		}
 	});
 
@@ -29,11 +32,6 @@
 		const interval = setInterval(() => (time = new Date()), 1000);
 		return () => clearInterval(interval);
 	});
-
-	function getFaviconUrl(url?: string) {
-		if (!url) return FallbackFavicon;
-		return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
-	}
 
 	function imgError(e: Event) {
 		(e.currentTarget as HTMLImageElement).src = FallbackFavicon;
@@ -124,6 +122,7 @@
 					in:fly={{ y: 50, duration: 800, delay: 500 }}
 				>
 					{#each MOCK_APPS.filter((a) => !a.hidden) as app (app.id)}
+						{@const badgeCount = badges.getCount(app.id)}
 						<button
 							class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
 							onclick={() => os.openApp(app.id)}
@@ -135,22 +134,20 @@
 							</span>
 
 							<div
-								class="from-solar-800 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br to-solar-900 text-2xl shadow-md transition-transform duration-200 group-hover:-translate-y-2"
+								class="from-solar-800 relative flex h-12 w-12 items-center justify-center overflow-visible rounded-xl bg-linear-to-br to-solar-900 text-2xl shadow-md transition-transform duration-200 group-hover:-translate-y-2"
 							>
-								{#if app.isInternalApp}
-									<img
-										src={typeof app.icon === 'string' ? app.icon : FallbackFavicon}
-										alt={app.name}
-										class="h-8 w-8"
-										onerror={imgError}
-									/>
-								{:else}
-									<img
-										src={getFaviconUrl(app.url)}
-										alt={app.name}
-										class="h-8 w-8"
-										onerror={imgError}
-									/>
+								<img
+									src={typeof app.icon === 'string' ? app.icon : FallbackFavicon}
+									alt={app.name}
+									class="h-8 w-8"
+									onerror={imgError}
+								/>
+								{#if badgeCount > 0}
+									<span
+										class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-lg"
+									>
+										{badgeCount > 99 ? '99+' : badgeCount}
+									</span>
 								{/if}
 							</div>
 

@@ -1,9 +1,13 @@
 import type { Component } from 'svelte';
-import Onboarding from './apps/onboarding/Onboarding.svelte';
-import OnboardingFavicon from './apps/onboarding/favicon.svg';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
 import MembershipManager from './apps/membership-manager/MembershipManager.svelte';
 import MembershipManagerFavicon from './apps/membership-manager/favicon.svg';
+import BlogManager from './apps/blog-manager/BlogManager.svelte';
+import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
+import VotingFavicon from './assets/icons/voting.svg';
+import ForumFavicon from './assets/icons/forum.svg';
+import PuckstackFavicon from './assets/icons/puckstack.svg';
+import NewsletterFavicon from './assets/icons/newsletter.svg';
 
 export interface AppDefinition {
 	id: string;
@@ -15,6 +19,7 @@ export interface AppDefinition {
 	component?: Component;
 	description: string;
 	hidden?: boolean; // Hidden apps don't appear in the dock
+	helpItems?: string[]; // List of help items for external apps
 }
 
 export interface Notification {
@@ -26,15 +31,6 @@ export interface Notification {
 }
 
 export const MOCK_APPS: AppDefinition[] = [
-	{
-		id: 'onboarding',
-		name: 'Pathfinder',
-		icon: OnboardingFavicon,
-		category: 'system',
-		isInternalApp: true,
-		component: Onboarding,
-		description: 'Start your journey. Complete steps to earn permissions.'
-	},
 	{
 		id: 'offcoin-connect',
 		name: 'Connect to Offcoin',
@@ -48,42 +44,59 @@ export const MOCK_APPS: AppDefinition[] = [
 	{
 		id: 'snapshot',
 		name: 'Voting',
-		icon: 'vote',
+		icon: VotingFavicon,
 		category: 'governance',
 		url: 'https://snapshot.org/#/s:ecohubs.eth',
-		description: 'Vote on active proposals and shape the future.'
-	},
-	{
-		id: 'blog',
-		name: 'Blog',
-		icon: 'book',
-		category: 'social',
-		url: 'https://blog.ecohubs.community/ghost',
-		description: 'Write and publish Blog articles.'
+		description: 'Vote on active proposals and shape the future.',
+		helpItems: [
+			'View and vote on active governance proposals',
+			'Create new proposals for community decisions',
+			'Track voting results and proposal history',
+			'Participate in shaping ecohubs governance'
+		]
 	},
 	{
 		id: 'forum',
 		name: 'Forum',
-		icon: 'message-circle',
+		icon: ForumFavicon,
 		category: 'social',
 		url: 'https://discussions.ecohubs.community',
-		description: 'Deep discussions and sense-making.'
+		description: 'Deep discussions and sense-making.',
+		helpItems: [
+			'Start and join discussions on community topics',
+			'Share ideas and get feedback from members',
+			'Explore different categories and threads',
+			'Build relationships with other community members'
+		]
 	},
 	{
 		id: 'task',
 		name: 'Puckstack',
-		icon: 'stack',
+		icon: PuckstackFavicon,
 		category: 'ops',
-		url: 'https://puckstack.xyz',
-		description: 'Task management and maintenance.'
+		url: 'https://puckstack.xyz/ecohubs',
+		description: 'Task management and maintenance.',
+		helpItems: [
+			'Browse and claim available community tasks',
+			'Track your task progress and contributions',
+			'Collaborate with team members on projects',
+			'Earn recognition for completed work'
+		]
 	},
 	{
 		id: 'newsletter',
 		name: 'Newsletter',
-		icon: 'mail',
+		icon: NewsletterFavicon,
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
-		description: 'Create and manage newsletters.'
+		description: 'Create and manage newsletters.',
+		hidden: true, // Only shown in All Apps, not in dock
+		helpItems: [
+			'Browse past newsletter editions',
+			'Subscribe to receive community updates',
+			'Share newsletters with your network',
+			'Stay informed about ecohubs activities'
+		]
 	},
 	{
 		id: 'membership-manager',
@@ -93,6 +106,15 @@ export const MOCK_APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: MembershipManager,
 		description: 'Review and manage membership applications.'
+	},
+	{
+		id: 'blog-manager',
+		name: 'Blog Manager',
+		icon: BlogManagerFavicon,
+		category: 'social',
+		isInternalApp: true,
+		component: BlogManager,
+		description: 'Manage blog drafts and create publication proposals.'
 	}
 ];
 

@@ -110,21 +110,22 @@ export function createDefaultSteps(): Step[] {
 			id: 'snapshot',
 			title: 'Snapshot Voting',
 			subSteps: [
-				{
-					id: 'snapshot-request-rights',
-					title: 'Request Snapshot Voting rights',
-					actions: [
-						{
-							type: 'email',
-							email: {
-								to: 'admin@ecohubs.community',
-								subject: 'Snapshot Voting Rights Request',
-								text: 'Please add my wallet ID to multisig and grant voting rights in Snapshot.',
-								html: '<p>Please add my wallet ID to multisig and grant voting rights in Snapshot.</p>'
-							}
-						}
-					]
-				},
+				// TODO: re-enable when voting rights need to be requested
+				// {
+				// 	id: 'snapshot-request-rights',
+				// 	title: 'Request Snapshot Voting rights',
+				// 	actions: [
+				// 		{
+				// 			type: 'email',
+				// 			email: {
+				// 				to: 'admin@ecohubs.community',
+				// 				subject: 'Snapshot Voting Rights Request',
+				// 				text: 'Please add my wallet ID to multisig and grant voting rights in Snapshot.',
+				// 				html: '<p>Please add my wallet ID to multisig and grant voting rights in Snapshot.</p>'
+				// 			}
+				// 		}
+				// 	]
+				// },
 				{
 					id: 'snapshot-open',
 					title: 'Open snapshot space',
