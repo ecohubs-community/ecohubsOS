@@ -32,6 +32,7 @@ class OSState {
 	// State
 	activeWindow = $state<string | null>(null); // App ID
 	dockOpen = $state(true);
+	showAllApps = $state(false); // All Apps modal visibility
 
 	// User State
 	xp = $state(1250);
@@ -63,11 +64,20 @@ class OSState {
 	}
 
 	openApp(appId: string) {
+		this.showAllApps = false; // Close All Apps modal when opening an app
 		this.activeWindow = appId;
 	}
 
 	closeApp() {
 		this.activeWindow = null;
+	}
+
+	openAllApps() {
+		this.showAllApps = true;
+	}
+
+	closeAllApps() {
+		this.showAllApps = false;
 	}
 
 	claimXP(amount: number) {

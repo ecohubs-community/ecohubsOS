@@ -7,6 +7,7 @@
 	import { MOCK_APPS, MOCK_NOTIFICATIONS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
+	import AllApps from '$lib/components/AllApps.svelte';
 	import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 	import UserCard from '$lib/components/UserCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
@@ -84,6 +85,7 @@
 			<div class="relative grid flex-1 grid-cols-1 content-start gap-6 p-6 md:grid-cols-12">
 				<UserCard showWallet={true} delay={200} />
 
+				<!-- TODO: Implement notifications panel
 				<div
 					class="glass-panel col-span-1 cursor-default rounded-2xl p-5 md:col-span-3"
 					in:fly={{ y: 20, delay: 300 }}
@@ -111,7 +113,7 @@
 							</div>
 						{/each}
 					</div>
-				</div>
+				</div> -->
 
 				<div class="col-span-6 hidden md:block"></div>
 			</div>
@@ -157,27 +159,25 @@
 						</button>
 					{/each}
 
-					<button
-						onclick={() => os.openApp('settings')}
-						class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
-					>
-						<span
-							class="pointer-events-none absolute -top-10 rounded border border-white/10 bg-black/80 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100"
-						>
-							Display Settings
-						</span>
-						<div
-							class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br to-solar-900 text-2xl shadow-lg transition-transform duration-200 group-hover:-translate-y-2"
-						>
-							⚙️
-						</div>
-					</button>
+					
 
 					<div class="mx-1 h-10 w-px bg-white/10"></div>
 
+
+					<button
+						onclick={() => os.openApp('settings')}
+						class="group relative flex flex-col items-center p-2 -mr-2"
+					>
+						<div
+							class="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
+						>
+							<Icon icon="tabler:user-screen" class="opacity-70 group-hover:opacity-100 w-5 h-5" />
+						</div>
+					</button>
+
 					<button
 						class="group relative flex flex-col items-center p-2"
-						onclick={() => alert('App Grid View')}
+						onclick={() => os.openAllApps()}
 					>
 						<div
 							class="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
@@ -185,6 +185,7 @@
 							<Icon icon="tabler:layout-grid" class="opacity-70 group-hover:opacity-100" />
 						</div>
 					</button>
+
 				</div>
 			</div>
 
@@ -192,6 +193,10 @@
 			<Settings />
 		{:else if os.activeWindow && activeApp}
 			<Window app={activeApp!} />
+		{/if}
+
+		{#if os.showAllApps}
+			<AllApps />
 		{/if}
 	</div>
 </main>

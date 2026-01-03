@@ -74,21 +74,11 @@ export function createDefaultSteps(): Step[] {
 			id: 'discussions',
 			title: 'Discover Discussions Forum',
 			subSteps: [
-				{
-					id: 'forum-request',
-					title: 'Request Account',
-					actions: [
-						{
-							type: 'email',
-							email: {
-								to: 'admin@ecohubs.community',
-								subject: 'Discussions Forum Account Request',
-								text: 'Please create my forum account and send credentials.',
-								html: '<p>Please create my forum account and send credentials.</p>'
-							}
-						}
-					]
-				},
+				// {
+				// 	id: 'forum-request',
+				// 	title: 'Create Forum Account',
+				// 	actions: [{ type: 'app', appId: 'flarum-connect' }]
+				// },
 				{
 					id: 'forum-login',
 					title: 'Login to Discussions Forum',

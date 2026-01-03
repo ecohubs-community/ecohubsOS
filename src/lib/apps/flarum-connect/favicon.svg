@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="flarumGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- User icon with chat bubble -->
+  <circle cx="12" cy="8" r="3" fill="url(#flarumGrad)" stroke="#1d4ed8" stroke-width="1"/>
+  <path d="M6 18c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="url(#flarumGrad)" stroke="#1d4ed8" stroke-width="1"/>
+  <!-- Connection indicator -->
+  <circle cx="18" cy="6" r="3" fill="#22c55e" stroke="#15803d" stroke-width="1"/>
+  <path d="M16.5 6l1 1 2-2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

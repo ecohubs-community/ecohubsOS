@@ -1,11 +1,14 @@
 import type { Component } from 'svelte';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
+import FlarumConnect from './apps/flarum-connect/FlarumConnect.svelte';
+import FlarumConnectFavicon from './apps/flarum-connect/favicon.svg';
 import MembershipManager from './apps/membership-manager/MembershipManager.svelte';
 import MembershipManagerFavicon from './apps/membership-manager/favicon.svg';
 import BlogManager from './apps/blog-manager/BlogManager.svelte';
 import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
+import BlueprintFavicon from './assets/icons/blueprint.svg';
 import PuckstackFavicon from './assets/icons/puckstack.svg';
 import NewsletterFavicon from './assets/icons/newsletter.svg';
 
@@ -42,6 +45,16 @@ export const MOCK_APPS: AppDefinition[] = [
 		hidden: true // Only accessible via onboarding, not shown in dock
 	},
 	{
+		id: 'flarum-connect',
+		name: 'Connect to Forum',
+		icon: FlarumConnectFavicon,
+		category: 'system',
+		isInternalApp: true,
+		component: FlarumConnect,
+		description: 'Create your account on the ecohubs Discussions Forum.',
+		hidden: true // Only accessible via onboarding, not shown in dock
+	},
+	{
 		id: 'snapshot',
 		name: 'Voting',
 		icon: VotingFavicon,
@@ -53,6 +66,21 @@ export const MOCK_APPS: AppDefinition[] = [
 			'Create new proposals for community decisions',
 			'Track voting results and proposal history',
 			'Participate in shaping ecohubs governance'
+		]
+	},
+	{
+		id: 'blueprint',
+		name: 'Blueprint Admin',
+		icon: BlueprintFavicon,
+		category: 'social',
+		url: 'https://blueprint.ecohubs.community/admin',
+		description: 'Create the future together.',
+		helpItems: [
+			'You will need a free github.com account to access the Blueprint Admin panel',
+			'Share and collaborate on the ecohubs blueprint for regenerative communities',
+			'Create and edit blueprint articles for sustainable living',
+			'Explore blueprint articles from other community members',
+			'Contribute to building sustainable solutions'
 		]
 	},
 	{
@@ -71,7 +99,7 @@ export const MOCK_APPS: AppDefinition[] = [
 	},
 	{
 		id: 'task',
-		name: 'Puckstack',
+		name: 'Puckstack Task Management',
 		icon: PuckstackFavicon,
 		category: 'ops',
 		url: 'https://puckstack.xyz/ecohubs',
@@ -129,11 +157,3 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
 	{ id: '2', appId: 'forum', title: 'Reply to "Water Conservation"', time: '1h ago', read: false },
 	{ id: '3', appId: 'onboarding', title: 'Welcome to ecohubsOS v1.0', time: 'Now', read: false }
 ];
-
-export const MOCK_USER = {
-	name: 'SolarArchitect',
-	wallet: '0x71...3A29',
-	xp: 1250,
-	level: 3,
-	role: 'Gardener'
-};

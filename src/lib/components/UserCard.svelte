@@ -4,12 +4,20 @@
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { xpForNextLevel } from '$lib/utils/balances.utils';
+	import { goto } from '$app/navigation';
 
 	let { showWallet = false, delay = 200 }: { showWallet?: boolean; delay?: number } = $props();
 
+	let isLoadingLogout = $state(false);
 	const xpPercent = $derived.by(() =>
 		Math.min(100, Math.round((offcoin.xp / xpForNextLevel(offcoin.xp)) * 100))
 	);
+
+	async function handleLogout() {
+		isLoadingLogout = true;
+		await fetch('/api/auth/logout', { method: 'POST' });
+		goto('/');
+	}
 </script>
 
 <div
@@ -78,9 +86,23 @@
 		{/if}
 	{/if}
 	{#if showWallet && auth.walletAddress}
-		<div class="mt-3 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-solar-300/60">
-			<Icon icon="tabler:wallet" class="h-4 w-4" />
-			<span>{auth.shortAddress}</span>
+		<div class="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-solar-300/60">
+			<div class="flex items-center gap-2">
+				<Icon icon="tabler:wallet" class="h-4 w-4" />
+				<span>{auth.shortAddress}</span>
+			</div>
+			<div>
+				<button
+					onclick={handleLogout}
+					class="rounded-md bg-red-500/20 px-2 py-1 text-red-300 transition-colors hover:bg-red-500/30 hover:text-red-400"
+				>
+					{#if isLoadingLogout}
+						<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+					{:else}
+						Logout
+					{/if}
+				</button>
+			</div>
 		</div>
 	{/if}
 </div>

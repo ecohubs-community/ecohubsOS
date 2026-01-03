@@ -62,15 +62,7 @@
 				<span class="text-solar-100 ml-2 text-sm font-medium">{app.name}</span>
 			</div>
 			<div class="flex items-center gap-2">
-				{#if app.url && !app.isInternalApp}
-					<button
-						type="button"
-						onclick={openNative}
-						class="text-solar-300 flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs transition-colors hover:bg-white/10 hover:text-white"
-					>
-						Open Native <Icon icon="tabler:external-link" class="h-4 w-4" />
-					</button>
-				{/if}
+				
 			</div>
 		</div>
 
