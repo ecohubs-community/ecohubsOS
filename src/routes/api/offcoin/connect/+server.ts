@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Verify the wallet address matches the authenticated user
-	if (walletAddress.toLowerCase() !== locals.user.address.toLowerCase()) {
+	if (!locals.user.walletAddress || walletAddress.toLowerCase() !== locals.user.walletAddress.toLowerCase()) {
 		error(403, 'Wallet address does not match authenticated user');
 	}
 

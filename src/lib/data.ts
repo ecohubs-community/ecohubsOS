@@ -6,6 +6,9 @@ import MembershipManager from './apps/membership-manager/MembershipManager.svelt
 import MembershipManagerFavicon from './apps/membership-manager/favicon.svg';
 import BlogManager from './apps/blog-manager/BlogManager.svelte';
 import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
+import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
+import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
+import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
@@ -34,6 +37,37 @@ export interface Notification {
 }
 
 export const MOCK_APPS: AppDefinition[] = [
+	// Wallet & Safe onboarding apps (hidden, accessed via onboarding)
+	{
+		id: 'wallet-setup',
+		name: 'Wallet Setup',
+		icon: 'wallet',
+		category: 'system',
+		isInternalApp: true,
+		component: WalletSetup,
+		description: 'Set up your MetaMask wallet for blockchain features.',
+		hidden: true
+	},
+	{
+		id: 'wallet-connect',
+		name: 'Connect Wallet',
+		icon: 'link-2',
+		category: 'system',
+		isInternalApp: true,
+		component: WalletConnect,
+		description: 'Link your wallet to your ecohubsOS account.',
+		hidden: true
+	},
+	{
+		id: 'safe-proposal',
+		name: 'Safe Membership',
+		icon: 'shield-check',
+		category: 'system',
+		isInternalApp: true,
+		component: SafeProposal,
+		description: 'Request to become a Safe owner for governance.',
+		hidden: true
+	},
 	{
 		id: 'offcoin-connect',
 		name: 'Connect to Offcoin',

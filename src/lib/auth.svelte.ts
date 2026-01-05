@@ -1,6 +1,16 @@
 export interface AuthUser {
-	address: string;
-	isOwner: boolean;
+	id: string;
+	name: string;
+	email: string;
+	emailVerified: boolean;
+	image: string | null;
+	// Authentik-specific fields (parsed from JSON)
+	groups: string[];
+	roles: string[];
+	// Wallet connection
+	walletAddress: string | null;
+	// Safe owner status
+	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | null;
 }
 
 class AuthState {
@@ -16,12 +26,29 @@ class AuthState {
 
 	// Derived properties
 	isAuthenticated = $derived(this.user !== null);
-	walletAddress = $derived(this.user?.address ?? null);
-	shortAddress = $derived(
-		this.user?.address
-			? `${this.user.address.slice(0, 6)}...${this.user.address.slice(-4)}`
+
+	// SSO user properties
+	userName = $derived(this.user?.name ?? null);
+	userEmail = $derived(this.user?.email ?? null);
+	userImage = $derived(this.user?.image ?? null);
+	userGroups = $derived(this.user?.groups ?? []);
+	userRoles = $derived(this.user?.roles ?? []);
+
+	// Wallet properties (from post-login onboarding)
+	walletAddress = $derived(this.user?.walletAddress ?? null);
+	hasWallet = $derived(!!this.user?.walletAddress);
+	shortWalletAddress = $derived(
+		this.user?.walletAddress
+			? `${this.user.walletAddress.slice(0, 6)}...${this.user.walletAddress.slice(-4)}`
 			: null
 	);
+
+	// Safe owner status
+	isSafeOwner = $derived(this.user?.safeOwnerStatus === 'executed');
+	safeStatus = $derived(this.user?.safeOwnerStatus ?? null);
+
+	// Legacy compatibility (for components that still use shortAddress)
+	shortAddress = $derived(this.shortWalletAddress);
 }
 
 export const auth = new AuthState();

@@ -36,7 +36,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	// Only Safe owners can update applications
-	if (!locals.user.isOwner) {
+	if (locals.user.safeOwnerStatus !== 'executed') {
 		error(403, 'Only Safe owners can update applications');
 	}
 

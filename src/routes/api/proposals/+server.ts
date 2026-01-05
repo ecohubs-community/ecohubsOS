@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Only Safe owners can create proposals
-	if (!locals.user.isOwner) {
+	if (locals.user.safeOwnerStatus !== 'executed') {
 		error(403, 'Only Safe owners can create proposals');
 	}
 

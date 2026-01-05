@@ -33,6 +33,28 @@ const STORAGE_KEY = 'onboarding-steps';
 
 export function createDefaultSteps(): Step[] {
 	return [
+		// Wallet & Safe Setup (new first step after SSO login)
+		{
+			id: 'wallet-safe',
+			title: 'Setup Wallet & Safe Membership',
+			subSteps: [
+				{
+					id: 'wallet-setup',
+					title: 'Create or verify MetaMask wallet',
+					actions: [{ type: 'app', appId: 'wallet-setup' }]
+				},
+				{
+					id: 'wallet-connect',
+					title: 'Connect wallet to your account',
+					actions: [{ type: 'app', appId: 'wallet-connect' }]
+				},
+				{
+					id: 'safe-proposal',
+					title: 'Request Safe owner membership',
+					actions: [{ type: 'app', appId: 'safe-proposal' }]
+				}
+			]
+		},
 		{
 			id: 'puckstack',
 			title: 'Create Puckstack Account & Connect Offcoin',

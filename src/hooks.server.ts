@@ -1,20 +1,54 @@
 import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import { verifyJWT } from '$lib/server/auth-helpers';
+import { auth } from '$lib/server/auth';
+import { db } from '$lib/server/db';
+import { user as userTable } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// Get token from cookie
-	const token = event.cookies.get('auth_token');
+	// Get session from BetterAuth
+	const session = await auth.api.getSession({ headers: event.request.headers });
 
-	// Verify token and add to locals
-	if (token) {
-		try {
-			const payload = await verifyJWT(token);
-			event.locals.user = payload;
-		} catch {
-			// Invalid token, clear cookie
-			event.cookies.delete('auth_token', { path: '/' });
+	if (session) {
+		// Fetch full user data from database (includes custom fields)
+		const dbUser = await db.query.user.findFirst({
+			where: eq(userTable.id, session.user.id)
+		});
+
+		if (dbUser) {
+			event.locals.user = {
+				id: dbUser.id,
+				name: dbUser.name,
+				email: dbUser.email,
+				emailVerified: dbUser.emailVerified ?? false,
+				image: dbUser.image,
+				createdAt: dbUser.createdAt,
+				updatedAt: dbUser.updatedAt,
+				authentikId: dbUser.authentikId,
+				groups: dbUser.groups,
+				roles: dbUser.roles,
+				walletAddress: dbUser.walletAddress,
+				walletConnectedAt: dbUser.walletConnectedAt,
+				safeProposalTxHash: dbUser.safeProposalTxHash,
+				safeOwnerStatus: dbUser.safeOwnerStatus as 'pending' | 'confirmed' | 'executed' | null
+			};
+			event.locals.session = {
+				id: session.session.id,
+				userId: session.session.userId,
+				token: session.session.token,
+				expiresAt: session.session.expiresAt,
+				createdAt: session.session.createdAt,
+				updatedAt: session.session.updatedAt,
+				ipAddress: session.session.ipAddress ?? null,
+				userAgent: session.session.userAgent ?? null
+			};
+		} else {
+			event.locals.user = null;
+			event.locals.session = null;
 		}
+	} else {
+		event.locals.user = null;
+		event.locals.session = null;
 	}
 
 	// Protect main desktop route - require authentication

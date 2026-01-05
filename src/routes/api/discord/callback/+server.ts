@@ -14,7 +14,7 @@ const DISCORD_API = 'https://discord.com/api/v10';
  * 4. Assign "Member" role via Bot API
  * 5. Redirect back to main page
  */
-export const GET: RequestHandler = async ({ url, locals, cookies }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
 	const state = url.searchParams.get('state');
 	const errorParam = url.searchParams.get('error');
@@ -34,20 +34,15 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		error(400, 'Missing state parameter');
 	}
 
-	// Parse state to get wallet address (state contains the wallet even if session expired)
-	let walletAddress: string;
+	// Parse state to get user info (state contains the user ID even if session expired)
+	let walletAddress: string | null;
 	try {
 		const stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-		walletAddress = stateData.wallet;
+		walletAddress = stateData.wallet ?? null;
 
 		// Check timestamp (15 min expiry)
 		if (Date.now() - stateData.timestamp > 15 * 60 * 1000) {
 			error(400, 'Authorization expired - please try again');
-		}
-
-		// If user is logged in, verify wallet matches (extra security)
-		if (locals.user && stateData.wallet !== locals.user.address) {
-			error(400, 'Invalid state parameter - wallet mismatch');
 		}
 	} catch (err) {
 		console.error('State verification failed:', err);
@@ -89,21 +84,23 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const discordUserId = discordUser.id;
 	const discordUsername = discordUser.username;
 
-	// Add Discord alias to Offcoin member
-	try {
-		const offcoin = getOffcoinClient();
-		const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
-		const discordAlias = `discord:${discordUserId}`;
+	// Add Discord alias to Offcoin member (if wallet is connected)
+	if (walletAddress !== null) {
+		try {
+			const offcoin = getOffcoinClient();
+			const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
+			const discordAlias = `discord:${discordUserId}`;
 
-		// Get member by wallet alias and add Discord alias
-		const member = await offcoin.members.get(walletAlias);
-		if (!member.aliases?.includes(discordAlias)) {
-			await offcoin.members.addAlias(walletAlias, discordAlias);
-			console.log(`Added Discord alias ${discordAlias} to member ${member.name}`);
+			// Get member by wallet alias and add Discord alias
+			const member = await offcoin.members.get(walletAlias);
+			if (!member.aliases?.includes(discordAlias)) {
+				await offcoin.members.addAlias(walletAlias, discordAlias);
+				console.log(`Added Discord alias ${discordAlias} to member ${member.name}`);
+			}
+		} catch (err) {
+			console.error('Failed to add Discord alias to Offcoin:', err);
+			// Continue anyway - role assignment is more important for user experience
 		}
-	} catch (err) {
-		console.error('Failed to add Discord alias to Offcoin:', err);
-		// Continue anyway - role assignment is more important for user experience
 	}
 
 	// Assign "Member" role via Bot API

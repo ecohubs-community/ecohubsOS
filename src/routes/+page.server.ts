@@ -7,7 +7,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, '/login');
 	}
 
+	// Parse JSON fields for client
 	return {
-		user: locals.user
+		user: {
+			id: locals.user.id,
+			name: locals.user.name,
+			email: locals.user.email,
+			emailVerified: locals.user.emailVerified,
+			image: locals.user.image,
+			groups: JSON.parse(locals.user.groups || '[]'),
+			roles: JSON.parse(locals.user.roles || '[]'),
+			walletAddress: locals.user.walletAddress,
+			safeOwnerStatus: locals.user.safeOwnerStatus
+		}
 	};
 };

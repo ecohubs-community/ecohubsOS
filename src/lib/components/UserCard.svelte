@@ -2,6 +2,7 @@
 	import { fade, fly } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import { auth } from '$lib/auth.svelte';
+	import { authClient } from '$lib/auth-client';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { xpForNextLevel } from '$lib/utils/balances.utils';
 	import { goto } from '$app/navigation';
@@ -15,8 +16,13 @@
 
 	async function handleLogout() {
 		isLoadingLogout = true;
-		await fetch('/api/auth/logout', { method: 'POST' });
-		goto('/');
+		try {
+			await authClient.signOut();
+			auth.clearUser();
+		} catch {
+			// Ignore errors
+		}
+		goto('/login');
 	}
 </script>
 
@@ -31,19 +37,24 @@
 			{#if offcoin.isLoading}
 				<Icon icon="tabler:loader-2" class="h-5 w-5 animate-spin" />
 			{:else}
-				{#if offcoin.isConnected}
-					{#if offcoin.avatarUrl}
-						<img
-							in:fade
-							src={offcoin.avatarUrl}
-							alt="Avatar"
-							class="absolute h-10 w-10 rounded-full object-cover"
-						/>
-					{:else}
-						{offcoin.name[0]}
-					{/if}
+				{#if auth.userImage}
+					<img
+						in:fade
+						src={auth.userImage}
+						alt="Avatar"
+						class="absolute h-10 w-10 rounded-full object-cover"
+					/>
+				{:else if offcoin.isConnected && offcoin.avatarUrl}
+					<img
+						in:fade
+						src={offcoin.avatarUrl}
+						alt="Avatar"
+						class="absolute h-10 w-10 rounded-full object-cover"
+					/>
+				{:else if offcoin.isConnected}
+					{offcoin.name[0]}
 				{:else}
-					{auth.shortAddress?.[0] ?? '?'}
+					{auth.userName?.[0] ?? '?'}
 				{/if}
 			{/if}
 		</div>
@@ -56,12 +67,12 @@
 				</div>
 			{:else}
 				<h3 class="leading-tight font-bold text-white" in:fade>
-					{offcoin.isConnected ? offcoin.name : auth.shortAddress ?? 'Anonymous'}
+					{offcoin.isConnected ? offcoin.name : (auth.userName ?? 'Anonymous')}
 				</h3>
 				{#if offcoin.isConnected}
 					<p class="text-solar-300 text-xs">{offcoin.role} • Lvl {offcoin.level}</p>
 				{:else}
-					<p class="text-solar-300 text-xs">Member</p>
+					<p class="text-solar-300 text-xs">{auth.userEmail ?? 'Member'}</p>
 				{/if}
 			{/if}
 		</div>
@@ -85,11 +96,19 @@
 			</p>
 		{/if}
 	{/if}
-	{#if showWallet && auth.walletAddress}
+	{#if showWallet}
 		<div class="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-solar-300/60">
 			<div class="flex items-center gap-2">
-				<Icon icon="tabler:wallet" class="h-4 w-4" />
-				<span>{auth.shortAddress}</span>
+				{#if auth.walletAddress}
+					<Icon icon="tabler:wallet" class="h-4 w-4" />
+					<span>{auth.shortWalletAddress}</span>
+					{#if auth.isSafeOwner}
+						<span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-300">Safe Owner</span>
+					{/if}
+				{:else}
+					<Icon icon="tabler:wallet-off" class="h-4 w-4" />
+					<span>No wallet connected</span>
+				{/if}
 			</div>
 			<div>
 				<button

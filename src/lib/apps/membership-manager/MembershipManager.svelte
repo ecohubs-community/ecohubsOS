@@ -126,7 +126,7 @@
 	}
 
 	async function createProposal(app: Application) {
-		if (!auth.user?.isOwner) {
+		if (!auth.isSafeOwner) {
 			statusMessage = { type: 'error', text: 'Only Safe owners can create proposals' };
 			return;
 		}
@@ -424,7 +424,7 @@
 										type="button"
 										class="flex items-center gap-2 rounded-lg bg-solar-400 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-solar-300 disabled:cursor-not-allowed disabled:opacity-50"
 										onclick={() => createProposal(app)}
-										disabled={creatingProposalFor !== null || !auth.user?.isOwner}
+										disabled={creatingProposalFor !== null || !auth.isSafeOwner}
 									>
 										{#if creatingProposalFor === app.id}
 											<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />

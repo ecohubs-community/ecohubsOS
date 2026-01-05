@@ -21,10 +21,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	const redirectUri = `${url.origin}/api/discord/callback`;
 
-	// State parameter to prevent CSRF - include user wallet for verification
+	// State parameter to prevent CSRF - include user ID for verification
 	const state = Buffer.from(
 		JSON.stringify({
-			wallet: locals.user.address,
+			userId: locals.user.id,
+			wallet: locals.user.walletAddress,
 			timestamp: Date.now()
 		})
 	).toString('base64url');

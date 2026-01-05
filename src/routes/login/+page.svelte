@@ -1,60 +1,23 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { fly } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
+	import { authClient } from '$lib/auth-client';
 
 	let loading = $state(false);
 	let error = $state('');
-	let walletAddress = $state('');
 
-	async function connectAndAuth() {
+	async function loginWithAuthentik() {
 		loading = true;
 		error = '';
 
 		try {
-			// Check if MetaMask is installed
-			if (typeof window.ethereum === 'undefined') {
-				throw new Error('Please install MetaMask to continue');
-			}
-
-			// Request account access
-			const accounts = (await window.ethereum.request({
-				method: 'eth_requestAccounts'
-			})) as string[];
-
-			if (!accounts || accounts.length === 0) {
-				throw new Error('No accounts found');
-			}
-
-			walletAddress = accounts[0];
-
-			// Create message to sign
-			const message = `Sign this message to authenticate as a Safe owner.\n\nTimestamp: ${Date.now()}`;
-
-			// Request signature
-			const signature = (await window.ethereum.request({
-				method: 'personal_sign',
-				params: [message, walletAddress]
-			})) as string;
-
-			// Verify with backend
-			const response = await fetch('/api/auth/verify', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address: walletAddress, signature, message })
+			await authClient.signIn.oauth2({
+				providerId: 'authentik',
+				callbackURL: '/'
 			});
-
-			if (!response.ok) {
-				const data = await response.json();
-				throw new Error(data.message || 'Authentication failed');
-			}
-
-			// Success! Redirect to desktop
-			goto('/');
 		} catch (err) {
 			console.error('Auth error:', err);
 			error = err instanceof Error ? err.message : 'Authentication failed';
-		} finally {
 			loading = false;
 		}
 	}
@@ -107,35 +70,23 @@
 			</div>
 		{/if}
 
-		<!-- Connected address indicator -->
-		{#if walletAddress && !error}
-			<div
-				class="flex w-full items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"
-			>
-				<Icon icon="tabler:wallet" class="h-4 w-4 shrink-0" />
-				<span class="font-mono"
-					>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span
-				>
-			</div>
-		{/if}
-
-		<!-- Login button -->
+		<!-- SSO Login button -->
 		<div class="w-full space-y-3 pt-2">
 			<button
-				onclick={connectAndAuth}
+				onclick={loginWithAuthentik}
 				disabled={loading}
 				class="group flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 font-medium text-white transition-all hover:bg-white/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{#if loading}
 					<Icon icon="tabler:loader-2" class="h-5 w-5 animate-spin" />
-					Authenticating...
+					Redirecting...
 				{:else}
-					<Icon icon="tabler:shield-check" class="h-5 w-5" />
-					Connect Wallet & Verify
+					<Icon icon="tabler:login" class="h-5 w-5" />
+					Sign in with Authentik
 				{/if}
 			</button>
 
-			<p class="text-solar-100/40 text-xs">Only Safe owners can access this system</p>
+			<p class="text-solar-100/40 text-xs">Members-only access</p>
 		</div>
 	</div>
 </div>
