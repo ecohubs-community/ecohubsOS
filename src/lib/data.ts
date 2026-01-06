@@ -1,7 +1,7 @@
 import type { Component } from 'svelte';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
-import FlarumConnect from './apps/flarum-connect/FlarumConnect.svelte';
-import FlarumConnectFavicon from './apps/flarum-connect/favicon.svg';
+// import FlarumConnect from './apps/flarum-connect/FlarumConnect.svelte';
+// import FlarumConnectFavicon from './apps/flarum-connect/favicon.svg';
 import MembershipManager from './apps/membership-manager/MembershipManager.svelte';
 import MembershipManagerFavicon from './apps/membership-manager/favicon.svg';
 import BlogManager from './apps/blog-manager/BlogManager.svelte';
@@ -78,16 +78,16 @@ export const MOCK_APPS: AppDefinition[] = [
 		description: 'Link your wallet to Offcoin to unlock XP and rewards.',
 		hidden: true // Only accessible via onboarding, not shown in dock
 	},
-	{
-		id: 'flarum-connect',
-		name: 'Connect to Forum',
-		icon: FlarumConnectFavicon,
-		category: 'system',
-		isInternalApp: true,
-		component: FlarumConnect,
-		description: 'Create your account on the ecohubs Discussions Forum.',
-		hidden: true // Only accessible via onboarding, not shown in dock
-	},
+	// {
+	// 	id: 'flarum-connect',
+	// 	name: 'Connect to Forum',
+	// 	icon: FlarumConnectFavicon,
+	// 	category: 'system',
+	// 	isInternalApp: true,
+	// 	component: FlarumConnect,
+	// 	description: 'Create your account on the ecohubs Discussions Forum.',
+	// 	hidden: true // Only accessible via onboarding, not shown in dock
+	// },
 	{
 		id: 'snapshot',
 		name: 'Voting',

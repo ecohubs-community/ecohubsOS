@@ -1,5 +1,19 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { authLogger } from '$lib/server/logger';
+
+/**
+ * Safely parse JSON with fallback to default value
+ */
+function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
+	if (!json) return fallback;
+	try {
+		return JSON.parse(json) as T;
+	} catch (err) {
+		authLogger.warn({ err, json }, 'Failed to parse JSON field');
+		return fallback;
+	}
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	// Redirect to login if not authenticated
@@ -7,7 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, '/login');
 	}
 
-	// Parse JSON fields for client
+	// Parse JSON fields for client with safe fallbacks
 	return {
 		user: {
 			id: locals.user.id,
@@ -15,8 +29,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			email: locals.user.email,
 			emailVerified: locals.user.emailVerified,
 			image: locals.user.image,
-			groups: JSON.parse(locals.user.groups || '[]'),
-			roles: JSON.parse(locals.user.roles || '[]'),
+			groups: safeJsonParse<string[]>(locals.user.groups, []),
+			roles: safeJsonParse<string[]>(locals.user.roles, []),
 			walletAddress: locals.user.walletAddress,
 			safeOwnerStatus: locals.user.safeOwnerStatus
 		}

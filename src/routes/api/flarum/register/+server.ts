@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { FLARUM_API_URL, FLARUM_API_KEY } from '$env/static/private';
+import { isValidEmail, isValidPassword, isValidUsername, sanitizeString, MAX_LENGTHS } from '$lib/server/validation';
+import { flarumLogger } from '$lib/server/logger';
 
 /**
  * Register a new user in Flarum and add them to the Member group
@@ -13,19 +15,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const { username, email, password } = await request.json();
 
-	// Validate inputs
-	if (!username || typeof username !== 'string') {
-		error(400, 'Username is required');
+	// Validate username
+	const usernameValidation = isValidUsername(username);
+	if (!usernameValidation.valid) {
+		error(400, usernameValidation.error!);
 	}
-	if (!email || typeof email !== 'string') {
-		error(400, 'Email is required');
+
+	// Validate email
+	if (!isValidEmail(email)) {
+		error(400, 'Please provide a valid email address');
 	}
-	if (!password || typeof password !== 'string') {
-		error(400, 'Password is required');
+
+	// Validate password with complexity requirements
+	const passwordValidation = isValidPassword(password);
+	if (!passwordValidation.valid) {
+		error(400, passwordValidation.error!);
 	}
-	if (password.length < 8) {
-		error(400, 'Password must be at least 8 characters');
-	}
+
+	// Sanitize inputs
+	const sanitizedUsername = sanitizeString(username, MAX_LENGTHS.username);
+	const sanitizedEmail = sanitizeString(email, MAX_LENGTHS.email).toLowerCase();
 
 	try {
 		// Step 1: Create user in Flarum
@@ -39,8 +48,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				data: {
 					type: 'users',
 					attributes: {
-						username: username.trim(),
-						email: email.trim(),
+						username: sanitizedUsername,
+						email: sanitizedEmail,
 						password,
 						isEmailConfirmed: true // Auto-confirm since they're already authenticated in ecohubsOS
 					}
@@ -50,7 +59,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (!createUserResponse.ok) {
 			const errorData = await createUserResponse.json();
-			console.error('Flarum create user error:', errorData);
+			flarumLogger.error({ errorData }, 'Flarum create user error');
 
 			// Extract error message from Flarum's JSON:API error format
 			const errorMsg =
@@ -89,7 +98,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (!updateGroupResponse.ok) {
 			// Log but don't fail - user was created, group assignment is secondary
-			console.error('Flarum group assignment warning:', await updateGroupResponse.text());
+			flarumLogger.warn({ response: await updateGroupResponse.text() }, 'Flarum group assignment warning');
 		}
 
 		return json({
@@ -105,7 +114,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err; // Re-throw SvelteKit errors
 		}
-		console.error('Flarum registration error:', err);
+		flarumLogger.error({ err }, 'Flarum registration error');
 		error(500, 'Failed to create forum account');
 	}
 };

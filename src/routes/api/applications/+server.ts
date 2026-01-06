@@ -4,6 +4,8 @@ import { db } from '$lib/server/db';
 import { applications } from '$lib/server/db/schema';
 import { desc } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
+import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
+import { apiLogger } from '$lib/server/logger';
 
 // Rate limiting for external submissions
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -44,7 +46,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 		return json({ applications: allApplications });
 	} catch (err) {
-		console.error('Error fetching applications:', err);
+		apiLogger.error({ err }, 'Error fetching applications');
 		error(500, 'Failed to fetch applications');
 	}
 };
@@ -56,7 +58,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
 	// Validate API key for external submissions
 	if (!expectedApiKey) {
-		console.error('APPLICATIONS_API_KEY not configured');
+		apiLogger.error('APPLICATIONS_API_KEY not configured');
 		error(500, 'Server configuration error');
 	}
 
@@ -79,20 +81,27 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 		// Validate required fields
 		const { fullName, email } = body;
 
-		if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
-			error(400, 'Full name is required');
+		// Validate full name
+		const nameValidation = isValidLength(fullName, 1, MAX_LENGTHS.name);
+		if (!nameValidation.valid) {
+			error(400, `Full name: ${nameValidation.error}`);
 		}
 
-		if (!email || typeof email !== 'string' || !email.includes('@')) {
-			error(400, 'Valid email is required');
+		// Validate email with proper RFC 5322 validation
+		if (!isValidEmail(email)) {
+			error(400, 'Please provide a valid email address');
 		}
+
+		// Sanitize inputs
+		const sanitizedName = sanitizeString(fullName, MAX_LENGTHS.name);
+		const sanitizedEmail = sanitizeString(email, MAX_LENGTHS.email).toLowerCase();
 
 		// Insert application with all form data stored as JSON
 		const [newApplication] = await db
 			.insert(applications)
 			.values({
-				fullName: fullName.trim(),
-				email: email.trim().toLowerCase(),
+				fullName: sanitizedName,
+				email: sanitizedEmail,
 				formData: JSON.stringify(body)
 			})
 			.returning();
@@ -106,7 +115,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err;
 		}
-		console.error('Error creating application:', err);
+		apiLogger.error({ err }, 'Error creating application');
 		error(500, 'Failed to submit application');
 	}
 };

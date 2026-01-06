@@ -2,6 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { getOffcoinClient } from '$lib/server/offcoin';
 import type { RequestHandler } from './$types';
+import { discordLogger } from '$lib/server/logger';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -21,7 +22,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 	// Handle user denying authorization
 	if (errorParam) {
-		console.log('User denied Discord authorization:', errorParam);
+		discordLogger.info({ error: errorParam }, 'User denied Discord authorization');
 		redirect(302, '/?discord=denied');
 	}
 
@@ -45,7 +46,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			error(400, 'Authorization expired - please try again');
 		}
 	} catch (err) {
-		console.error('State verification failed:', err);
+		discordLogger.error({ err }, 'State verification failed');
 		error(400, 'Invalid state parameter');
 	}
 
@@ -64,7 +65,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 	if (!tokenResponse.ok) {
 		const errorText = await tokenResponse.text();
-		console.error('Discord token exchange failed:', errorText);
+		discordLogger.error({ errorText }, 'Discord token exchange failed');
 		error(500, 'Failed to authenticate with Discord');
 	}
 
@@ -76,7 +77,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	});
 
 	if (!userResponse.ok) {
-		console.error('Failed to get Discord user info:', await userResponse.text());
+		discordLogger.error({ response: await userResponse.text() }, 'Failed to get Discord user info');
 		error(500, 'Failed to get Discord user info');
 	}
 
@@ -95,10 +96,10 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			const member = await offcoin.members.get(walletAlias);
 			if (!member.aliases?.includes(discordAlias)) {
 				await offcoin.members.addAlias(walletAlias, discordAlias);
-				console.log(`Added Discord alias ${discordAlias} to member ${member.name}`);
+				discordLogger.info({ discordAlias, memberName: member.name }, 'Added Discord alias to member');
 			}
 		} catch (err) {
-			console.error('Failed to add Discord alias to Offcoin:', err);
+			discordLogger.error({ err }, 'Failed to add Discord alias to Offcoin');
 			// Continue anyway - role assignment is more important for user experience
 		}
 	}
@@ -129,7 +130,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 			if (addMemberResponse.status === 201) {
 				// User was added to guild with role
-				console.log(`Added Discord user ${discordUsername} to guild with Member role`);
+				discordLogger.info({ discordUsername }, 'Added Discord user to guild with Member role');
 			} else if (addMemberResponse.status === 204) {
 				// User was already in guild, need to add role separately
 				const addRoleResponse = await fetch(
@@ -141,19 +142,19 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 				);
 
 				if (addRoleResponse.ok) {
-					console.log(`Assigned Member role to existing Discord user ${discordUsername}`);
+					discordLogger.info({ discordUsername }, 'Assigned Member role to existing Discord user');
 				} else {
-					console.error('Failed to assign role:', await addRoleResponse.text());
+					discordLogger.error({ response: await addRoleResponse.text() }, 'Failed to assign role');
 				}
 			} else {
-				console.error('Failed to add member to guild:', await addMemberResponse.text());
+				discordLogger.error({ response: await addMemberResponse.text() }, 'Failed to add member to guild');
 			}
 		} catch (err) {
-			console.error('Discord role assignment error:', err);
+			discordLogger.error({ err }, 'Discord role assignment error');
 			// Continue anyway - user can still see that Discord was connected
 		}
 	} else {
-		console.warn('Discord guild/role not configured - skipping role assignment');
+		discordLogger.warn('Discord guild/role not configured - skipping role assignment');
 	}
 
 	// Store Discord connection info in a cookie for the client to read

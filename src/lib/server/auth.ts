@@ -4,6 +4,7 @@ import { genericOAuth } from 'better-auth/plugins';
 import { db } from './db';
 import * as schema from './db/schema';
 import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -51,6 +52,11 @@ export const auth = betterAuth({
 		cookieCache: {
 			enabled: true,
 			maxAge: 60 * 60 * 24 * 7 // 7 days
+		},
+		cookie: {
+			httpOnly: true,
+			secure: !dev, // Require HTTPS in production
+			sameSite: 'lax' // 'lax' allows OAuth redirects while protecting against CSRF
 		}
 	},
 

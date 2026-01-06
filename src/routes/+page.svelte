@@ -4,7 +4,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { badges } from '$lib/badges.svelte';
-	import { MOCK_APPS, MOCK_NOTIFICATIONS } from '$lib/data';
+	import { MOCK_APPS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import AllApps from '$lib/components/AllApps.svelte';
@@ -84,37 +84,6 @@
 
 			<div class="relative grid flex-1 grid-cols-1 content-start gap-6 p-6 md:grid-cols-12">
 				<UserCard showWallet={true} delay={200} />
-
-				<!-- TODO: Implement notifications panel
-				<div
-					class="glass-panel col-span-1 cursor-default rounded-2xl p-5 md:col-span-3"
-					in:fly={{ y: 20, delay: 300 }}
-				>
-					<div class="mb-3 flex items-center justify-between">
-						<h3 class="flex items-center gap-2 font-bold text-white">
-							<Icon icon="tabler:bell" class="h-4 w-4" /> Updates
-						</h3>
-						<span class="rounded-md bg-red-500/20 px-1.5 py-0.5 text-xs text-red-300"
-							>{MOCK_NOTIFICATIONS.length}</span
-						>
-					</div>
-					<div class="space-y-3">
-						{#each MOCK_NOTIFICATIONS as notif (notif.id)}
-							<div class="group flex cursor-pointer items-start gap-3 text-sm">
-								<div class="bg-solar-400 mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"></div>
-								<div>
-									<p
-										class="text-solar-50 group-hover:text-solar-300 leading-tight transition-colors"
-									>
-										{notif.title}
-									</p>
-									<p class="mt-0.5 text-xs text-white/30">{notif.time}</p>
-								</div>
-							</div>
-						{/each}
-					</div>
-				</div> -->
-
 				<div class="col-span-6 hidden md:block"></div>
 			</div>
 
