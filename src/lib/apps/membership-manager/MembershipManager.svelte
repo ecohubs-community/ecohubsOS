@@ -366,7 +366,7 @@
 				{#if viewingApplication.status === 'pending'}
 					<button
 						type="button"
-						class="flex items-center gap-2 rounded-lg bg-solar-400 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-solar-300 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
 						onclick={() => viewingApplication && createProposal(viewingApplication)}
 						disabled={creatingProposalFor !== null || !auth.isSafeOwner}
 					>
@@ -543,7 +543,7 @@
 								{#if app.status === 'pending'}
 									<button
 										type="button"
-										class="flex items-center gap-2 rounded-lg bg-solar-400 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-solar-300 disabled:cursor-not-allowed disabled:opacity-50"
+										class="flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
 										onclick={() => createProposal(app)}
 										disabled={creatingProposalFor !== null || !auth.isSafeOwner}
 									>
