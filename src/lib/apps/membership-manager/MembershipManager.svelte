@@ -163,7 +163,18 @@
 			const snapshot = await import('@snapshot-labs/snapshot.js');
 
 			const provider = new BrowserProvider(window.ethereum);
-			const signer = await provider.getSigner();
+			const ethersV6Signer = await provider.getSigner();
+
+			// Create a wrapper that adapts ethers v6 signer to v5 interface
+			// Snapshot SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
+			const signer = {
+				getAddress: () => ethersV6Signer.getAddress(),
+				_signTypedData: (
+					domain: Record<string, unknown>,
+					types: Record<string, Array<{ name: string; type: string }>>,
+					value: Record<string, unknown>
+				) => ethersV6Signer.signTypedData(domain, types, value)
+			};
 
 			// Get current block number for snapshot
 			const blockNumber = await provider.getBlockNumber();
