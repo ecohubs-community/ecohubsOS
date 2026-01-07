@@ -6,7 +6,10 @@ import * as schema from './db/schema';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 
+if (!env.BETTER_AUTH_SECRET) throw new Error('BETTER_AUTH_SECRET is not set');
+
 export const auth = betterAuth({
+	secret: env.BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, {
 		provider: 'sqlite',
 		schema: {
