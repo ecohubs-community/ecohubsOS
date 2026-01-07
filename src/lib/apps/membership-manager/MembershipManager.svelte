@@ -54,6 +54,7 @@
 	let expandedId = $state<string | null>(null);
 	let creatingProposalFor = $state<string | null>(null);
 	let snapshotConfig = $state<SnapshotConfig | null>(null);
+	let viewingApplication = $state<Application | null>(null);
 
 	async function loadApplications() {
 		isLoading = true;
@@ -272,6 +273,22 @@
 		expandedId = expandedId === id ? null : id;
 	}
 
+	function formatFieldName(key: string): string {
+		// Convert camelCase to Title Case with spaces
+		return key
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/^./, (str) => str.toUpperCase())
+			.trim();
+	}
+
+	function viewApplication(app: Application) {
+		viewingApplication = app;
+	}
+
+	function closeApplicationView() {
+		viewingApplication = null;
+	}
+
 	$effect(() => {
 		loadApplications();
 		loadSnapshotConfig();
@@ -279,16 +296,112 @@
 </script>
 
 <div class="flex h-full flex-col gap-4 p-6">
-	<!-- Help Section -->
-	<HelpSection appId="membership-manager" title="About this app">
-		<p class="mb-2">The Membership Application Manager allows you to:</p>
-		<ul class="mb-2 list-inside list-disc space-y-1">
-			<li>Review pending membership applications</li>
-			<li>Create Snapshot proposals for community voting</li>
-			<li>Track proposal status and voting results</li>
-		</ul>
-		<p class="text-solar-300/60">Only Safe wallet owners can create proposals.</p>
-	</HelpSection>
+	{#if viewingApplication}
+		<!-- Full Application Detail View -->
+		{@const formData = parseFormData(viewingApplication)}
+		<div class="flex h-full flex-col" transition:fade>
+			<!-- Header with Back Button -->
+			<div class="mb-4 flex items-center gap-4">
+				<button
+					type="button"
+					class="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+					onclick={closeApplicationView}
+				>
+					<Icon icon="tabler:arrow-left" class="h-4 w-4" />
+					Back to List
+				</button>
+				<div class="flex items-center gap-3">
+					<div
+						class="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-solar-400 to-solar-600 font-bold text-white"
+					>
+						{viewingApplication.fullName[0].toUpperCase()}
+					</div>
+					<div>
+						<h2 class="text-lg font-semibold text-white">{viewingApplication.fullName}</h2>
+						<p class="text-xs text-solar-300/60">
+							{viewingApplication.email} • Submitted {formatDate(viewingApplication.submittedAt)}
+						</p>
+					</div>
+				</div>
+				<span
+					class="ml-auto rounded-full px-3 py-1.5 text-xs font-medium {getStatusColor(viewingApplication.status)}"
+				>
+					{getStatusLabel(viewingApplication.status)}
+				</span>
+			</div>
+
+			<!-- Application Content -->
+			<div class="flex-1 overflow-auto rounded-xl border border-white/10 bg-white/5 p-6">
+				<div class="space-y-6">
+					{#each Object.entries(formData) as [key, value] (key)}
+						{#if value && typeof value === 'string' && value.trim()}
+							<div class="border-b border-white/5 pb-4 last:border-0">
+								<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-solar-300/60">
+									{formatFieldName(key)}
+								</h3>
+								<div class="text-sm leading-relaxed text-solar-100/90 whitespace-pre-wrap">
+									{value}
+								</div>
+							</div>
+						{/if}
+					{/each}
+
+					{#if viewingApplication.aiRecommendation}
+						<div class="border-b border-white/5 pb-4 last:border-0">
+							<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-solar-300/60">
+								AI Recommendation
+							</h3>
+							<div
+								class="rounded-lg bg-blue-500/10 p-3 text-sm leading-relaxed text-blue-200 whitespace-pre-wrap"
+							>
+								{viewingApplication.aiRecommendation}
+							</div>
+						</div>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Actions Footer -->
+			<div class="mt-4 flex gap-2">
+				{#if viewingApplication.status === 'pending'}
+					<button
+						type="button"
+						class="flex items-center gap-2 rounded-lg bg-solar-400 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-solar-300 disabled:cursor-not-allowed disabled:opacity-50"
+						onclick={() => viewingApplication && createProposal(viewingApplication)}
+						disabled={creatingProposalFor !== null || !auth.isSafeOwner}
+					>
+						{#if creatingProposalFor === viewingApplication.id}
+							<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+							Creating...
+						{:else}
+							<Icon icon="tabler:rocket" class="h-4 w-4" />
+							Create Proposal
+						{/if}
+					</button>
+				{:else if viewingApplication.snapshotProposalLink}
+					<a
+						href={viewingApplication.snapshotProposalLink}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+					>
+						<Icon icon="tabler:external-link" class="h-4 w-4" />
+						View on Snapshot
+					</a>
+				{/if}
+			</div>
+		</div>
+	{:else}
+		<!-- Help Section -->
+		<HelpSection appId="membership-manager" title="About this app">
+			<p class="mb-2">The Membership Application Manager allows you to:</p>
+			<ul class="mb-2 list-inside list-disc space-y-1">
+				<li>Review pending membership applications</li>
+				<li>Create Snapshot proposals for community voting</li>
+				<li>Track proposal status and voting results</li>
+			</ul>
+			<p class="text-solar-300/60">Only Safe wallet owners can create proposals.</p>
+		</HelpSection>
 
 	<!-- Status Message -->
 	{#if statusMessage}
@@ -419,6 +532,14 @@
 
 							<!-- Actions -->
 							<div class="flex gap-2">
+								<button
+									type="button"
+									class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+									onclick={() => viewApplication(app)}
+								>
+									<Icon icon="tabler:eye" class="h-4 w-4" />
+									View Full Application
+								</button>
 								{#if app.status === 'pending'}
 									<button
 										type="button"
@@ -452,4 +573,5 @@
 			{/each}
 		{/if}
 	</div>
+	{/if}
 </div>

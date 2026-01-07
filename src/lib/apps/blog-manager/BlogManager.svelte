@@ -423,7 +423,7 @@ ${draftData.excerpt || 'No excerpt provided.'}
 								type="button"
 								onclick={() => createProposal(draft)}
 								disabled={creating !== null}
-								class="bg-solar-400 text-solar-900 hover:bg-solar-300 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+								class="bg-yellow-500 text-solar-900 hover:bg-yellow-400 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{#if creating === draft.id}
 									<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />

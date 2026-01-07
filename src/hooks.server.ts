@@ -40,7 +40,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 			'Content-Security-Policy',
 			[
 				"default-src 'self'",
-				"script-src 'self' 'unsafe-inline' https://snapshot.org",
+				"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://snapshot.org",
 				"style-src 'self' 'unsafe-inline'",
 				"img-src 'self' data: https: blob:",
 				"font-src 'self' data:",
