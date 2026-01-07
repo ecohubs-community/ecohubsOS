@@ -45,7 +45,7 @@ type GhostAdminAPIClient = {
 		}) => Promise<GhostDraft[]>;
 		read: (options: { id: string }, include?: { include: string[] }) => Promise<GhostDraft>;
 		edit: (
-			options: { id: string; status?: string; custom_fields?: Record<string, unknown> },
+			options: { id: string; status?: string; custom_fields?: Record<string, unknown>; updated_at?: string },
 			include?: { include: string[] }
 		) => Promise<GhostPost>;
 	};
@@ -191,10 +191,17 @@ export async function publishGhostPost(id: string): Promise<GhostPost | null> {
 			throw new Error('Ghost Admin API not configured');
 		}
 
+		// First fetch the current post to get updated_at (required by Ghost API for edit)
+		const currentPost = await api.posts.read({ id }, { include: ['authors', 'tags'] });
+		if (!currentPost) {
+			throw new Error('Post not found');
+		}
+
 		const post = await api.posts.edit(
 			{
 				id,
-				status: 'published'
+				status: 'published',
+				updated_at: currentPost.updated_at
 			},
 			{ include: ['authors', 'tags'] }
 		);
