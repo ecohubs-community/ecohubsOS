@@ -62,7 +62,7 @@ export function createDefaultSteps(): Step[] {
 				{
 					id: 'puckstack-signup',
 					title: 'Sign up for Puckstack',
-					actions: [{ type: 'url', url: 'https://puckstack.xyz/join' }]
+					actions: [{ type: 'app', appId: 'puckstack-signup' }]
 				},
 				{
 					id: 'puckstack-copy-id',

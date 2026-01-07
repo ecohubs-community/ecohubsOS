@@ -1,5 +1,6 @@
 import type { Component } from 'svelte';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
+import PuckstackSignup from './apps/puckstack-signup/PuckstackSignup.svelte';
 // import FlarumConnect from './apps/flarum-connect/FlarumConnect.svelte';
 // import FlarumConnectFavicon from './apps/flarum-connect/favicon.svg';
 import MembershipManager from './apps/membership-manager/MembershipManager.svelte';
@@ -76,6 +77,16 @@ export const MOCK_APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: OffcoinConnect,
 		description: 'Link your wallet to Offcoin to unlock XP and rewards.',
+		hidden: true // Only accessible via onboarding, not shown in dock
+	},
+	{
+		id: 'puckstack-signup',
+		name: 'Join Puckstack',
+		icon: 'checklist',
+		category: 'system',
+		isInternalApp: true,
+		component: PuckstackSignup,
+		description: 'Join the ecohubs workspace on Puckstack.',
 		hidden: true // Only accessible via onboarding, not shown in dock
 	},
 	// {
