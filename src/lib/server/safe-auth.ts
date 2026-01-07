@@ -11,12 +11,13 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * Uses Safe API Kit for verification
  */
 export async function isSafeOwnerViaAPI(walletAddress: string): Promise<boolean> {
-	const { SAFE_ADDRESS, SAFE_API_KEY, SAFE_CHAIN_ID } = env;
+	const { SAFE_ADDRESS, SAFE_API_KEY_1, SAFE_API_KEY_2, SAFE_CHAIN_ID } = env;
 
 	if (!SAFE_ADDRESS) {
 		console.error('SAFE_ADDRESS environment variable is not set');
 		return false;
 	}
+	const SAFE_API_KEY = (SAFE_API_KEY_1 ?? "") + SAFE_API_KEY_2;
 
 	if (!SAFE_API_KEY) {
 		console.error(
@@ -47,12 +48,14 @@ export async function isSafeOwnerViaAPI(walletAddress: string): Promise<boolean>
  * Returns cached list if available and fresh, otherwise fetches from API
  */
 export async function getCachedSafeOwners(): Promise<string[]> {
-	const { SAFE_ADDRESS, SAFE_API_KEY, SAFE_CHAIN_ID } = env;
+	const { SAFE_ADDRESS, SAFE_API_KEY_1, SAFE_API_KEY_2, SAFE_CHAIN_ID } = env;
 
 	if (!SAFE_ADDRESS) {
 		console.error('SAFE_ADDRESS environment variable is not set');
 		return [];
 	}
+
+	const SAFE_API_KEY = (SAFE_API_KEY_1 ?? "") + SAFE_API_KEY_2;
 
 	if (!SAFE_API_KEY) {
 		console.error(

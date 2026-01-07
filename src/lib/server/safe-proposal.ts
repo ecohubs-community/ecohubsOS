@@ -23,9 +23,10 @@ interface StatusResult {
  */
 function getApiKit(): SafeApiKit {
 	const chainId = BigInt(env.SAFE_CHAIN_ID || '1');
+	const SAFE_API_KEY = env.SAFE_API_KEY_1! + (env.SAFE_API_KEY_2 || '');
 	return new SafeApiKit({
 		chainId,
-		apiKey: env.SAFE_API_KEY
+		apiKey: SAFE_API_KEY
 	});
 }
 
