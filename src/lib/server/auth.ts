@@ -63,7 +63,7 @@ export const auth = betterAuth({
 		}
 	},
 
-	trustedOrigins: [env.PUBLIC_APP_URL || 'http://localhost:5173']
+	trustedOrigins: [env.VITE_PUBLIC_APP_URL || 'http://localhost:5173']
 });
 
 export type Session = typeof auth.$Infer.Session;

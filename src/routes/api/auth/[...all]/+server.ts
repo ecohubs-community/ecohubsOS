@@ -21,3 +21,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
 	return auth.handler(request);
 };
+
+// Handle CORS preflight requests for OAuth flows
+export const OPTIONS: RequestHandler = async ({ request }) => {
+	return auth.handler(request);
+};
