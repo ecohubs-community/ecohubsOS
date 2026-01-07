@@ -44,7 +44,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 				"style-src 'self' 'unsafe-inline'",
 				"img-src 'self' data: https: blob:",
 				"font-src 'self' data:",
-				"connect-src 'self' https://snapshot.org https://hub.snapshot.org https://safe-transaction-mainnet.safe.global https://discussions.ecohubs.community https://blueprint.ecohubs.community https://newsletter.ecohubs.community https://api.iconify.design",
+				"connect-src 'self' https://snapshot.org https://seq.snapshot.org https://hub.snapshot.org https://safe-transaction-mainnet.safe.global https://discussions.ecohubs.community https://blueprint.ecohubs.community https://newsletter.ecohubs.community https://api.iconify.design",
 				"frame-ancestors 'none'",
 				"form-action 'self'",
 				"base-uri 'self'"
