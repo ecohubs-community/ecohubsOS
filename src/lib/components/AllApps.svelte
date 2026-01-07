@@ -1,14 +1,61 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { os } from '$lib/os.svelte';
-	import { MOCK_APPS } from '$lib/data';
+	import { APPS } from '$lib/data';
 	import Icon from '@iconify/svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
+	import SystemFavicon from '$lib/assets/icons/system.svg';
+
+	type Category = 'governance' | 'social' | 'ops' | 'system';
+
+	const CATEGORY_LABELS: Record<Category, string> = {
+		governance: 'Governance',
+		social: 'Social',
+		ops: 'Operations',
+		system: 'System'
+	};
+
+	const ALL_CATEGORIES: Category[] = APPS.map((app) => app.category).filter(
+		(cat, index, self) => self.indexOf(cat) === index
+	) as Category[];
 
 	let searchQuery = $state('');
+	let activeCategories = new SvelteSet<Category>(ALL_CATEGORIES.filter(x => x !== 'system'));
+
+	function toggleCategory(category: Category) {
+		if (activeCategories.has(category)) {
+			activeCategories.delete(category);
+		} else {
+			activeCategories.add(category);
+		}
+	}
 
 	let filteredApps = $derived(
-		MOCK_APPS.filter((app) => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		APPS.filter(
+			(app) =>
+				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+				activeCategories.has(app.category)
+		)
+	);
+
+	let groupedApps = $derived.by(() => {
+		const groups: Record<Category, typeof APPS> = {
+			governance: [],
+			social: [],
+			ops: [],
+			system: []
+		};
+
+		for (const app of filteredApps) {
+			groups[app.category].push(app);
+		}
+
+		return groups;
+	});
+
+	let visibleCategories = $derived(
+		ALL_CATEGORIES.filter((cat) => activeCategories.has(cat) && groupedApps[cat].length > 0)
 	);
 
 	function openApp(appId: string) {
@@ -27,8 +74,28 @@
 		}
 	}
 
+	function getAppIcon(app: (typeof APPS)[0]): string {
+		if (typeof app.icon === 'string' && app.icon.startsWith('/')) {
+			return app.icon;
+		}
+		if (typeof app.icon === 'string' && (app.icon.endsWith('.svg') || app.icon.includes('/'))) {
+			return app.icon;
+		}
+		if (app.category === 'system') {
+			return SystemFavicon;
+		}
+		return FallbackFavicon;
+	}
+
 	function imgError(e: Event) {
-		(e.currentTarget as HTMLImageElement).src = FallbackFavicon;
+		const img = e.currentTarget as HTMLImageElement;
+		const appId = img.dataset.appId;
+		const app = APPS.find((a) => a.id === appId);
+		if (app?.category === 'system') {
+			img.src = SystemFavicon;
+		} else {
+			img.src = FallbackFavicon;
+		}
 	}
 </script>
 
@@ -60,30 +127,59 @@
 		</div>
 	</div>
 
-	<!-- Apps grid -->
+	<!-- Category pills -->
 	<div
-		class="mt-12 flex max-h-[60vh] w-full max-w-4xl flex-wrap content-start justify-center gap-6 overflow-y-auto px-6 pb-6"
+		class="mt-4 flex flex-wrap justify-center gap-2 px-6"
+		transition:scale={{ duration: 200, delay: 75 }}
+	>
+		{#each ALL_CATEGORIES as category (category)}
+			<button
+				class="rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 {activeCategories.has(
+					category
+				)
+					? 'bg-white/20 text-white'
+					: 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'}"
+				onclick={() => toggleCategory(category)}
+			>
+				{CATEGORY_LABELS[category]}
+			</button>
+		{/each}
+	</div>
+
+	<!-- Apps grid grouped by category -->
+	<div
+		class="mt-8 flex max-h-[55vh] w-full max-w-4xl flex-col gap-8 overflow-y-auto px-6 pb-6"
 		transition:scale={{ duration: 200, delay: 100 }}
 	>
-		{#each filteredApps as app (app.id)}
-			<button
-				class="group flex w-24 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10"
-				onclick={() => openApp(app.id)}
-			>
-				<div
-					class="from-solar-800 flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110"
-				>
-					<img
-						src={typeof app.icon === 'string' ? app.icon : FallbackFavicon}
-						alt={app.name}
-						class="h-10 w-10"
-						onerror={imgError}
-					/>
+		{#each visibleCategories as category (category)}
+			<div class="flex flex-col gap-4">
+				<h2 class="text-sm font-semibold uppercase tracking-wider text-white/50">
+					{CATEGORY_LABELS[category]}
+				</h2>
+				<div class="flex flex-wrap gap-6">
+					{#each groupedApps[category] as app (app.id)}
+						<button
+							class="group flex w-24 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10"
+							onclick={() => openApp(app.id)}
+						>
+							<div
+								class="from-solar-800 flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110"
+							>
+								<img
+									src={getAppIcon(app)}
+									alt={app.name}
+									class="h-10 w-10"
+									onerror={imgError}
+									data-app-id={app.id}
+								/>
+							</div>
+							<span class="line-clamp-2 text-center text-xs text-white/80 group-hover:text-white">
+								{app.name}
+							</span>
+						</button>
+					{/each}
 				</div>
-				<span class="line-clamp-2 text-center text-xs text-white/80 group-hover:text-white">
-					{app.name}
-				</span>
-			</button>
+			</div>
 		{/each}
 
 		{#if filteredApps.length === 0}

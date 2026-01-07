@@ -37,68 +37,7 @@ export interface Notification {
 	read: boolean;
 }
 
-export const MOCK_APPS: AppDefinition[] = [
-	// Wallet & Safe onboarding apps (hidden, accessed via onboarding)
-	{
-		id: 'wallet-setup',
-		name: 'Wallet Setup',
-		icon: 'wallet',
-		category: 'system',
-		isInternalApp: true,
-		component: WalletSetup,
-		description: 'Set up your MetaMask wallet for blockchain features.',
-		hidden: true
-	},
-	{
-		id: 'wallet-connect',
-		name: 'Connect Wallet',
-		icon: 'link-2',
-		category: 'system',
-		isInternalApp: true,
-		component: WalletConnect,
-		description: 'Link your wallet to your ecohubsOS account.',
-		hidden: true
-	},
-	{
-		id: 'safe-proposal',
-		name: 'Safe Membership',
-		icon: 'shield-check',
-		category: 'system',
-		isInternalApp: true,
-		component: SafeProposal,
-		description: 'Request to become a Safe owner for governance.',
-		hidden: true
-	},
-	{
-		id: 'offcoin-connect',
-		name: 'Connect to Offcoin',
-		icon: 'link-2',
-		category: 'system',
-		isInternalApp: true,
-		component: OffcoinConnect,
-		description: 'Link your wallet to Offcoin to unlock XP and rewards.',
-		hidden: true // Only accessible via onboarding, not shown in dock
-	},
-	{
-		id: 'puckstack-signup',
-		name: 'Join Puckstack',
-		icon: 'checklist',
-		category: 'system',
-		isInternalApp: true,
-		component: PuckstackSignup,
-		description: 'Join the ecohubs workspace on Puckstack.',
-		hidden: true // Only accessible via onboarding, not shown in dock
-	},
-	// {
-	// 	id: 'flarum-connect',
-	// 	name: 'Connect to Forum',
-	// 	icon: FlarumConnectFavicon,
-	// 	category: 'system',
-	// 	isInternalApp: true,
-	// 	component: FlarumConnect,
-	// 	description: 'Create your account on the ecohubs Discussions Forum.',
-	// 	hidden: true // Only accessible via onboarding, not shown in dock
-	// },
+export const APPS: AppDefinition[] = [
 	{
 		id: 'snapshot',
 		name: 'Voting',
@@ -188,7 +127,68 @@ export const MOCK_APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: BlogManager,
 		description: 'Manage blog drafts and create publication proposals.'
-	}
+	},
+	// Wallet & Safe onboarding apps (hidden, accessed via onboarding)
+	{
+		id: 'wallet-setup',
+		name: 'Wallet Setup',
+		icon: 'wallet',
+		category: 'system',
+		isInternalApp: true,
+		component: WalletSetup,
+		description: 'Set up your MetaMask wallet for blockchain features.',
+		hidden: true
+	},
+	{
+		id: 'wallet-connect',
+		name: 'Connect Wallet',
+		icon: 'link-2',
+		category: 'system',
+		isInternalApp: true,
+		component: WalletConnect,
+		description: 'Link your wallet to your ecohubsOS account.',
+		hidden: true
+	},
+	{
+		id: 'safe-proposal',
+		name: 'Safe Membership',
+		icon: 'shield-check',
+		category: 'system',
+		isInternalApp: true,
+		component: SafeProposal,
+		description: 'Request to become a Safe owner for governance.',
+		hidden: true
+	},
+	{
+		id: 'offcoin-connect',
+		name: 'Connect to Offcoin',
+		icon: 'link-2',
+		category: 'system',
+		isInternalApp: true,
+		component: OffcoinConnect,
+		description: 'Link your wallet to Offcoin to unlock XP and rewards.',
+		hidden: true // Only accessible via onboarding, not shown in dock
+	},
+	{
+		id: 'puckstack-signup',
+		name: 'Join Puckstack',
+		icon: 'checklist',
+		category: 'system',
+		isInternalApp: true,
+		component: PuckstackSignup,
+		description: 'Join the ecohubs workspace on Puckstack.',
+		hidden: true // Only accessible via onboarding, not shown in dock
+	},
+	// {
+	// 	id: 'flarum-connect',
+	// 	name: 'Connect to Forum',
+	// 	icon: FlarumConnectFavicon,
+	// 	category: 'system',
+	// 	isInternalApp: true,
+	// 	component: FlarumConnect,
+	// 	description: 'Create your account on the ecohubs Discussions Forum.',
+	// 	hidden: true // Only accessible via onboarding, not shown in dock
+	// },
 ];
 
 export const MOCK_NOTIFICATIONS: Notification[] = [

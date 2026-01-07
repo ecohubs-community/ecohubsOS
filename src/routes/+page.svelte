@@ -4,7 +4,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { badges } from '$lib/badges.svelte';
-	import { MOCK_APPS } from '$lib/data';
+	import { APPS } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import AllApps from '$lib/components/AllApps.svelte';
@@ -25,7 +25,7 @@
 	});
 
 	// Derived state for the active app object
-	let activeApp = $derived(MOCK_APPS.find((a) => a.id === os.activeWindow));
+	let activeApp = $derived(APPS.find((a) => a.id === os.activeWindow));
 
 	// Date time logic
 	let time = $state(new Date());
@@ -92,7 +92,7 @@
 					class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
 					in:fly={{ y: 50, duration: 800, delay: 500 }}
 				>
-					{#each MOCK_APPS.filter((a) => !a.hidden) as app (app.id)}
+					{#each APPS.filter((a) => !a.hidden) as app (app.id)}
 						{@const badgeCount = badges.getCount(app.id)}
 						<button
 							class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"
