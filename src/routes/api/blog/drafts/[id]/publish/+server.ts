@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getGhostDraft, publishGhostPost } from '$lib/server/ghost';
-import { isProposalApproved, getProposalStatus } from '$lib/server/blog-snapshot';
+import { isProposalApproved, getProposalStatus, getProposalForDraft } from '$lib/server/blog-snapshot';
 
 // POST - Publish a draft that has an approved Snapshot proposal
 export const POST: RequestHandler = async ({ locals, params }) => {
@@ -23,9 +23,19 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 
 		// Check if draft has a proposal ID in custom fields
 		const customFields = draft.custom_fields as Record<string, unknown> | undefined;
-		const proposalId = customFields?.snapshot_proposal_id;
+		let proposalId: string | null = null;
 
-		if (!proposalId || typeof proposalId !== 'string') {
+		const proposalIdFromFields = customFields?.snapshot_proposal_id;
+		if (typeof proposalIdFromFields === 'string') {
+			proposalId = proposalIdFromFields;
+		}
+
+		// Fallback: try to find proposal by title pattern if not in custom fields
+		if (!proposalId) {
+			proposalId = await getProposalForDraft(draft.title, draft.slug);
+		}
+
+		if (!proposalId) {
 			error(400, 'No proposal found for this draft');
 		}
 

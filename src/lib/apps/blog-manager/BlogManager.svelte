@@ -87,6 +87,10 @@
 		return `https://snapshot.org/#/${space}/proposal/${proposalId}`;
 	}
 
+	function getGhostEditUrl(draftId: string): string {
+		return `https://blog.ecohubs.community/ghost/#/editor/post/${draftId}`;
+	}
+
 	function getStatusColor(status: 'none' | 'active' | 'closed', isApproved: boolean): string {
 		if (status === 'none') {
 			return 'bg-white/10 text-white/60';
@@ -417,7 +421,16 @@ ${draftData.excerpt || 'No excerpt provided.'}
 					{/if}
 
 					<!-- Actions -->
-					<div class="flex gap-2">
+					<div class="flex flex-wrap gap-2">
+						<a
+							href={getGhostEditUrl(draft.id)}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="flex items-center gap-2 rounded-lg bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/30"
+						>
+							<Icon icon="tabler:edit" class="h-4 w-4" />
+							Edit in Ghost
+						</a>
 						{#if draft.proposalStatus === 'none'}
 							<button
 								type="button"
