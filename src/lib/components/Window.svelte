@@ -26,13 +26,13 @@
 </script>
 
 <div
-	class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm md:p-10"
+	class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-2 md:p-10 backdrop-blur-sm"
 	transition:fade={{ duration: 200 }}
 	onclick={close}
 	role="presentation"
 >
 	<div
-		class="relative flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-solar-900/80 shadow-2xl ring-1 ring-white/20 backdrop-blur-2xl"
+		class="relative flex h-[95vh] md:h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-solar-900/80 shadow-2xl ring-1 ring-white/20 backdrop-blur-2xl"
 		transition:scale={{ duration: 400, easing: elasticOut, start: 0.95 }}
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}

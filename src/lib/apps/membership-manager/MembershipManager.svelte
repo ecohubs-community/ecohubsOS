@@ -306,16 +306,16 @@
 	});
 </script>
 
-<div class="flex h-full flex-col gap-4 p-6">
+<div class="flex h-full flex-col gap-4 p-4 md:p-6">
 	{#if viewingApplication}
 		<!-- Full Application Detail View -->
 		{@const formData = parseFormData(viewingApplication)}
 		<div class="flex h-full flex-col" transition:fade>
 			<!-- Header with Back Button -->
-			<div class="mb-4 flex items-center gap-4">
+			<div class="mb-4 flex flex-col md:flex-row md:items-center gap-4">
 				<button
 					type="button"
-					class="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+					class="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 					onclick={closeApplicationView}
 				>
 					<Icon icon="tabler:arrow-left" class="h-4 w-4" />
@@ -323,7 +323,7 @@
 				</button>
 				<div class="flex items-center gap-3">
 					<div
-						class="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-solar-400 to-solar-600 font-bold text-white"
+						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-solar-400 to-solar-600 font-bold text-white"
 					>
 						{viewingApplication.fullName[0].toUpperCase()}
 					</div>
@@ -342,7 +342,7 @@
 			</div>
 
 			<!-- Application Content -->
-			<div class="flex-1 overflow-auto rounded-xl border border-white/10 bg-white/5 p-6">
+			<div class="flex-1 overflow-auto rounded-xl border border-white/10 bg-white/5 p-4 md:p-6">
 				<div class="space-y-6">
 					{#each Object.entries(formData) as [key, value] (key)}
 						{#if value && typeof value === 'string' && value.trim()}
@@ -373,11 +373,11 @@
 			</div>
 
 			<!-- Actions Footer -->
-			<div class="mt-4 flex gap-2">
+			<div class="mt-4 flex flex-col md:flex-row gap-2">
 				{#if viewingApplication.status === 'pending'}
 					<button
 						type="button"
-						class="flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+						class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
 						onclick={() => viewingApplication && createProposal(viewingApplication)}
 						disabled={creatingProposalFor !== null || !auth.isSafeOwner}
 					>
@@ -394,7 +394,7 @@
 						href={viewingApplication.snapshotProposalLink}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+						class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 					>
 						<Icon icon="tabler:external-link" class="h-4 w-4" />
 						View on Snapshot
@@ -542,10 +542,10 @@
 							{/if}
 
 							<!-- Actions -->
-							<div class="flex gap-2">
+							<div class="flex flex-col md:flex-row gap-2">
 								<button
 									type="button"
-									class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+									class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 									onclick={() => viewApplication(app)}
 								>
 									<Icon icon="tabler:eye" class="h-4 w-4" />
@@ -554,7 +554,7 @@
 								{#if app.status === 'pending'}
 									<button
 										type="button"
-										class="flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+										class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
 										onclick={() => createProposal(app)}
 										disabled={creatingProposalFor !== null || !auth.isSafeOwner}
 									>
@@ -571,7 +571,7 @@
 										href={app.snapshotProposalLink}
 										target="_blank"
 										rel="noopener noreferrer"
-										class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+										class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 									>
 										<Icon icon="tabler:external-link" class="h-4 w-4" />
 										View on Snapshot

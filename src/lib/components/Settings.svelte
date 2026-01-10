@@ -15,10 +15,12 @@
 	role="presentation"
 >
 	<div
-		class="glass-panel flex h-[500px] w-[600px] flex-col overflow-hidden rounded-2xl shadow-2xl"
+		class="glass-panel flex h-[85vh] w-[calc(100vw-1rem)] md:h-[500px] md:w-[600px] flex-col overflow-hidden rounded-2xl shadow-2xl"
 		transition:scale={{ start: 0.95 }}
 		onclick={(e) => e.stopPropagation()}
 		role="dialog"
+		tabindex="-1"
+		onkeydown={(e) => e.key === 'Escape' && close()}
 	>
 		<div
 			class="flex h-12 shrink-0 items-center justify-between border-b border-[var(--border-panel)] bg-white/5 px-4"
@@ -34,7 +36,7 @@
 				<h3 class="flex items-center gap-2 text-sm font-bold tracking-wider uppercase opacity-70">
 					<Icon icon="tabler:contrast" class="h-4 w-4" /> UI Contrast
 				</h3>
-				<div class="grid grid-cols-3 gap-3">
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 					<button
 						class="flex flex-col items-center gap-2 rounded-xl border p-3 transition-all"
 						class:bg-white-20={os.contrastMode === 'auto'}

@@ -112,7 +112,7 @@
 	tabindex="-1"
 >
 	<!-- Search bar -->
-	<div class="mt-16 w-full max-w-md px-6" transition:scale={{ duration: 200, delay: 50 }}>
+	<div class="mt-8 md:mt-16 w-full max-w-md px-6" transition:scale={{ duration: 200, delay: 50 }}>
 		<div class="relative">
 			<Icon
 				icon="tabler:search"
@@ -129,7 +129,7 @@
 
 	<!-- Category pills -->
 	<div
-		class="mt-4 flex flex-wrap justify-center gap-2 px-6"
+		class="mt-4 flex flex-wrap justify-center gap-1.5 md:gap-2 px-6"
 		transition:scale={{ duration: 200, delay: 75 }}
 	>
 		{#each ALL_CATEGORIES as category (category)}
@@ -148,7 +148,7 @@
 
 	<!-- Apps grid grouped by category -->
 	<div
-		class="mt-8 flex max-h-[55vh] w-full max-w-4xl flex-col gap-8 overflow-y-auto px-6 pb-6"
+		class="mt-8 flex max-h-[65vh] md:max-h-[55vh] w-full max-w-4xl flex-col gap-4 md:gap-8 overflow-y-auto px-6 pb-6"
 		transition:scale={{ duration: 200, delay: 100 }}
 	>
 		{#each visibleCategories as category (category)}
@@ -156,14 +156,14 @@
 				<h2 class="text-sm font-semibold uppercase tracking-wider text-white/50">
 					{CATEGORY_LABELS[category]}
 				</h2>
-				<div class="flex flex-wrap gap-6">
+				<div class="flex flex-wrap gap-3 md:gap-6">
 					{#each groupedApps[category] as app (app.id)}
 						<button
-							class="group flex w-24 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10"
+							class="group flex w-20 md:w-24 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10"
 							onclick={() => openApp(app.id)}
 						>
 							<div
-								class="from-solar-800 flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110"
+								class="from-solar-800 flex h-12 w-12 md:h-16 md:w-16 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110"
 							>
 								<img
 									src={getAppIcon(app)}

@@ -27,7 +27,7 @@
 </script>
 
 <div
-	class="glass-panel group col-span-1 cursor-default rounded-2xl p-5 md:col-span-3"
+	class="glass-panel group col-span-1 cursor-default rounded-2xl p-4 md:p-5 sm:col-span-6 md:col-span-6 lg:col-span-4 xl:col-span-3"
 	in:fly={{ y: 20, delay }}
 >
 	<div class="mb-4 flex items-center gap-3">

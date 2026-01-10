@@ -51,3 +51,17 @@ button {
 .glass-panel:hover {
 	background-color: var(--bg-panel-hover);
 }
+
+/* Safe Areas for Mobile */
+.pb-safe {
+	padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+	padding-top: env(safe-area-inset-top);
+}
+.min-h-touch {
+	min-height: 44px;
+}
+.min-w-touch {
+	min-width: 44px;
+}

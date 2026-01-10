@@ -299,9 +299,9 @@ ${draftData.excerpt || 'No excerpt provided.'}
 	});
 </script>
 
-<div class="flex h-full flex-col gap-4 p-6">
+<div class="flex h-full flex-col gap-4 p-4 md:p-6">
 	<!-- Header with Ghost Link -->
-	<div class="flex items-center justify-between">
+	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<HelpSection appId="blog-manager" title="About Blog Manager">
 			<p class="mb-2">The Blog Manager allows you to:</p>
 			<ul class="mb-2 list-inside list-disc space-y-1">
@@ -318,7 +318,7 @@ ${draftData.excerpt || 'No excerpt provided.'}
 			href="https://blog.ecohubs.community/ghost/"
 			target="_blank"
 			rel="noopener noreferrer"
-			class="flex shrink-0 items-center gap-2 rounded-lg bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/30"
+			class="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/30"
 		>
 			<Icon icon="tabler:pencil-plus" class="h-4 w-4" />
 			Write New Draft

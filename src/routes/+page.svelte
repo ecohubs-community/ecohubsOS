@@ -12,8 +12,11 @@
 	import UserCard from '$lib/components/UserCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 	import Icon from '@iconify/svelte';
+	import { mobile } from '$lib/mobile.svelte';
 
 	let { data } = $props();
+
+	let fabOpen = $state(false);
 
 	// Initialize auth store with server data
 	$effect(() => {
@@ -52,7 +55,7 @@
 		style:background-color={os.currentWallpaper.color || '#0f2e2e'}
 	>
 			<header
-				class="text-solar-100/80 z-20 flex h-8 items-center justify-between bg-black/20 px-4 text-xs font-medium backdrop-blur-md"
+				class="text-solar-100/80 z-20 flex h-10 md:h-8 items-center justify-between bg-black/20 px-3 md:px-4 text-xs font-medium backdrop-blur-md"
 			>
 				<div class="flex items-center gap-4">
 					<span class="cursor-pointer font-bold hover:text-white">ecohubsOS</span>
@@ -63,17 +66,17 @@
 				</div>
 				<div class="flex items-center gap-4">
 					{#if offcoin.isConnected}
-						<span class="flex items-center gap-1.5">
+						<span class="hidden sm:flex items-center gap-1.5">
 							<Icon icon="tabler:leaf" class="h-3 w-3 text-green-400" />
 							{offcoin.xp} XP
 						</span>
-						<span class="flex items-center gap-1.5">
+						<span class="hidden sm:flex items-center gap-1.5">
 							<Icon icon="tabler:coins" class="h-3 w-3 text-amber-400" />
 							{offcoin.eco} ECO
 						</span>
 					{/if}
 					<span>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-					<div class="flex gap-2 opacity-70">
+					<div class="hidden md:flex gap-2 opacity-70">
 						<Icon icon="tabler:wifi" class="h-5 w-5" />
 						<Icon icon="tabler:battery-4" class="h-5 w-5" />
 					</div>
@@ -82,14 +85,14 @@
 
 			<OnboardingCard />
 
-			<div class="relative grid flex-1 grid-cols-1 content-start gap-6 p-6 md:grid-cols-12">
+			<div class="relative grid flex-1 grid-cols-1 content-start gap-4 p-4 md:gap-6 md:p-6 md:grid-cols-12 mt-20 sm:mt-0">
 				<UserCard showWallet={true} delay={200} />
 				<div class="col-span-6 hidden md:block"></div>
 			</div>
 
-			<div class="z-30 flex shrink-0 justify-center pb-6">
+			<div class="z-30 flex shrink-0 justify-center pb-safe pb-6 mb-6">
 				<div
-					class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
+					class="hidden md:flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
 					in:fly={{ y: 50, duration: 800, delay: 500 }}
 				>
 					{#each APPS.filter((a) => !a.hidden) as app (app.id)}
@@ -155,6 +158,33 @@
 						</div>
 					</button>
 
+				</div>
+
+				<!-- FAB for mobile -->
+				<div class="fixed right-6 bottom-6 z-50 flex flex-col items-end gap-3 md:hidden pb-safe">
+					{#if fabOpen}
+						<button
+							class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
+							transition:fly={{ y: 20, duration: 200 }}
+							onclick={() => { os.openApp('settings'); fabOpen = false; }}
+						>
+							Settings <Icon icon="tabler:settings" />
+						</button>
+						<button
+							class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
+							transition:fly={{ y: 20, duration: 200, delay: 50 }}
+							onclick={() => { os.openAllApps(); fabOpen = false; }}
+						>
+							All Apps <Icon icon="tabler:layout-grid" />
+						</button>
+					{/if}
+					<button
+						class="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-lg backdrop-blur-md border border-white/20 text-white transition-transform duration-200 min-h-touch min-w-touch"
+						class:rotate-45={fabOpen}
+						onclick={() => fabOpen = !fabOpen}
+					>
+						<Icon icon="tabler:plus" class="h-8 w-8" />
+					</button>
 				</div>
 			</div>
 

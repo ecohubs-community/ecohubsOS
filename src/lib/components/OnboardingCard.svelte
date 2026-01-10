@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { os } from '$lib/os.svelte';
+	import { mobile } from '$lib/mobile.svelte';
 	// Props for future composition
 	let { title = 'Onboarding', defaultHeightVh = 65 } = $props();
 
@@ -101,33 +102,64 @@
 			window.removeEventListener('onboarding-step-completed', handleStepCompleted);
 		};
 	});
+
+	let completedCount = $derived(steps.filter((s) => s.completed).length);
+	let totalCount = $derived(steps.length);
+	
+	let containerClasses = $derived(
+		mobile.isMobile
+			? "glass-panel fixed top-[3.5rem] left-0 right-0 mx-2 z-30 rounded-xl shadow-2xl backdrop-blur-2xl transition-all duration-300 overflow-hidden"
+			: "glass-panel fixed top-14 right-6 z-30 w-[clamp(280px,28vw,380px)] rounded-2xl shadow-2xl backdrop-blur-2xl transition-all duration-300"
+	);
+
+	let heightStyle = $derived(
+		isExpanded
+			? mobile.isMobile
+				? `min(70vh, 500px)`
+				: `min(${defaultHeightVh}vh, 720px)`
+			: mobile.isMobile
+				? '3rem'
+				: '3.25rem'
+	);
 </script>
 
 <!-- Container -->
 <section
-	class="glass-panel fixed top-14 right-6 z-30 w-[clamp(280px,28vw,380px)] rounded-2xl shadow-2xl backdrop-blur-2xl transition-all duration-300"
-	style:height={isExpanded ? `min(${defaultHeightVh}vh, 720px)` : '3.25rem'}
+	class={containerClasses}
+	style:height={heightStyle}
 	aria-labelledby={contentId + '-header'}
 >
 	<!-- Header -->
 	<div
 		id={contentId + '-header'}
-		class="flex h-13 items-center justify-between border-b border-white/10 bg-white/5 px-4"
+		class="flex h-12 md:h-13 items-center justify-between border-b border-white/10 bg-white/5 px-4 cursor-pointer md:cursor-default"
+		onclick={mobile.isMobile ? toggle : undefined}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => mobile.isMobile && e.key === 'Enter' && toggle()}
 	>
-		<h3 class="flex items-center gap-2 font-bold text-white">
-			{title}
+		<h3 class="flex items-center gap-2 font-bold text-white text-sm md:text-base">
+			{#if mobile.isMobile}
+				{title} ({completedCount}/{totalCount})
+			{:else}
+				{title}
+			{/if}
 			{#if isCompleted && !isExpanded}
 				<Icon icon="tabler:check" class="text-green-400" />
 			{/if}
 		</h3>
 		<button
 			type="button"
-			onclick={toggle}
+			onclick={(e) => { e.stopPropagation(); toggle(); }}
 			class="rounded-md px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 focus:ring-2 focus:ring-white/30 focus:outline-none"
 			aria-controls={contentId}
 			aria-expanded={isExpanded}
 		>
-			{isExpanded ? 'Collapse' : 'Expand'}
+			{#if mobile.isMobile}
+				<Icon icon={isExpanded ? 'tabler:chevron-up' : 'tabler:chevron-down'} />
+			{:else}
+				{isExpanded ? 'Collapse' : 'Expand'}
+			{/if}
 		</button>
 	</div>
 
@@ -139,8 +171,8 @@
 		aria-hidden={!isExpanded}
 	>
 		<div
-			class="overflow-y-auto scroll-smooth p-4 will-change-transform"
-			style:max-height={`calc(${defaultHeightVh}vh - 3.25rem)`}
+			class="overflow-y-auto scroll-smooth p-4 will-change-transform pb-safe"
+			style:max-height={mobile.isMobile ? 'calc(min(70vh, 500px) - 3rem)' : `calc(${defaultHeightVh}vh - 3.25rem)`}
 		>
 			<!-- Hierarchical onboarding -->
 			<div class="space-y-4">
