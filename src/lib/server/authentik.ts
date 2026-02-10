@@ -47,14 +47,21 @@ export async function createAuthentikInvitation(
 	const expires = new Date();
 	expires.setDate(expires.getDate() + 30);
 
-	// Authentik invitation API expects the flow as a full API URL reference
-	const flowRef = `/api/v3/flows/instances/${ENROLLMENT_FLOW_UUID}/`;
+	// Authentik `name` field must be a valid slug (letters, numbers, underscores, hyphens) max 50 chars
+	const slug = applicantName
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]/g, '-')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '')
+		.slice(0, 40);
+	const invitationName = `membership-${slug}`;
 
+	// Authentik `flow` field expects a bare UUID
 	const body = {
-		name: `Membership: ${applicantName} (${applicantEmail})`,
+		name: invitationName,
 		expires: expires.toISOString(),
 		single_use: true,
-		flow: flowRef,
+		flow: ENROLLMENT_FLOW_UUID,
 		fixed_data: {
 			name: applicantName,
 			email: applicantEmail
@@ -62,7 +69,7 @@ export async function createAuthentikInvitation(
 	};
 
 	authentikLogger.info(
-		{ applicantEmail, apiUrl, flowRef },
+		{ applicantEmail, apiUrl, flowUuid: ENROLLMENT_FLOW_UUID, invitationName },
 		'Creating Authentik enrollment invitation'
 	);
 	authentikLogger.debug(
