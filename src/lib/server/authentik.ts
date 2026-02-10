@@ -23,6 +23,10 @@ function getAuthentikBaseUrl(): string {
 	return url.origin;
 }
 
+// Flow UUID for ecohubs-source-enrollment
+const ENROLLMENT_FLOW_UUID = 'fb0c7097-da67-4e22-9434-8ce74b2c7a01';
+const ENROLLMENT_FLOW_SLUG = 'ecohubs-source-enrollment';
+
 /**
  * Create a one-time enrollment invitation in Authentik.
  * Uses the ecohubs-source-enrollment flow (UUID: fb0c7097-da67-4e22-9434-8ce74b2c7a01).
@@ -37,42 +41,90 @@ export async function createAuthentikInvitation(
 	}
 
 	const baseUrl = getAuthentikBaseUrl();
-	const flowSlug = 'ecohubs-source-enrollment';
+	const apiUrl = `${baseUrl}/api/v3/stages/invitation/invitations/`;
 
 	// Invitation expires in 30 days
 	const expires = new Date();
 	expires.setDate(expires.getDate() + 30);
 
+	// Authentik invitation API expects the flow as a full API URL reference
+	const flowRef = `/api/v3/flows/instances/${ENROLLMENT_FLOW_UUID}/`;
+
 	const body = {
 		name: `Membership: ${applicantName} (${applicantEmail})`,
 		expires: expires.toISOString(),
 		single_use: true,
-		flow: flowSlug,
+		flow: flowRef,
 		fixed_data: {
 			name: applicantName,
 			email: applicantEmail
 		}
 	};
 
-	authentikLogger.info({ applicantEmail }, 'Creating Authentik enrollment invitation');
+	authentikLogger.info(
+		{ applicantEmail, apiUrl, flowRef },
+		'Creating Authentik enrollment invitation'
+	);
+	authentikLogger.debug(
+		{ requestBody: { ...body, fixed_data: { name: applicantName, email: '***' } } },
+		'Authentik invitation request body'
+	);
 
-	const response = await fetch(`${baseUrl}/api/v3/stages/invitation/invitations/`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${apiToken}`
-		},
-		body: JSON.stringify(body)
-	});
+	let response: Response;
+	try {
+		response = await fetch(apiUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${apiToken}`
+			},
+			body: JSON.stringify(body)
+		});
+	} catch (fetchErr) {
+		authentikLogger.error(
+			{ err: fetchErr, apiUrl },
+			'Network error connecting to Authentik API'
+		);
+		throw new Error(`Failed to connect to Authentik API at ${apiUrl}: ${fetchErr}`);
+	}
 
 	if (!response.ok) {
-		const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-		authentikLogger.error(
-			{ status: response.status, error: errorData },
-			'Failed to create Authentik invitation'
-		);
+		// Try to parse response as JSON, fall back to text for HTML error pages
+		let errorDetail: string;
+		const contentType = response.headers.get('content-type') || '';
+		if (contentType.includes('application/json')) {
+			const errorData = await response.json().catch(() => null);
+			errorDetail =
+				errorData?.detail ||
+				errorData?.non_field_errors?.join(', ') ||
+				JSON.stringify(errorData);
+			authentikLogger.error(
+				{
+					status: response.status,
+					statusText: response.statusText,
+					errorData,
+					apiUrl
+				},
+				'Authentik API returned error (JSON)'
+			);
+		} else {
+			const errorText = await response.text().catch(() => 'Could not read response body');
+			// Truncate HTML responses for logging
+			errorDetail =
+				errorText.length > 500 ? errorText.slice(0, 500) + '...' : errorText;
+			authentikLogger.error(
+				{
+					status: response.status,
+					statusText: response.statusText,
+					contentType,
+					errorBody: errorDetail,
+					apiUrl
+				},
+				'Authentik API returned error (non-JSON)'
+			);
+		}
 		throw new Error(
-			`Authentik API error (${response.status}): ${errorData.detail || JSON.stringify(errorData)}`
+			`Authentik API error (${response.status} ${response.statusText}): ${errorDetail}`
 		);
 	}
 
@@ -81,11 +133,11 @@ export async function createAuthentikInvitation(
 	};
 
 	// Build the enrollment URL using the flow slug and invitation token
-	const enrollmentUrl = `${baseUrl}/if/flow/${flowSlug}/?itoken=${invitation.pk}`;
+	const enrollmentUrl = `${baseUrl}/if/flow/${ENROLLMENT_FLOW_SLUG}/?itoken=${invitation.pk}`;
 
 	authentikLogger.info(
-		{ applicantEmail, invitationPk: invitation.pk },
-		'Authentik enrollment invitation created'
+		{ applicantEmail, invitationPk: invitation.pk, enrollmentUrl },
+		'Authentik enrollment invitation created successfully'
 	);
 
 	return { invitation, enrollmentUrl };

@@ -7,7 +7,7 @@ import { env } from '$env/dynamic/private';
 import { sendEmail } from '$lib/email';
 import { createAuthentikInvitation } from '$lib/server/authentik';
 import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
-import { apiLogger } from '$lib/server/logger';
+import { apiLogger, authentikLogger, emailLogger } from '$lib/server/logger';
 
 // POST - Send confirmation email with Authentik enrollment invitation
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -21,57 +21,107 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
 	const { id } = params;
 
+	// Load the application
+	let application;
 	try {
-		// Load the application
-		const [application] = await db.select().from(applications).where(eq(applications.id, id));
+		const [row] = await db.select().from(applications).where(eq(applications.id, id));
+		application = row;
+	} catch (dbErr) {
+		apiLogger.error({ err: dbErr, applicationId: id }, 'Database error loading application');
+		error(500, 'Database error loading application');
+	}
 
-		if (!application) {
-			error(404, 'Application not found');
-		}
+	if (!application) {
+		error(404, 'Application not found');
+	}
 
-		if (!application.snapshotProposalId) {
-			error(400, 'Application does not have a Snapshot proposal');
-		}
+	if (!application.snapshotProposalId) {
+		error(400, 'Application does not have a Snapshot proposal');
+	}
 
-		if (application.confirmationEmailSentAt) {
-			error(400, 'Confirmation email has already been sent');
-		}
+	if (application.confirmationEmailSentAt) {
+		error(400, 'Confirmation email has already been sent');
+	}
 
-		// Verify the proposal is closed and approved on Snapshot
-		const proposalStatus = await getProposalStatus(application.snapshotProposalId);
-		if (!proposalStatus) {
-			error(400, 'Unable to verify proposal status on Snapshot');
-		}
+	apiLogger.info(
+		{ applicationId: id, email: application.email, fullName: application.fullName },
+		'Starting confirmation email flow'
+	);
 
-		if (proposalStatus.status !== 'closed') {
-			error(400, 'Voting has not ended yet');
-		}
+	// Step 1: Verify the proposal is closed and approved on Snapshot
+	let proposalStatus;
+	try {
+		proposalStatus = await getProposalStatus(application.snapshotProposalId);
+	} catch (snapshotErr) {
+		apiLogger.error(
+			{ err: snapshotErr, applicationId: id, snapshotProposalId: application.snapshotProposalId },
+			'[Step 1/4] Failed to fetch proposal status from Snapshot'
+		);
+		error(500, 'Failed to verify proposal status on Snapshot');
+	}
 
-		const votingResult = getMembershipVotingResult(proposalStatus);
-		if (votingResult !== 'approved') {
-			error(400, `Application was not approved (result: ${votingResult || 'unknown'})`);
-		}
+	if (!proposalStatus) {
+		error(400, 'Unable to verify proposal status on Snapshot');
+	}
 
-		// Create Authentik enrollment invitation
-		const { enrollmentUrl } = await createAuthentikInvitation(
+	if (proposalStatus.status !== 'closed') {
+		error(400, 'Voting has not ended yet');
+	}
+
+	const votingResult = getMembershipVotingResult(proposalStatus);
+	if (votingResult !== 'approved') {
+		error(400, `Application was not approved (result: ${votingResult || 'unknown'})`);
+	}
+
+	apiLogger.info({ applicationId: id }, '[Step 1/4] Snapshot proposal verified: closed & approved');
+
+	// Step 2: Create Authentik enrollment invitation
+	let enrollmentUrl: string;
+	try {
+		const result = await createAuthentikInvitation(
 			application.fullName,
 			application.email
 		);
+		enrollmentUrl = result.enrollmentUrl;
+	} catch (authentikErr) {
+		authentikLogger.error(
+			{
+				err: authentikErr,
+				applicationId: id,
+				email: application.email,
+				message: authentikErr instanceof Error ? authentikErr.message : String(authentikErr)
+			},
+			'[Step 2/4] Failed to create Authentik enrollment invitation'
+		);
+		error(500, `Failed to create Authentik invitation: ${authentikErr instanceof Error ? authentikErr.message : 'Unknown error'}`);
+	}
 
-		// Build the welcome email
-		const appUrl = env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community';
-		const emailHtml = buildWelcomeEmail(application.fullName, enrollmentUrl, appUrl);
-		const emailText = buildWelcomeEmailText(application.fullName, enrollmentUrl, appUrl);
+	apiLogger.info({ applicationId: id }, '[Step 2/4] Authentik invitation created');
 
-		// Send the email
+	// Step 3: Build and send the welcome email
+	const appUrl = env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community';
+	const emailHtml = buildWelcomeEmail(application.fullName, enrollmentUrl, appUrl);
+	const emailText = buildWelcomeEmailText(application.fullName, enrollmentUrl, appUrl);
+
+	try {
 		await sendEmail({
 			to: application.email,
 			subject: 'Welcome to EcoHubs Community — Your Membership is Approved!',
 			html: emailHtml,
 			text: emailText
 		});
+	} catch (emailErr) {
+		emailLogger.error(
+			{ err: emailErr, applicationId: id, to: application.email },
+			'[Step 3/4] Failed to send welcome email'
+		);
+		error(500, `Failed to send welcome email: ${emailErr instanceof Error ? emailErr.message : 'Unknown error'}`);
+	}
 
-		// Update application with confirmation timestamp
+	apiLogger.info({ applicationId: id }, '[Step 3/4] Welcome email sent');
+
+	// Step 4: Update application with confirmation timestamp
+	try {
 		const sentAt = new Date().toISOString();
 		await db
 			.update(applications)
@@ -80,16 +130,16 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
 		apiLogger.info(
 			{ applicationId: id, email: application.email },
-			'Confirmation email sent successfully'
+			'[Step 4/4] Confirmation flow completed successfully'
 		);
 
 		return json({ success: true, sentAt });
-	} catch (err) {
-		if (err && typeof err === 'object' && 'status' in err) {
-			throw err;
-		}
-		apiLogger.error({ err, applicationId: id }, 'Error sending confirmation email');
-		error(500, 'Failed to send confirmation email');
+	} catch (dbErr) {
+		apiLogger.error(
+			{ err: dbErr, applicationId: id },
+			'[Step 4/4] Failed to update confirmation timestamp in database'
+		);
+		error(500, 'Email sent but failed to update database record');
 	}
 };
 
