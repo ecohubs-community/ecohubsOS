@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { auth } from '$lib/auth.svelte';
+	import { badges } from '$lib/badges.svelte';
 	import HelpSection from '$lib/components/HelpSection.svelte';
 	import Icon from '@iconify/svelte';
 	import { fade, slide } from 'svelte/transition';
@@ -14,6 +15,12 @@
 		snapshotProposalId: string | null;
 		snapshotProposalLink: string | null;
 		aiRecommendation: string | null;
+		confirmationEmailSentAt: string | null;
+		// Enriched fields from API
+		votingStatus: 'none' | 'active' | 'closed';
+		votingResult: 'approved' | 'rejected' | 'needs_review' | null;
+		votingEnd: number | null;
+		votingScores: number[] | null;
 	}
 
 	// Parsed form data interface (flexible to support all 41+ fields)
@@ -53,6 +60,7 @@
 	let statusMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 	let expandedId = $state<string | null>(null);
 	let creatingProposalFor = $state<string | null>(null);
+	let sendingEmailFor = $state<string | null>(null);
 	let snapshotConfig = $state<SnapshotConfig | null>(null);
 	let viewingApplication = $state<Application | null>(null);
 
@@ -96,34 +104,52 @@
 		return date.toLocaleDateString();
 	}
 
-	function getStatusColor(status: string): string {
-		switch (status) {
-			case 'pending':
-				return 'bg-amber-500/20 text-amber-300';
-			case 'proposal_created':
-				return 'bg-blue-500/20 text-blue-300';
-			case 'approved':
-				return 'bg-green-500/20 text-green-300';
-			case 'rejected':
-				return 'bg-red-500/20 text-red-300';
-			default:
-				return 'bg-white/10 text-white/60';
-		}
+	function formatVotingTimeRemaining(endTimestamp: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const remaining = endTimestamp - now;
+
+		if (remaining <= 0) return 'Ended';
+
+		const days = Math.floor(remaining / 86400);
+		const hours = Math.floor((remaining % 86400) / 3600);
+		const minutes = Math.floor((remaining % 3600) / 60);
+
+		if (days > 0) return `${days}d ${hours}h remaining`;
+		if (hours > 0) return `${hours}h ${minutes}m remaining`;
+		return `${minutes}m remaining`;
 	}
 
-	function getStatusLabel(status: string): string {
-		switch (status) {
-			case 'pending':
-				return 'Pending Review';
-			case 'proposal_created':
-				return 'Proposal Created';
-			case 'approved':
-				return 'Approved';
-			case 'rejected':
-				return 'Rejected';
-			default:
-				return status;
+	function getStatusColor(app: Application): string {
+		if (app.status === 'pending') return 'bg-amber-500/20 text-amber-300';
+		if (app.votingStatus === 'active') return 'bg-blue-500/20 text-blue-300';
+		if (app.votingStatus === 'closed') {
+			if (app.votingResult === 'approved') {
+				return app.confirmationEmailSentAt
+					? 'bg-green-500/20 text-green-300'
+					: 'bg-emerald-500/20 text-emerald-300';
+			}
+			if (app.votingResult === 'rejected') return 'bg-red-500/20 text-red-300';
+			if (app.votingResult === 'needs_review') return 'bg-purple-500/20 text-purple-300';
 		}
+		// Fallback for proposal_created without Snapshot data
+		if (app.status === 'proposal_created') return 'bg-blue-500/20 text-blue-300';
+		return 'bg-white/10 text-white/60';
+	}
+
+	function getStatusLabel(app: Application): string {
+		if (app.status === 'pending') return 'Pending Review';
+		if (app.votingStatus === 'active') return 'Active Voting';
+		if (app.votingStatus === 'closed') {
+			if (app.votingResult === 'approved') {
+				return app.confirmationEmailSentAt ? 'Approved — Email Sent' : 'Approved';
+			}
+			if (app.votingResult === 'rejected') return 'Rejected';
+			if (app.votingResult === 'needs_review') return 'Needs Review';
+			return 'Vote Closed';
+		}
+		// Fallback
+		if (app.status === 'proposal_created') return 'Proposal Created';
+		return app.status;
 	}
 
 	async function createProposal(app: Application) {
@@ -230,7 +256,9 @@
 					...applications[idx],
 					status: 'proposal_created',
 					snapshotProposalId: proposalId,
-					snapshotProposalLink: proposalLink
+					snapshotProposalLink: proposalLink,
+					votingStatus: 'active',
+					votingEnd: end
 				};
 			}
 
@@ -238,6 +266,9 @@
 				type: 'success',
 				text: `Proposal created successfully for ${app.fullName}`
 			};
+
+			// Refresh badge counts
+			badges.refresh();
 		} catch (err) {
 			console.error('Error creating proposal:', err);
 			statusMessage = {
@@ -246,6 +277,62 @@
 			};
 		} finally {
 			creatingProposalFor = null;
+		}
+	}
+
+	async function sendConfirmationEmail(app: Application) {
+		if (!auth.isSafeOwner) {
+			statusMessage = { type: 'error', text: 'Only Safe owners can send confirmation emails' };
+			return;
+		}
+
+		sendingEmailFor = app.id;
+		statusMessage = null;
+
+		try {
+			const response = await fetch(`/api/applications/${app.id}/confirm`, {
+				method: 'POST'
+			});
+
+			if (!response.ok) {
+				const data = await response.json().catch(() => ({ message: 'Unknown error' }));
+				throw new Error(data.message || `Failed to send confirmation email (${response.status})`);
+			}
+
+			const data = await response.json();
+
+			// Update local state
+			const idx = applications.findIndex((a) => a.id === app.id);
+			if (idx !== -1) {
+				applications[idx] = {
+					...applications[idx],
+					confirmationEmailSentAt: data.sentAt
+				};
+			}
+
+			// Also update the viewing application if we're in detail view
+			if (viewingApplication && viewingApplication.id === app.id) {
+				viewingApplication = {
+					...viewingApplication,
+					confirmationEmailSentAt: data.sentAt
+				};
+			}
+
+			statusMessage = {
+				type: 'success',
+				text: `Confirmation email sent to ${app.email}`
+			};
+
+			// Refresh badge counts
+			badges.refresh();
+		} catch (err) {
+			console.error('Error sending confirmation email:', err);
+			statusMessage = {
+				type: 'error',
+				text: err instanceof Error ? err.message : 'Failed to send confirmation email'
+			};
+		} finally {
+			sendingEmailFor = null;
 		}
 	}
 
@@ -306,6 +393,68 @@
 	});
 </script>
 
+{#snippet statusBadge(app: Application)}
+	<span class="rounded-full px-2.5 py-1 text-xs font-medium {getStatusColor(app)}">
+		{getStatusLabel(app)}
+	</span>
+	{#if app.votingStatus === 'active' && app.votingEnd}
+		<span class="text-[10px] text-blue-300/70">
+			{formatVotingTimeRemaining(app.votingEnd)}
+		</span>
+	{/if}
+{/snippet}
+
+{#snippet actionButtons(app: Application)}
+	{#if app.status === 'pending'}
+		<button
+			type="button"
+			class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+			onclick={() => createProposal(app)}
+			disabled={creatingProposalFor !== null || !auth.isSafeOwner}
+		>
+			{#if creatingProposalFor === app.id}
+				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+				Creating...
+			{:else}
+				<Icon icon="tabler:rocket" class="h-4 w-4" />
+				Create Proposal
+			{/if}
+		</button>
+	{/if}
+	{#if app.snapshotProposalLink}
+		<a
+			href={app.snapshotProposalLink}
+			target="_blank"
+			rel="noopener noreferrer"
+			class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+		>
+			<Icon icon="tabler:external-link" class="h-4 w-4" />
+			View on Snapshot
+		</a>
+	{/if}
+	{#if app.votingResult === 'approved' && !app.confirmationEmailSentAt}
+		<button
+			type="button"
+			class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+			onclick={() => sendConfirmationEmail(app)}
+			disabled={sendingEmailFor !== null || !auth.isSafeOwner}
+		>
+			{#if sendingEmailFor === app.id}
+				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+				Sending...
+			{:else}
+				<Icon icon="tabler:mail-forward" class="h-4 w-4" />
+				Send Confirmation Email
+			{/if}
+		</button>
+	{:else if app.confirmationEmailSentAt}
+		<span class="flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-300">
+			<Icon icon="tabler:mail-check" class="h-4 w-4" />
+			Email Sent {formatDate(app.confirmationEmailSentAt)}
+		</span>
+	{/if}
+{/snippet}
+
 <div class="flex h-full flex-col gap-4 p-4 md:p-6">
 	{#if viewingApplication}
 		<!-- Full Application Detail View -->
@@ -334,11 +483,9 @@
 						</p>
 					</div>
 				</div>
-				<span
-					class="ml-auto rounded-full px-3 py-1.5 text-xs font-medium {getStatusColor(viewingApplication.status)}"
-				>
-					{getStatusLabel(viewingApplication.status)}
-				</span>
+				<div class="ml-auto flex items-center gap-2">
+					{@render statusBadge(viewingApplication)}
+				</div>
 			</div>
 
 			<!-- Application Content -->
@@ -374,32 +521,7 @@
 
 			<!-- Actions Footer -->
 			<div class="mt-4 flex flex-col md:flex-row gap-2">
-				{#if viewingApplication.status === 'pending'}
-					<button
-						type="button"
-						class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
-						onclick={() => viewingApplication && createProposal(viewingApplication)}
-						disabled={creatingProposalFor !== null || !auth.isSafeOwner}
-					>
-						{#if creatingProposalFor === viewingApplication.id}
-							<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
-							Creating...
-						{:else}
-							<Icon icon="tabler:rocket" class="h-4 w-4" />
-							Create Proposal
-						{/if}
-					</button>
-				{:else if viewingApplication.snapshotProposalLink}
-					<a
-						href={viewingApplication.snapshotProposalLink}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
-					>
-						<Icon icon="tabler:external-link" class="h-4 w-4" />
-						View on Snapshot
-					</a>
-				{/if}
+				{@render actionButtons(viewingApplication)}
 			</div>
 		</div>
 	{:else}
@@ -410,8 +532,9 @@
 				<li>Review pending membership applications</li>
 				<li>Create Snapshot proposals for community voting</li>
 				<li>Track proposal status and voting results</li>
+				<li>Send confirmation emails to approved applicants</li>
 			</ul>
-			<p class="text-solar-300/60">Only Safe wallet owners can create proposals.</p>
+			<p class="text-solar-300/60">Only Safe wallet owners can create proposals and send confirmation emails.</p>
 		</HelpSection>
 
 	<!-- Status Message -->
@@ -485,9 +608,7 @@
 							</div>
 						</div>
 						<div class="flex items-center gap-3">
-							<span class="rounded-full px-2.5 py-1 text-xs font-medium {getStatusColor(app.status)}">
-								{getStatusLabel(app.status)}
-							</span>
+							{@render statusBadge(app)}
 							<Icon
 								icon={expandedId === app.id ? 'tabler:chevron-up' : 'tabler:chevron-down'}
 								class="h-5 w-5 text-solar-300/60"
@@ -542,7 +663,7 @@
 							{/if}
 
 							<!-- Actions -->
-							<div class="flex flex-col md:flex-row gap-2">
+							<div class="flex flex-col md:flex-row flex-wrap gap-2">
 								<button
 									type="button"
 									class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
@@ -551,32 +672,7 @@
 									<Icon icon="tabler:eye" class="h-4 w-4" />
 									View Full Application
 								</button>
-								{#if app.status === 'pending'}
-									<button
-										type="button"
-										class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
-										onclick={() => createProposal(app)}
-										disabled={creatingProposalFor !== null || !auth.isSafeOwner}
-									>
-										{#if creatingProposalFor === app.id}
-											<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
-											Creating...
-										{:else}
-											<Icon icon="tabler:rocket" class="h-4 w-4" />
-											Create Proposal
-										{/if}
-									</button>
-								{:else if app.snapshotProposalLink}
-									<a
-										href={app.snapshotProposalLink}
-										target="_blank"
-										rel="noopener noreferrer"
-										class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
-									>
-										<Icon icon="tabler:external-link" class="h-4 w-4" />
-										View on Snapshot
-									</a>
-								{/if}
+								{@render actionButtons(app)}
 							</div>
 						</div>
 					{/if}

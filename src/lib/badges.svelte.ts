@@ -17,13 +17,24 @@ function createBadgesStore() {
 		isLoading = true;
 
 		try {
-			// Fetch pending membership applications
+			// Fetch membership applications (enriched with Snapshot voting data)
 			const applicationsResponse = await fetch('/api/applications');
 			if (applicationsResponse.ok) {
 				const data = await applicationsResponse.json();
-				// Count applications that are pending (no proposal created yet)
+				// Count applications that need attention:
+				// - Pending (no proposal yet)
+				// - Active voting (vote in progress)
+				// - Approved but confirmation email not sent
 				counts['membership-manager'] = data.applications.filter(
-					(app: { status: string }) => app.status === 'pending'
+					(app: {
+						status: string;
+						votingStatus: string;
+						votingResult: string | null;
+						confirmationEmailSentAt: string | null;
+					}) =>
+						app.status === 'pending' ||
+						app.votingStatus === 'active' ||
+						(app.votingResult === 'approved' && !app.confirmationEmailSentAt)
 				).length;
 			}
 		} catch (err) {

@@ -172,6 +172,36 @@ export async function isProposalApproved(proposalId: string): Promise<boolean> {
 }
 
 /**
+ * Determine the voting result for a membership application proposal.
+ * Membership proposals use choices: ['Approve', 'Reject', 'Needs Review']
+ * Returns the winning choice as a lowercase key, or null if vote is still active.
+ */
+export function getMembershipVotingResult(
+	status: ProposalStatus
+): 'approved' | 'rejected' | 'needs_review' | null {
+	if (status.status !== 'closed') return null;
+
+	const scores = status.scores as unknown as number[];
+	if (!scores || scores.length === 0) return null;
+
+	const maxScore = Math.max(...scores);
+	if (maxScore === 0) return null;
+
+	const maxIndex = scores.indexOf(maxScore);
+
+	switch (maxIndex) {
+		case 0:
+			return 'approved';
+		case 1:
+			return 'rejected';
+		case 2:
+			return 'needs_review';
+		default:
+			return null;
+	}
+}
+
+/**
  * Format draft data for Snapshot proposal body
  */
 export function formatDraftForSnapshot(draft: GhostDraft): string {

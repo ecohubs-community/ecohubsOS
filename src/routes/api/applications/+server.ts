@@ -6,6 +6,7 @@ import { desc } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
+import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
 
 // Rate limiting for external submissions
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -33,6 +34,7 @@ function checkRateLimit(identifier: string): boolean {
 }
 
 // GET - List all applications (authenticated users only)
+// Enriches applications that have Snapshot proposals with live voting status
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		error(401, 'Not authenticated');
@@ -44,7 +46,46 @@ export const GET: RequestHandler = async ({ locals }) => {
 			.from(applications)
 			.orderBy(desc(applications.submittedAt));
 
-		return json({ applications: allApplications });
+		// Enrich applications with Snapshot voting data
+		const enrichedApplications = await Promise.all(
+			allApplications.map(async (app) => {
+				// Default enriched fields
+				let votingStatus: 'none' | 'active' | 'closed' = 'none';
+				let votingResult: 'approved' | 'rejected' | 'needs_review' | null = null;
+				let votingEnd: number | null = null;
+				let votingScores: number[] | null = null;
+
+				if (app.snapshotProposalId && app.status !== 'pending') {
+					try {
+						const status = await getProposalStatus(app.snapshotProposalId);
+						if (status) {
+							votingStatus = status.status;
+							votingEnd = status.end;
+							votingScores = status.scores as unknown as number[];
+
+							if (status.status === 'closed') {
+								votingResult = getMembershipVotingResult(status);
+							}
+						}
+					} catch (err) {
+						apiLogger.error(
+							{ err, applicationId: app.id },
+							'Error fetching Snapshot voting status'
+						);
+					}
+				}
+
+				return {
+					...app,
+					votingStatus,
+					votingResult,
+					votingEnd,
+					votingScores
+				};
+			})
+		);
+
+		return json({ applications: enrichedApplications });
 	} catch (err) {
 		apiLogger.error({ err }, 'Error fetching applications');
 		error(500, 'Failed to fetch applications');

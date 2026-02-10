@@ -36,3 +36,4 @@ export const discordLogger = logger.child({ module: 'discord' });
 export const flarumLogger = logger.child({ module: 'flarum' });
 export const ghostLogger = logger.child({ module: 'ghost' });
 export const offcoinLogger = logger.child({ module: 'offcoin' });
+export const authentikLogger = logger.child({ module: 'authentik' });

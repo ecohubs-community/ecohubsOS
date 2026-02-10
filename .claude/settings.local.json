@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm check:*)",
+      "Bash(tree:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm drizzle-kit:*)",
+      "Bash(grep:*)",
+      "Bash(sqlite3:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(pnpm svelte-kit:*)",
+      "Bash(printf:*)",
+      "mcp__svelte__svelte-autofixer",
+      "Bash(pnpm db:push:*)",
+      "Bash(pnpm rebuild:*)"
+    ]
+  }
+}

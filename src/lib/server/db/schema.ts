@@ -106,5 +106,6 @@ export const applications = sqliteTable('applications', {
 		.$defaultFn(() => new Date().toISOString()),
 	snapshotProposalId: text('snapshot_proposal_id'),
 	snapshotProposalLink: text('snapshot_proposal_link'),
-	aiRecommendation: text('ai_recommendation')
+	aiRecommendation: text('ai_recommendation'),
+	confirmationEmailSentAt: text('confirmation_email_sent_at')
 });

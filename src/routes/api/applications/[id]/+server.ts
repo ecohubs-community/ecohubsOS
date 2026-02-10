@@ -46,7 +46,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		const body = await request.json();
 
 		// Only allow updating specific fields
-		const allowedFields = ['status', 'snapshotProposalId', 'snapshotProposalLink', 'aiRecommendation'];
+		const allowedFields = ['status', 'snapshotProposalId', 'snapshotProposalLink', 'aiRecommendation', 'confirmationEmailSentAt'];
 		const updates: Record<string, string> = {};
 
 		for (const field of allowedFields) {
