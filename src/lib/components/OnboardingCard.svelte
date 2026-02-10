@@ -3,15 +3,6 @@
 	import { onMount } from 'svelte';
 	import { os } from '$lib/os.svelte';
 	import { mobile } from '$lib/mobile.svelte';
-	// Props for future composition
-	let { title = 'Onboarding', defaultHeightVh = 65 } = $props();
-
-	// State
-	let isExpanded = $state(true);
-	let isCompleted = $state(false);
-	let contentId = $state(`onboarding-content-${Math.floor(Math.random() * 1e6)}`);
-
-	// Hierarchical steps and actions
 	import { browser } from '$app/environment';
 	import {
 		createDefaultSteps,
@@ -22,11 +13,27 @@
 		markStepCompleted,
 		markSubStepCompletedById,
 		getActionButton,
-		performAction
+		performAction,
+		applyProgress,
+		extractProgress,
+		resetOnboarding
 	} from '$lib/onboarding/stepManager';
-	import type { Step, SubStep } from '$lib/onboarding/stepManager';
+	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 
-	let steps = $state<Step[]>(loadSteps());
+	// Props
+	let { title = 'Onboarding', defaultHeightVh = 65, serverProgress = {} }: {
+		title?: string;
+		defaultHeightVh?: number;
+		serverProgress?: OnboardingProgress;
+	} = $props();
+
+	// State
+	let isExpanded = $state(true);
+	let isCompleted = $state(false);
+	let contentId = $state(`onboarding-content-${Math.floor(Math.random() * 1e6)}`);
+
+	// Start with default steps — real state is set in onMount after merge
+	let steps = $state<Step[]>(createDefaultSteps());
 	let expandedSections = $state<Record<string, boolean>>({});
 
 	function toggleSection(stepId: string) {
@@ -34,8 +41,9 @@
 	}
 
 	function resetSteps() {
-		steps = createDefaultSteps();
-		saveSteps(steps);
+		steps = resetOnboarding();
+		isCompleted = false;
+		localStorage.removeItem('onboarding-completed');
 	}
 
 	async function handleSubAction(stepId: string, sub: SubStep) {
@@ -61,10 +69,42 @@
 	}
 
 	onMount(() => {
-		const completed = localStorage.getItem('onboarding-completed');
-		isCompleted = !!completed;
+		// 1. Load localStorage steps and extract their progress
+		const localSteps = loadSteps();
+		const localProgress = extractProgress(localSteps);
 
-		// Default expanded when not completed; collapsed when completed
+		// 2. Merge: union of server + local progress (server wins on conflicts)
+		const mergedProgress: OnboardingProgress = { ...localProgress, ...serverProgress };
+
+		// 3. Apply merged progress to a fresh step tree (avoids schema drift)
+		steps = applyProgress(createDefaultSteps(), mergedProgress);
+		saveSteps(steps);
+
+		// 4. Migrate local-only entries to server (one-time, fire-and-forget)
+		const newForServer: OnboardingProgress = {};
+		for (const [key, value] of Object.entries(localProgress)) {
+			if (!serverProgress[key]) {
+				newForServer[key] = value;
+			}
+		}
+		if (Object.keys(newForServer).length > 0) {
+			fetch('/api/onboarding/progress', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ completedSteps: newForServer })
+			}).catch(() => { /* silently fail */ });
+		}
+
+		// 5. Derive overall completion from merged steps
+		const allDone = steps.every((s) => s.completed);
+		isCompleted = allDone;
+		if (allDone) {
+			localStorage.setItem('onboarding-completed', 'true');
+		} else {
+			localStorage.removeItem('onboarding-completed');
+		}
+
+		// 6. Restore expanded/collapsed UI state
 		const persisted = localStorage.getItem('onboarding-card-expanded');
 		if (persisted !== null) {
 			isExpanded = JSON.parse(persisted);
@@ -72,14 +112,14 @@
 			isExpanded = !isCompleted;
 		}
 
-		// Check if returning from Discord OAuth (via query param or cookie)
+		// 7. Check if returning from Discord OAuth (via query param or cookie)
 		if (browser) {
 			const urlParams = new URLSearchParams(window.location.search);
 			const hasDiscordQueryParam = urlParams.get('discord') === 'connected';
 			const hasDiscordCookie = document.cookie.includes('discord_connected=');
 
 			if (hasDiscordQueryParam || hasDiscordCookie) {
-				// Mark Discord step as completed
+				// Mark Discord step as completed (also syncs to server)
 				markSubStepCompletedById('discord-connect');
 				// Reload steps to reflect the change
 				steps = loadSteps();
@@ -92,7 +132,7 @@
 			}
 		}
 
-		// Listen for step completion events from apps (e.g., OffcoinConnect)
+		// 8. Listen for step completion events from apps (e.g., OffcoinConnect)
 		const handleStepCompleted = () => {
 			steps = loadSteps();
 		};

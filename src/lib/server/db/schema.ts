@@ -29,7 +29,10 @@ export const user = sqliteTable('user', {
 
 	// Safe owner proposal tracking
 	safeProposalTxHash: text('safe_proposal_tx_hash'),
-	safeOwnerStatus: text('safe_owner_status') // 'pending' | 'confirmed' | 'executed' | null
+	safeOwnerStatus: text('safe_owner_status'), // 'pending' | 'confirmed' | 'executed' | null
+
+	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
+	onboardingProgress: text('onboarding_progress')
 });
 
 // BetterAuth session table

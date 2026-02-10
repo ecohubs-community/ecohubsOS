@@ -1,3 +1,5 @@
+export type OnboardingProgress = Record<string, string>;
+
 export type ActionType = 'url' | 'email' | 'none' | 'app' | 'discord';
 
 export interface SubStepAction {
@@ -195,6 +197,8 @@ export function markSubStepCompleted(steps: Step[], stepId: string, subId: strin
 		return { ...s, subSteps: updatedSubs, completed: allDone };
 	});
 	saveSteps(next);
+	// Fire-and-forget sync to server
+	syncStepToServer(subId);
 	return next;
 }
 
@@ -214,8 +218,8 @@ export function markSubStepCompletedById(subStepId: string): void {
 		if (!step.subSteps) continue;
 		const subStep = step.subSteps.find((s) => s.id === subStepId);
 		if (subStep) {
-			const updated = markSubStepCompleted(steps, step.id, subStepId);
-			saveSteps(updated);
+			// markSubStepCompleted already calls saveSteps + syncStepToServer
+			markSubStepCompleted(steps, step.id, subStepId);
 			// Dispatch custom event so OnboardingCard can update its state
 			if (typeof window !== 'undefined') {
 				window.dispatchEvent(new CustomEvent('onboarding-step-completed', {
@@ -225,6 +229,78 @@ export function markSubStepCompletedById(subStepId: string): void {
 			return;
 		}
 	}
+}
+
+// --- Server sync utilities ---
+
+/**
+ * Apply server progress onto a fresh Step[] tree.
+ * Marks substeps as completed if their ID exists in the progress record.
+ */
+export function applyProgress(steps: Step[], progress: OnboardingProgress): Step[] {
+	return steps.map((step) => {
+		if (!step.subSteps) return step;
+		const updatedSubs = step.subSteps.map((sub) => ({
+			...sub,
+			completed: sub.completed || !!progress[sub.id]
+		}));
+		const allDone = updatedSubs.every((sub) => sub.completed);
+		return { ...step, subSteps: updatedSubs, completed: allDone };
+	});
+}
+
+/**
+ * Extract completed substep IDs from a Step[] tree as a progress record.
+ */
+export function extractProgress(steps: Step[]): OnboardingProgress {
+	const progress: OnboardingProgress = {};
+	for (const step of steps) {
+		if (!step.subSteps) continue;
+		for (const sub of step.subSteps) {
+			if (sub.completed) {
+				progress[sub.id] = new Date().toISOString();
+			}
+		}
+	}
+	return progress;
+}
+
+/**
+ * Fire-and-forget sync of a single substep completion to the server.
+ * localStorage remains the immediate cache; server is the persistent store.
+ */
+export async function syncStepToServer(subStepId: string): Promise<void> {
+	try {
+		await fetch('/api/onboarding/progress', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				completedSteps: { [subStepId]: new Date().toISOString() }
+			})
+		});
+	} catch {
+		// Silently fail — localStorage is the immediate cache,
+		// server will be synced on next full load
+	}
+}
+
+/**
+ * Reset onboarding progress on both localStorage and server.
+ */
+export function resetOnboarding(): Step[] {
+	const steps = createDefaultSteps();
+	saveSteps(steps);
+	// Fire-and-forget server reset
+	try {
+		fetch('/api/onboarding/progress', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ completedSteps: {}, reset: true })
+		});
+	} catch {
+		// ignore
+	}
+	return steps;
 }
 
 export function getActionButton(sub: SubStep): { label: string; type: ActionType; appId?: string } | null {

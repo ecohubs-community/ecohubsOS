@@ -20,6 +20,8 @@ interface AuthUser {
 	// Safe owner proposal
 	safeProposalTxHash: string | null;
 	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | null;
+	// Onboarding progress (JSON string: Record<string, string>)
+	onboardingProgress: string | null;
 }
 
 interface AuthSession {

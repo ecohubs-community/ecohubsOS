@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { authLogger } from '$lib/server/logger';
+import { getOnboardingProgress } from '$lib/server/onboarding';
 
 /**
  * Safely parse JSON with fallback to default value
@@ -21,6 +22,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, '/login');
 	}
 
+	// Fetch onboarding progress (stored + auto-detected from wallet/safe/discord)
+	const onboardingProgress = await getOnboardingProgress(locals.user.id);
+
 	// Parse JSON fields for client with safe fallbacks
 	return {
 		user: {
@@ -33,6 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			roles: safeJsonParse<string[]>(locals.user.roles, []),
 			walletAddress: locals.user.walletAddress,
 			safeOwnerStatus: locals.user.safeOwnerStatus
-		}
+		},
+		onboardingProgress
 	};
 };

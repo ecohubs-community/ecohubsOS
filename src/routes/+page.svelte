@@ -85,7 +85,7 @@
 
 			<!-- Scrollable content area (mobile: onboarding + profile scroll together) -->
 			<div class="flex-1 overflow-y-auto md:overflow-visible">
-				<OnboardingCard />
+				<OnboardingCard serverProgress={data.onboardingProgress} />
 
 				<div class="relative grid grid-cols-1 content-start gap-4 p-4 md:gap-6 md:p-6 md:grid-cols-12">
 					<UserCard showWallet={true} delay={200} />
