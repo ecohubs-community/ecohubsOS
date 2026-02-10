@@ -83,16 +83,20 @@
 				</div>
 			</header>
 
-			<OnboardingCard />
+			<!-- Scrollable content area (mobile: onboarding + profile scroll together) -->
+			<div class="flex-1 overflow-y-auto md:overflow-visible">
+				<OnboardingCard />
 
-			<div class="relative grid flex-1 grid-cols-1 content-start gap-4 p-4 md:gap-6 md:p-6 md:grid-cols-12 mt-20 sm:mt-0">
-				<UserCard showWallet={true} delay={200} />
-				<div class="col-span-6 hidden md:block"></div>
+				<div class="relative grid grid-cols-1 content-start gap-4 p-4 md:gap-6 md:p-6 md:grid-cols-12">
+					<UserCard showWallet={true} delay={200} />
+					<div class="col-span-6 hidden md:block"></div>
+				</div>
 			</div>
 
-			<div class="z-30 flex shrink-0 justify-center pb-safe pb-6 mb-6">
+			<!-- Desktop dock (hidden on mobile) -->
+			<div class="z-30 hidden shrink-0 justify-center pb-safe pb-6 mb-6 md:flex">
 				<div
-					class="hidden md:flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
+					class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
 					in:fly={{ y: 50, duration: 800, delay: 500 }}
 				>
 					{#each APPS.filter((a) => !a.hidden) as app (app.id)}
@@ -131,10 +135,7 @@
 						</button>
 					{/each}
 
-					
-
 					<div class="mx-1 h-10 w-px bg-white/10"></div>
-
 
 					<button
 						onclick={() => os.openApp('settings')}
@@ -157,35 +158,34 @@
 							<Icon icon="tabler:layout-grid" class="opacity-70 group-hover:opacity-100" />
 						</div>
 					</button>
-
 				</div>
+			</div>
 
-				<!-- FAB for mobile -->
-				<div class="fixed right-6 bottom-6 z-50 flex flex-col items-end gap-3 md:hidden pb-safe">
-					{#if fabOpen}
-						<button
-							class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
-							transition:fly={{ y: 20, duration: 200 }}
-							onclick={() => { os.openApp('settings'); fabOpen = false; }}
-						>
-							Settings <Icon icon="tabler:settings" />
-						</button>
-						<button
-							class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
-							transition:fly={{ y: 20, duration: 200, delay: 50 }}
-							onclick={() => { os.openAllApps(); fabOpen = false; }}
-						>
-							All Apps <Icon icon="tabler:layout-grid" />
-						</button>
-					{/if}
+			<!-- FAB for mobile (outside dock, standalone) -->
+			<div class="fixed right-6 bottom-6 z-50 flex flex-col items-end gap-3 md:hidden pb-safe">
+				{#if fabOpen}
 					<button
-						class="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-lg backdrop-blur-md border border-white/20 text-white transition-transform duration-200 min-h-touch min-w-touch"
-						class:rotate-45={fabOpen}
-						onclick={() => fabOpen = !fabOpen}
+						class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
+						transition:fly={{ y: 20, duration: 200 }}
+						onclick={() => { os.openApp('settings'); fabOpen = false; }}
 					>
-						<Icon icon="tabler:plus" class="h-8 w-8" />
+						Settings <Icon icon="tabler:settings" />
 					</button>
-				</div>
+					<button
+						class="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur-md shadow-lg border border-white/20"
+						transition:fly={{ y: 20, duration: 200, delay: 50 }}
+						onclick={() => { os.openAllApps(); fabOpen = false; }}
+					>
+						All Apps <Icon icon="tabler:layout-grid" />
+					</button>
+				{/if}
+				<button
+					class="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-lg backdrop-blur-md border border-white/20 text-white transition-transform duration-200 min-h-touch min-w-touch"
+					class:rotate-45={fabOpen}
+					onclick={() => fabOpen = !fabOpen}
+				>
+					<Icon icon="tabler:plus" class="h-8 w-8" />
+				</button>
 			</div>
 
 		{#if os.activeWindow === 'settings'}

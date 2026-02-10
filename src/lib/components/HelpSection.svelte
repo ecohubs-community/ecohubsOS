@@ -17,7 +17,7 @@
 	} = $props();
 
 	// Get initial state from localStorage or use default
-	const storageKey = `help-${appId}-collapsed`;
+	let storageKey = $derived(`help-${appId}-collapsed`);	
 
 	function getInitialState(): boolean {
 		if (browser) {

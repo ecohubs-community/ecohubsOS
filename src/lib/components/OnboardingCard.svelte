@@ -108,7 +108,7 @@
 	
 	let containerClasses = $derived(
 		mobile.isMobile
-			? "glass-panel fixed top-[3.5rem] left-0 right-0 mx-2 z-30 rounded-xl shadow-2xl backdrop-blur-2xl transition-all duration-300 overflow-hidden"
+			? "glass-panel mx-2 mt-2 z-30 rounded-xl shadow-2xl backdrop-blur-2xl transition-all duration-300 overflow-hidden"
 			: "glass-panel fixed top-14 right-6 z-30 w-[clamp(280px,28vw,380px)] rounded-2xl shadow-2xl backdrop-blur-2xl transition-all duration-300"
 	);
 
