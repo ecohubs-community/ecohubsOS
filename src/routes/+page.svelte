@@ -22,6 +22,8 @@
 	$effect(() => {
 		if (data.user) {
 			auth.setUser(data.user);
+			// Bootstrap Offcoin connection from server (persists across devices)
+			offcoin.initFromServer(data.user.puckstackUserId);
 			// Refresh badge counts when user is authenticated
 			badges.refresh();
 		}

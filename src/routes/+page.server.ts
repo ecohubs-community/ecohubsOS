@@ -36,7 +36,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			groups: safeJsonParse<string[]>(locals.user.groups, []),
 			roles: safeJsonParse<string[]>(locals.user.roles, []),
 			walletAddress: locals.user.walletAddress,
-			safeOwnerStatus: locals.user.safeOwnerStatus
+			safeOwnerStatus: locals.user.safeOwnerStatus,
+			puckstackUserId: locals.user.puckstackUserId
 		},
 		onboardingProgress
 	};

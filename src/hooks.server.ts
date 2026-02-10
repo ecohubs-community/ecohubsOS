@@ -82,6 +82,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				walletConnectedAt: dbUser.walletConnectedAt,
 				safeProposalTxHash: dbUser.safeProposalTxHash,
 				safeOwnerStatus: dbUser.safeOwnerStatus as 'pending' | 'confirmed' | 'executed' | null,
+				puckstackUserId: dbUser.puckstackUserId ?? null,
 				onboardingProgress: dbUser.onboardingProgress ?? null
 			};
 			event.locals.session = {

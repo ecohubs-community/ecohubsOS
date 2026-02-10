@@ -31,6 +31,9 @@ export const user = sqliteTable('user', {
 	safeProposalTxHash: text('safe_proposal_tx_hash'),
 	safeOwnerStatus: text('safe_owner_status'), // 'pending' | 'confirmed' | 'executed' | null
 
+	// Offcoin / Puckstack connection
+	puckstackUserId: text('puckstack_user_id'),
+
 	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
 	onboardingProgress: text('onboarding_progress')
 });

@@ -2,6 +2,10 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient } from '$lib/server/offcoin';
 import { NotFoundError } from '@offcoin/sdk';
+import { db } from '$lib/server/db';
+import { user } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
+import { offcoinLogger } from '$lib/server/logger';
 
 /**
  * Connect a wallet address to an Offcoin member via Puckstack User ID
@@ -9,7 +13,8 @@ import { NotFoundError } from '@offcoin/sdk';
  * Flow:
  * 1. Look up Offcoin member by puckstack:<userId> alias
  * 2. If found, add wallet:<walletAddress> alias to the member
- * 3. Return member data including XP, level, and token balance
+ * 3. Persist puckstackUserId to user DB record (for cross-device persistence)
+ * 4. Return member data including XP, level, and token balance
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Verify user is authenticated
@@ -51,6 +56,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			offcoin.members.getBalance(alias)
 		]);
 
+		// Persist puckstackUserId to user DB record for cross-device persistence
+		try {
+			await db
+				.update(user)
+				.set({
+					puckstackUserId,
+					updatedAt: new Date()
+				})
+				.where(eq(user.id, locals.user.id));
+			offcoinLogger.info(
+				{ userId: locals.user.id, puckstackUserId },
+				'Persisted puckstackUserId to user record'
+			);
+		} catch (dbErr) {
+			offcoinLogger.error(
+				{ err: dbErr, userId: locals.user.id, puckstackUserId },
+				'Failed to persist puckstackUserId to DB (non-fatal)'
+			);
+			// Non-fatal: connection still works via localStorage, will retry next connect
+		}
+
 		return json({
 			success: true,
 			member: {
@@ -67,7 +93,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (err instanceof NotFoundError) {
 			error(404, 'No Offcoin member found with this Puckstack ID. Please ensure you have created a Puckstack account first.');
 		}
-		console.error('Offcoin connection error:', err);
+		offcoinLogger.error({ err }, 'Offcoin connection error');
 		error(500, 'Failed to connect to Offcoin');
 	}
 };

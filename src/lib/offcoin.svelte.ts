@@ -3,6 +3,10 @@
  *
  * Offcoin is the reputation/rewards system used by ecohubs.
  * Users connect by linking their wallet address to their Offcoin member account.
+ *
+ * Connection data is persisted both in localStorage (fast local cache) and
+ * in the user DB record (puckstackUserId column) for cross-device persistence.
+ * On new devices, initFromServer() bootstraps the connection from the DB.
  */
 
 const STORAGE_KEY = 'offcoin-connection';
@@ -58,6 +62,9 @@ class OffcoinState {
 	// Connection info
 	puckstackUserId = $state<string | null>(null);
 
+	// Track whether we've been initialized from server data
+	private _initialized = false;
+
 	// Derived values for easy access
 	xp = $derived(this.member?.xp ?? 0);
 	level = $derived(this.member?.level ?? 0);
@@ -77,6 +84,67 @@ class OffcoinState {
 				this.refreshMemberData();
 			}
 		}
+	}
+
+	/**
+	 * Initialize from server-provided puckstackUserId.
+	 * Called on page load with data from +page.server.ts.
+	 *
+	 * Handles two migration scenarios:
+	 * 1. New device: server has puckstackUserId but localStorage doesn't → bootstrap from server
+	 * 2. Existing user: localStorage has puckstackUserId but server doesn't → migrate to server
+	 */
+	initFromServer(serverPuckstackUserId: string | null | undefined): void {
+		if (this._initialized) return;
+		this._initialized = true;
+
+		// Case 1: Already connected via localStorage
+		if (this.isConnected && this.puckstackUserId) {
+			// Migrate localStorage → server if server doesn't have it yet
+			if (!serverPuckstackUserId) {
+				this._migrateToServer(this.puckstackUserId);
+			}
+			return;
+		}
+
+		// Case 2: Server has puckstackUserId but localStorage doesn't → bootstrap from server
+		if (serverPuckstackUserId) {
+			this.puckstackUserId = serverPuckstackUserId;
+			this.isConnected = true;
+
+			// Save to localStorage so subsequent loads are instant
+			saveConnection({
+				memberId: '', // Will be populated after refresh
+				puckstackUserId: serverPuckstackUserId,
+				connectedAt: new Date().toISOString()
+			});
+
+			// Fetch member data (name, XP, ECO, etc.)
+			this.refreshMemberData().then(() => {
+				// Update localStorage with the actual memberId now that we have it
+				if (this.member) {
+					saveConnection({
+						memberId: this.member.id,
+						puckstackUserId: serverPuckstackUserId,
+						connectedAt: new Date().toISOString()
+					});
+				}
+			});
+		}
+	}
+
+	/**
+	 * Migrate puckstackUserId from localStorage to server DB (one-time, fire-and-forget).
+	 * For existing users who connected Offcoin before server-side persistence was added.
+	 */
+	private _migrateToServer(puckstackUserId: string): void {
+		fetch('/api/offcoin/migrate', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ puckstackUserId })
+		}).catch(() => {
+			// Silently fail — will retry on next page load
+		});
 	}
 
 	/**
