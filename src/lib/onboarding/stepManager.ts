@@ -284,25 +284,6 @@ export async function syncStepToServer(subStepId: string): Promise<void> {
 	}
 }
 
-/**
- * Reset onboarding progress on both localStorage and server.
- */
-export function resetOnboarding(): Step[] {
-	const steps = createDefaultSteps();
-	saveSteps(steps);
-	// Fire-and-forget server reset
-	try {
-		fetch('/api/onboarding/progress', {
-			method: 'PATCH',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ completedSteps: {}, reset: true })
-		});
-	} catch {
-		// ignore
-	}
-	return steps;
-}
-
 export function getActionButton(sub: SubStep): { label: string; type: ActionType; appId?: string } | null {
 	if (!sub.actions || sub.actions.length === 0) return null;
 	const action = sub.actions[0];

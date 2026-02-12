@@ -16,7 +16,6 @@
 		performAction,
 		applyProgress,
 		extractProgress,
-		resetOnboarding
 	} from '$lib/onboarding/stepManager';
 	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 
@@ -38,12 +37,6 @@
 
 	function toggleSection(stepId: string) {
 		expandedSections = { ...expandedSections, [stepId]: !expandedSections[stepId] };
-	}
-
-	function resetSteps() {
-		steps = resetOnboarding();
-		isCompleted = false;
-		localStorage.removeItem('onboarding-completed');
 	}
 
 	async function handleSubAction(stepId: string, sub: SubStep) {
@@ -321,16 +314,6 @@
 						</div>
 					</div>
 				{/each}
-			</div>
-
-			<div class="mt-4 flex justify-end">
-				<button
-					type="button"
-					class="rounded-md bg-white/10 px-3 py-2 text-xs text-white/80 transition-colors hover:bg-white/15 focus:ring-2 focus:ring-white/30 focus:outline-none"
-					onclick={resetSteps}
-				>
-					Reset onboarding
-				</button>
 			</div>
 		</div>
 	</div>
