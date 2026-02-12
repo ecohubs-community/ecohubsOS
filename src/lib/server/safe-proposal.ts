@@ -103,11 +103,31 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 		// Sign the transaction with the proposer wallet
 		const senderSignature = await protocolKit.signHash(safeTxHash);
 
-		// Get proposer address
-		const proposerAddress = await protocolKit.getAddress();
+		const proposerAddress = await protocolKit.getSafeProvider().getSignerAddress();
+		if (!proposerAddress) {
+			return {
+				success: false,
+				error: 'Safe configuration is incomplete: proposer signer address could not be derived'
+			};
+		}
 
 		// Submit the proposal to the Safe Transaction Service
 		const apiKit = getApiKit();
+		const proposerIsOwner = await isSafeOwner(proposerAddress);
+		if (!proposerIsOwner) {
+			const delegates = await apiKit.getSafeDelegates({
+				safeAddress: env.SAFE_ADDRESS,
+				delegateAddress: proposerAddress,
+				limit: 1,
+				offset: 0
+			});
+			if (delegates.count === 0) {
+				return {
+					success: false,
+					error: `Safe proposer ${proposerAddress} is not an owner or registered delegate for ${env.SAFE_ADDRESS}`
+				};
+			}
+		}
 		await apiKit.proposeTransaction({
 			safeAddress: env.SAFE_ADDRESS,
 			safeTransactionData: safeTransaction.data,
