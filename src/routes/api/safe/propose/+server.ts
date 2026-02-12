@@ -5,6 +5,16 @@ import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { proposeAddOwner, isSafeOwner } from '$lib/server/safe-proposal';
 
+function isHttpError(err: unknown): err is { status: number; body: unknown } {
+	return (
+		typeof err === 'object' &&
+		err !== null &&
+		'status' in err &&
+		typeof (err as { status?: unknown }).status === 'number' &&
+		'body' in err
+	);
+}
+
 export const POST: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		error(401, 'Unauthorized');
@@ -65,8 +75,11 @@ export const POST: RequestHandler = async ({ locals }) => {
 			message: 'Proposal submitted. Waiting for Safe owners to approve.'
 		});
 	} catch (err) {
+		if (isHttpError(err)) {
+			throw err;
+		}
 		const message = err instanceof Error ? err.message : '';
-		if (message.startsWith('Safe configuration is incomplete')) {
+		if (message) {
 			error(500, message);
 		}
 		error(500, 'Failed to propose Safe owner addition');
