@@ -5,6 +5,20 @@ import { env } from '$env/dynamic/private';
 // Safe proposal status
 export type SafeProposalStatus = 'not_proposed' | 'pending' | 'confirmed' | 'executed' | 'already_owner';
 
+function requireEnv(name: string): string {
+	const value = env[name];
+	if (!value) {
+		throw new Error(`Safe configuration is incomplete: ${name} is missing`);
+	}
+	return value;
+}
+
+function getRpcUrl(chainId: bigint): string {
+	if (env.SAFE_RPC_URL) return env.SAFE_RPC_URL;
+	if (chainId === 1n) return `https://eth-mainnet.g.alchemy.com/v2/${requireEnv('ALCHEMY_API_KEY')}`;
+	throw new Error(`Safe configuration is incomplete: SAFE_RPC_URL is missing for chainId ${chainId}`);
+}
+
 interface ProposalResult {
 	success: boolean;
 	safeTxHash?: string;
@@ -23,7 +37,7 @@ interface StatusResult {
  */
 function getApiKit(): SafeApiKit {
 	const chainId = BigInt(env.SAFE_CHAIN_ID || '1');
-	const SAFE_API_KEY = env.SAFE_API_KEY_1! + (env.SAFE_API_KEY_2 || '');
+	const SAFE_API_KEY = requireEnv('SAFE_API_KEY_1') + (env.SAFE_API_KEY_2 || '');
 	return new SafeApiKit({
 		chainId,
 		apiKey: SAFE_API_KEY
@@ -35,7 +49,7 @@ function getApiKit(): SafeApiKit {
  */
 export async function isSafeOwner(walletAddress: string): Promise<boolean> {
 	const apiKit = getApiKit();
-	const safeInfo = await apiKit.getSafeInfo(env.SAFE_ADDRESS!);
+	const safeInfo = await apiKit.getSafeInfo(requireEnv('SAFE_ADDRESS'));
 	return safeInfo.owners.some((owner) => owner.toLowerCase() === walletAddress.toLowerCase());
 }
 
@@ -44,12 +58,16 @@ export async function isSafeOwner(walletAddress: string): Promise<boolean> {
  * Uses the dedicated proposer wallet to sign and submit the proposal
  */
 export async function proposeAddOwner(walletAddress: string): Promise<ProposalResult> {
-	const { SAFE_ADDRESS, SAFE_PROPOSER_PRIVATE_KEY, SAFE_CHAIN_ID } = env;
+	const missingEnvVars: string[] = [];
+	if (!env.SAFE_ADDRESS) missingEnvVars.push('SAFE_ADDRESS');
+	if (!env.SAFE_PROPOSER_PRIVATE_KEY) missingEnvVars.push('SAFE_PROPOSER_PRIVATE_KEY');
 
-	if (!SAFE_ADDRESS || !SAFE_PROPOSER_PRIVATE_KEY) {
+	if (missingEnvVars.length > 0) {
 		return {
 			success: false,
-			error: 'Safe configuration is incomplete'
+			error: `Safe configuration is incomplete: ${missingEnvVars.join(', ')} ${
+				missingEnvVars.length === 1 ? 'is' : 'are'
+			} missing`
 		};
 	}
 
@@ -63,13 +81,14 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 			};
 		}
 
-		const chainId = BigInt(SAFE_CHAIN_ID || '1');
+		const chainId = BigInt(env.SAFE_CHAIN_ID || '1');
+		const provider = getRpcUrl(chainId);
 
 		// Initialize Protocol Kit with the proposer's private key
 		const protocolKit = await Safe.init({
-			provider: `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_API_KEY || 'demo'}`,
-			signer: SAFE_PROPOSER_PRIVATE_KEY,
-			safeAddress: SAFE_ADDRESS
+			provider,
+			signer: env.SAFE_PROPOSER_PRIVATE_KEY,
+			safeAddress: env.SAFE_ADDRESS
 		});
 
 		// Create the addOwner transaction
@@ -90,7 +109,7 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 		// Submit the proposal to the Safe Transaction Service
 		const apiKit = getApiKit();
 		await apiKit.proposeTransaction({
-			safeAddress: SAFE_ADDRESS,
+			safeAddress: env.SAFE_ADDRESS,
 			safeTransactionData: safeTransaction.data,
 			safeTxHash,
 			senderAddress: proposerAddress,
