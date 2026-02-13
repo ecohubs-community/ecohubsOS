@@ -29,7 +29,9 @@ export const user = sqliteTable('user', {
 
 	// Safe owner proposal tracking
 	safeProposalTxHash: text('safe_proposal_tx_hash'),
-	safeOwnerStatus: text('safe_owner_status'), // 'pending' | 'confirmed' | 'executed' | null
+	safeOwnerStatus: text('safe_owner_status'), // 'pending' | 'confirmed' | 'executed' | 'delegate_added' | null
+	safeRole: text('safe_role').default('owner'), // 'owner' | 'proposer'
+	safeRoleStatus: text('safe_role_status'),
 
 	// Offcoin / Puckstack connection
 	puckstackUserId: text('puckstack_user_id'),

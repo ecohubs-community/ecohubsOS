@@ -10,7 +10,9 @@ export interface AuthUser {
 	// Wallet connection
 	walletAddress: string | null;
 	// Safe owner status
-	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | null;
+	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | 'delegate_added' | null;
+	safeRole: 'owner' | 'proposer' | null;
+	safeRoleStatus: string | null;
 }
 
 class AuthState {

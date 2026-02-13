@@ -19,7 +19,9 @@ interface AuthUser {
 	walletConnectedAt: Date | null;
 	// Safe owner proposal
 	safeProposalTxHash: string | null;
-	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | null;
+	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | 'delegate_added' | null;
+	safeRole: 'owner' | 'proposer' | null;
+	safeRoleStatus: string | null;
 	// Offcoin / Puckstack connection
 	puckstackUserId: string | null;
 	// Onboarding progress (JSON string: Record<string, string>)

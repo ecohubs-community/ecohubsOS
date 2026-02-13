@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { checkProposalStatus, isSafeOwner } from '$lib/server/safe-proposal';
+import { checkProposalStatus, isSafeDelegate, isSafeOwner } from '$lib/server/safe-proposal';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = async ({ locals }) => {
@@ -12,6 +12,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	const walletAddress = locals.user.walletAddress;
+	const onboardingRole = (env.SAFE_ONBOARDING_ROLE || 'owner').toLowerCase();
+	const shouldAddDelegate = onboardingRole === 'proposer' || onboardingRole === 'delegate';
 
 	if (!walletAddress) {
 		return json({
@@ -29,6 +31,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 				.update(user)
 				.set({
 					safeOwnerStatus: 'executed',
+					safeRole: 'owner',
+					safeRoleStatus: 'executed',
 					updatedAt: new Date()
 				})
 				.where(eq(user.id, locals.user.id));
@@ -37,6 +41,36 @@ export const GET: RequestHandler = async ({ locals }) => {
 		return json({
 			status: 'executed',
 			message: 'You are a Safe owner'
+		});
+	}
+
+	if (shouldAddDelegate) {
+		const alreadyDelegate = await isSafeDelegate(walletAddress);
+		if (alreadyDelegate) {
+			if (locals.user.safeOwnerStatus !== 'delegate_added') {
+				await db
+					.update(user)
+					.set({
+						safeProposalTxHash: null,
+						safeOwnerStatus: 'delegate_added',
+						safeRole: 'proposer',
+						safeRoleStatus: 'delegate_added',
+						updatedAt: new Date()
+					})
+					.where(eq(user.id, locals.user.id));
+			}
+
+			return json({
+				status: 'delegate_added',
+				safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${env.SAFE_ADDRESS}`,
+				message: 'You are a Safe proposer'
+			});
+		}
+
+		return json({
+			status: 'not_proposed',
+			safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${env.SAFE_ADDRESS}`,
+			message: 'No proposer access granted yet'
 		});
 	}
 
@@ -58,6 +92,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 			.update(user)
 			.set({
 				safeOwnerStatus: result.status,
+				safeRole: 'owner',
+				safeRoleStatus: result.status,
 				updatedAt: new Date()
 			})
 			.where(eq(user.id, locals.user.id));

@@ -1,6 +1,8 @@
 import Safe from '@safe-global/protocol-kit';
 import SafeApiKit from '@safe-global/api-kit';
 import { env } from '$env/dynamic/private';
+import { createWalletClient, http, type Account, type Chain, type Hex, type Transport, type WalletClient } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 // Safe proposal status
 export type SafeProposalStatus = 'not_proposed' | 'pending' | 'confirmed' | 'executed' | 'already_owner';
@@ -19,9 +21,31 @@ function getRpcUrl(chainId: bigint): string {
 	throw new Error(`Safe configuration is incomplete: SAFE_RPC_URL is missing for chainId ${chainId}`);
 }
 
+function normalizePrivateKey(privateKey: string): Hex {
+	const withPrefix = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+	if (withPrefix.length !== 66) {
+		throw new Error('Safe configuration is incomplete: delegate signer private key is not 32 bytes');
+	}
+	return withPrefix as Hex;
+}
+
+function getChain(chainId: bigint, rpcUrl: string): Chain {
+	return {
+		id: Number(chainId),
+		name: `chain-${chainId.toString()}`,
+		nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+		rpcUrls: { default: { http: [rpcUrl] } }
+	};
+}
+
 interface ProposalResult {
 	success: boolean;
 	safeTxHash?: string;
+	error?: string;
+}
+
+interface DelegateResult {
+	success: boolean;
 	error?: string;
 }
 
@@ -44,6 +68,23 @@ function getApiKit(): SafeApiKit {
 	});
 }
 
+function getDelegatorSigner(): WalletClient<Transport, Chain, Account> {
+	const chainId = BigInt(env.SAFE_CHAIN_ID || '1');
+	const privateKey = env.SAFE_DELEGATOR_PRIVATE_KEY || env.SAFE_PROPOSER_PRIVATE_KEY;
+	if (!privateKey) {
+		throw new Error(
+			'Safe configuration is incomplete: SAFE_DELEGATOR_PRIVATE_KEY (or SAFE_PROPOSER_PRIVATE_KEY fallback) is missing'
+		);
+	}
+	const rpcUrl = getRpcUrl(chainId);
+	const account = privateKeyToAccount(normalizePrivateKey(privateKey));
+	return createWalletClient({
+		account,
+		chain: getChain(chainId, rpcUrl),
+		transport: http(rpcUrl)
+	}) as WalletClient<Transport, Chain, Account>;
+}
+
 /**
  * Check if an address is already a Safe owner
  */
@@ -51,6 +92,43 @@ export async function isSafeOwner(walletAddress: string): Promise<boolean> {
 	const apiKit = getApiKit();
 	const safeInfo = await apiKit.getSafeInfo(requireEnv('SAFE_ADDRESS'));
 	return safeInfo.owners.some((owner) => owner.toLowerCase() === walletAddress.toLowerCase());
+}
+
+export async function isSafeDelegate(walletAddress: string): Promise<boolean> {
+	const apiKit = getApiKit();
+	const delegates = await apiKit.getSafeDelegates({
+		safeAddress: requireEnv('SAFE_ADDRESS'),
+		delegateAddress: walletAddress,
+		limit: 1,
+		offset: 0
+	});
+	return delegates.count > 0;
+}
+
+export async function addSafeDelegate(walletAddress: string, label = 'Ecohubs Proposer'): Promise<DelegateResult> {
+	try {
+		const alreadyDelegate = await isSafeDelegate(walletAddress);
+		if (alreadyDelegate) {
+			return { success: true };
+		}
+
+		const apiKit = getApiKit();
+		const delegatorSigner = getDelegatorSigner();
+		const delegatorAddress = delegatorSigner.account.address;
+
+		await apiKit.addSafeDelegate({
+			safeAddress: requireEnv('SAFE_ADDRESS'),
+			delegateAddress: walletAddress,
+			delegatorAddress,
+			label,
+			signer: delegatorSigner
+		});
+
+		return { success: true };
+	} catch (err) {
+		console.error('Error adding Safe delegate:', err);
+		return { success: false, error: err instanceof Error ? err.message : 'Failed to add Safe delegate' };
+	}
 }
 
 /**

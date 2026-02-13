@@ -81,7 +81,14 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				walletAddress: dbUser.walletAddress,
 				walletConnectedAt: dbUser.walletConnectedAt,
 				safeProposalTxHash: dbUser.safeProposalTxHash,
-				safeOwnerStatus: dbUser.safeOwnerStatus as 'pending' | 'confirmed' | 'executed' | null,
+				safeOwnerStatus: dbUser.safeOwnerStatus as
+					| 'pending'
+					| 'confirmed'
+					| 'executed'
+					| 'delegate_added'
+					| null,
+				safeRole: (dbUser.safeRole as 'owner' | 'proposer' | null) ?? null,
+				safeRoleStatus: dbUser.safeRoleStatus ?? null,
 				puckstackUserId: dbUser.puckstackUserId ?? null,
 				onboardingProgress: dbUser.onboardingProgress ?? null
 			};

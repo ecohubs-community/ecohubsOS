@@ -5,7 +5,16 @@
 	import Icon from '@iconify/svelte';
 	import { onMount, onDestroy } from 'svelte';
 
-	type Status = 'loading' | 'no_wallet' | 'not_proposed' | 'pending' | 'confirmed' | 'executed' | 'already_owner' | 'error';
+	type Status =
+		| 'loading'
+		| 'no_wallet'
+		| 'not_proposed'
+		| 'pending'
+		| 'confirmed'
+		| 'executed'
+		| 'already_owner'
+		| 'delegate_added'
+		| 'error';
 
 	let status = $state<Status>('loading');
 	let errorMessage = $state('');
@@ -27,7 +36,7 @@
 			threshold = data.threshold || 0;
 			safeUrl = data.safeUrl || null;
 
-			if (status === 'executed') {
+			if (status === 'executed' || status === 'delegate_added') {
 				markSubStepCompletedById('safe-proposal');
 				stopPolling();
 			}
@@ -53,7 +62,7 @@
 			status = data.status as Status;
 			safeTxHash = data.safeTxHash || null;
 
-			if (status === 'already_owner' || status === 'executed') {
+			if (status === 'already_owner' || status === 'executed' || status === 'delegate_added') {
 				markSubStepCompletedById('safe-proposal');
 			} else if (status === 'pending') {
 				startPolling();
@@ -106,9 +115,9 @@
 		>
 			<Icon icon="tabler:shield-check" class="h-8 w-8 text-emerald-900" />
 		</div>
-		<h2 class="text-xl font-bold text-white">Safe Membership</h2>
+		<h2 class="text-xl font-bold text-white">Safe Access</h2>
 		<p class="text-solar-300 mt-2 text-sm">
-			Request to become a Safe owner for governance participation.
+			Request access to the community Safe for governance participation.
 		</p>
 	</div>
 
@@ -130,7 +139,22 @@
 			<Icon icon="tabler:check-circle" class="mb-4 h-16 w-16 text-green-400" />
 			<h3 class="text-lg font-bold text-white">You're a Safe Owner!</h3>
 			<p class="text-solar-300 mt-2 text-center text-sm">
-				You have full governance rights and can participate in voting.
+				You can confirm and execute Safe transactions.
+			</p>
+		</div>
+		<button
+			onclick={() => os.closeApp()}
+			class="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-500 font-medium text-white transition-all hover:bg-green-400 active:scale-95"
+		>
+			<Icon icon="tabler:check" class="h-5 w-5" />
+			Continue
+		</button>
+	{:else if status === 'delegate_added'}
+		<div class="flex flex-1 flex-col items-center justify-center">
+			<Icon icon="tabler:check-circle" class="mb-4 h-16 w-16 text-green-400" />
+			<h3 class="text-lg font-bold text-white">You're a Safe Proposer!</h3>
+			<p class="text-solar-300 mt-2 text-center text-sm">
+				You can propose transactions, but cannot confirm or execute them.
 			</p>
 		</div>
 		<button
@@ -235,20 +259,18 @@
 			</div>
 
 			<div class="rounded-xl bg-white/5 p-4">
-				<h4 class="text-solar-200 mb-2 text-sm font-medium">What is Safe Membership?</h4>
+				<h4 class="text-solar-200 mb-2 text-sm font-medium">What is Safe Access?</h4>
 				<ul class="space-y-1 text-xs text-white/70">
-					<li>- Become a co-owner of the community Safe wallet</li>
-					<li>- Vote on governance proposals</li>
-					<li>- Participate in multi-sig transactions</li>
-					<li>- Help secure community funds</li>
+					<li>- Get access in the Safe app as an owner or proposer</li>
+					<li>- Proposers can suggest transactions</li>
+					<li>- Owners review, approve, and execute transactions</li>
 				</ul>
 			</div>
 
 			<div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
 				<h4 class="mb-2 text-sm font-medium text-amber-200">Approval Required</h4>
 				<p class="text-xs text-amber-200/70">
-					Your request will be reviewed by existing Safe owners. Once approved, you'll become a
-					full member.
+					Your request will be reviewed by existing Safe owners. Once approved you will have access to the Safe.
 				</p>
 			</div>
 		</div>
@@ -263,7 +285,7 @@
 				Submitting Request...
 			{:else}
 				<Icon icon="tabler:shield-plus" class="h-5 w-5" />
-				Request Safe Membership
+				Request Safe Access
 			{/if}
 		</button>
 	{/if}
