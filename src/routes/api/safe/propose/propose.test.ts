@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const env = { SAFE_ONBOARDING_ROLE: 'owner' };
+const env = { SAFE_ONBOARDING_ROLE: 'owner', SAFE_ADDRESS: '0x0000000000000000000000000000000000000001' };
 
 const isSafeOwner = vi.fn();
 const isSafeDelegate = vi.fn();
 const addSafeDelegate = vi.fn();
 const proposeAddOwner = vi.fn();
+const getSafeAddress = vi.fn(() => env.SAFE_ADDRESS);
 
 const where = vi.fn();
 const set = vi.fn(() => ({ where }));
@@ -15,7 +16,8 @@ vi.mock('$lib/server/safe-proposal', () => ({
 	isSafeOwner,
 	isSafeDelegate,
 	addSafeDelegate,
-	proposeAddOwner
+	proposeAddOwner,
+	getSafeAddress
 }));
 
 vi.mock('$lib/server/db', () => ({

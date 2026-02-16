@@ -1,19 +1,50 @@
 import pino from 'pino';
 import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 
 // Create logger with environment-appropriate configuration
 export const logger = pino({
 	level: dev ? 'debug' : 'info',
 	transport: dev
 		? {
-				target: 'pino-pretty',
-				options: {
-					colorize: true,
-					translateTime: 'HH:MM:ss',
-					ignore: 'pid,hostname'
-				}
+				targets: [
+					{
+						target: 'pino-pretty',
+						level: 'debug',
+						options: {
+							colorize: true,
+							translateTime: 'HH:MM:ss',
+							ignore: 'pid,hostname',
+							destination: 1
+						}
+					},
+					{
+						target: 'pino/file',
+						level: 'debug',
+						options: {
+							destination: (env.LOG_FILE?.trim() || 'logs/ecohubsOS.log') as string,
+							mkdir: true
+						}
+					}
+				]
 			}
-		: undefined, // Use default JSON output in production
+		: {
+				targets: [
+					{
+						target: 'pino/file',
+						level: 'info',
+						options: { destination: 1 }
+					},
+					{
+						target: 'pino/file',
+						level: 'info',
+						options: {
+							destination: (env.LOG_FILE?.trim() || 'logs/ecohubsOS.log') as string,
+							mkdir: true
+						}
+					}
+				]
+			},
 	// Add base fields to all logs
 	base: {
 		app: 'ecohubsOS'

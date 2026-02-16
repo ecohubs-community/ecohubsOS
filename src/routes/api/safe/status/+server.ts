@@ -3,8 +3,9 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { checkProposalStatus, isSafeDelegate, isSafeOwner } from '$lib/server/safe-proposal';
+import { checkProposalStatus, getSafeAddress, isSafeDelegate, isSafeOwner } from '$lib/server/safe-proposal';
 import { env } from '$env/dynamic/private';
+import { safeLogger } from '$lib/server/logger';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
@@ -23,6 +24,33 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	// Check if already a Safe owner
+	let safeAddress: string | null = null;
+	try {
+		safeAddress = getSafeAddress();
+	} catch (err) {
+		safeLogger.error(
+			{
+				err,
+				onboardingRole,
+				chainId: env.SAFE_CHAIN_ID ?? null,
+				safeAddress: env.SAFE_ADDRESS ?? null
+			},
+			'Safe configuration error'
+		);
+		return json(
+			{
+				status: 'error',
+				message: err instanceof Error ? err.message : 'Safe configuration is invalid',
+				details: {
+					onboardingRole,
+					chainId: env.SAFE_CHAIN_ID ?? null,
+					safeAddress: env.SAFE_ADDRESS ?? null
+				}
+			},
+			{ status: 500 }
+		);
+	}
+
 	const alreadyOwner = await isSafeOwner(walletAddress);
 	if (alreadyOwner) {
 		// Update user status if not already set
@@ -62,14 +90,14 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 			return json({
 				status: 'delegate_added',
-				safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${env.SAFE_ADDRESS}`,
+				safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${safeAddress}`,
 				message: 'You are a Safe proposer'
 			});
 		}
 
 		return json({
 			status: 'not_proposed',
-			safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${env.SAFE_ADDRESS}`,
+			safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${safeAddress}`,
 			message: 'No proposer access granted yet'
 		});
 	}
@@ -104,7 +132,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		safeTxHash: result.safeTxHash,
 		confirmations: result.confirmations,
 		threshold: result.threshold,
-		safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${env.SAFE_ADDRESS}`,
+		safeUrl: `https://app.safe.global/transactions/queue?safe=eth:${safeAddress}`,
 		message:
 			result.status === 'pending'
 				? `Waiting for ${result.threshold! - result.confirmations!} more confirmation(s)`

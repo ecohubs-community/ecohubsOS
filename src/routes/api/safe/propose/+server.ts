@@ -3,8 +3,9 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { addSafeDelegate, isSafeDelegate, isSafeOwner, proposeAddOwner } from '$lib/server/safe-proposal';
+import { addSafeDelegate, getSafeAddress, isSafeDelegate, isSafeOwner, proposeAddOwner } from '$lib/server/safe-proposal';
 import { env } from '$env/dynamic/private';
+import { safeLogger } from '$lib/server/logger';
 
 function isHttpError(err: unknown): err is { status: number; body: unknown } {
 	return (
@@ -30,6 +31,34 @@ export const POST: RequestHandler = async ({ locals }) => {
 	}
 
 	try {
+		let safeAddress: string | null = null;
+		try {
+			safeAddress = getSafeAddress();
+		} catch (err) {
+			safeLogger.error(
+				{
+					err,
+					onboardingRole,
+					chainId: env.SAFE_CHAIN_ID ?? null,
+					safeAddress: env.SAFE_ADDRESS ?? null
+				},
+				'Safe configuration error'
+			);
+			return json(
+				{
+					success: false,
+					status: 'error',
+					message: err instanceof Error ? err.message : 'Safe configuration is invalid',
+					details: {
+						onboardingRole,
+						chainId: env.SAFE_CHAIN_ID ?? null,
+						safeAddress: env.SAFE_ADDRESS ?? null
+					}
+				},
+				{ status: 500 }
+			);
+		}
+
 		const alreadyOwner = await isSafeOwner(walletAddress);
 		if (alreadyOwner) {
 			await db
@@ -72,7 +101,32 @@ export const POST: RequestHandler = async ({ locals }) => {
 
 			const result = await addSafeDelegate(walletAddress);
 			if (!result.success) {
-				error(500, result.error || 'Failed to register Safe proposer');
+				safeLogger.error(
+					{
+						err: result.error,
+						details: result.details,
+						onboardingRole,
+						chainId: env.SAFE_CHAIN_ID ?? null,
+						safeAddress,
+						walletAddress
+					},
+					'Failed to register Safe proposer'
+				);
+				return json(
+					{
+						success: false,
+						status: 'error',
+						message: result.error || 'Failed to register Safe proposer',
+						details: {
+							onboardingRole,
+							chainId: env.SAFE_CHAIN_ID ?? null,
+							safeAddress,
+							walletAddress,
+							...(result.details ?? {})
+						}
+					},
+					{ status: 500 }
+				);
 			}
 
 			await db
@@ -105,7 +159,32 @@ export const POST: RequestHandler = async ({ locals }) => {
 		const result = await proposeAddOwner(walletAddress);
 
 		if (!result.success) {
-			error(500, result.error || 'Failed to propose Safe owner addition');
+			safeLogger.error(
+				{
+					err: result.error,
+					details: result.details,
+					onboardingRole,
+					chainId: env.SAFE_CHAIN_ID ?? null,
+					safeAddress,
+					walletAddress
+				},
+				'Failed to propose Safe owner addition'
+			);
+			return json(
+				{
+					success: false,
+					status: 'error',
+					message: result.error || 'Failed to propose Safe owner addition',
+					details: {
+						onboardingRole,
+						chainId: env.SAFE_CHAIN_ID ?? null,
+						safeAddress,
+						walletAddress,
+						...(result.details ?? {})
+					}
+				},
+				{ status: 500 }
+			);
 		}
 
 		await db
@@ -131,8 +210,54 @@ export const POST: RequestHandler = async ({ locals }) => {
 		}
 		const message = err instanceof Error ? err.message : '';
 		if (message) {
-			error(500, message);
+			safeLogger.error(
+				{
+					err,
+					onboardingRole,
+					chainId: env.SAFE_CHAIN_ID ?? null,
+					safeAddress: env.SAFE_ADDRESS ?? null,
+					walletAddress
+				},
+				'Safe propose handler error'
+			);
+			return json(
+				{
+					success: false,
+					status: 'error',
+					message,
+					details: {
+						onboardingRole,
+						chainId: env.SAFE_CHAIN_ID ?? null,
+						safeAddress: env.SAFE_ADDRESS ?? null,
+						walletAddress
+					}
+				},
+				{ status: 500 }
+			);
 		}
-		error(500, shouldAddDelegate ? 'Failed to register Safe proposer' : 'Failed to propose Safe owner addition');
+		safeLogger.error(
+			{
+				err,
+				onboardingRole,
+				chainId: env.SAFE_CHAIN_ID ?? null,
+				safeAddress: env.SAFE_ADDRESS ?? null,
+				walletAddress
+			},
+			'Safe propose handler unknown error'
+		);
+		return json(
+			{
+				success: false,
+				status: 'error',
+				message: shouldAddDelegate ? 'Failed to register Safe proposer' : 'Failed to propose Safe owner addition',
+				details: {
+					onboardingRole,
+					chainId: env.SAFE_CHAIN_ID ?? null,
+					safeAddress: env.SAFE_ADDRESS ?? null,
+					walletAddress
+				}
+			},
+			{ status: 500 }
+		);
 	}
 };

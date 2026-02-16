@@ -18,6 +18,7 @@
 
 	let status = $state<Status>('loading');
 	let errorMessage = $state('');
+	let errorDetails = $state<Record<string, unknown> | null>(null);
 	let safeTxHash = $state<string | null>(null);
 	let confirmations = $state(0);
 	let threshold = $state(0);
@@ -31,6 +32,8 @@
 			const data = await response.json();
 
 			status = data.status as Status;
+			errorMessage = data.status === 'error' ? (data.message || 'An error occurred') : '';
+			errorDetails = data.status === 'error' ? (data.details || null) : null;
 			safeTxHash = data.safeTxHash || null;
 			confirmations = data.confirmations || 0;
 			threshold = data.threshold || 0;
@@ -50,17 +53,22 @@
 	async function requestMembership() {
 		isProposing = true;
 		errorMessage = '';
+		errorDetails = null;
 
 		try {
 			const response = await fetch('/api/safe/propose', { method: 'POST' });
 			const data = await response.json();
 
 			if (!response.ok) {
-				throw new Error(data.message || 'Failed to submit proposal');
+				status = 'error';
+				errorMessage = data.message || 'Failed to submit proposal';
+				errorDetails = data.details || null;
+				return;
 			}
 
 			status = data.status as Status;
 			safeTxHash = data.safeTxHash || null;
+			errorDetails = null;
 
 			if (status === 'already_owner' || status === 'executed' || status === 'delegate_added') {
 				markSubStepCompletedById('safe-proposal');
@@ -70,6 +78,7 @@
 		} catch (err) {
 			status = 'error';
 			errorMessage = err instanceof Error ? err.message : 'Failed to submit proposal';
+			errorDetails = null;
 		} finally {
 			isProposing = false;
 		}
@@ -240,6 +249,12 @@
 			<p class="text-center text-sm text-red-200">
 				{errorMessage || 'An error occurred'}
 			</p>
+			{#if errorDetails}
+				<div class="w-full rounded-xl bg-white/5 p-4">
+					<p class="mb-2 text-xs text-white/50">Details</p>
+					<pre class="max-h-48 overflow-auto text-xs text-white/70">{JSON.stringify(errorDetails, null, 2)}</pre>
+				</div>
+			{/if}
 		</div>
 		<button
 			onclick={checkStatus}

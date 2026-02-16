@@ -1,14 +1,23 @@
 import Safe from '@safe-global/protocol-kit';
 import SafeApiKit from '@safe-global/api-kit';
 import { env } from '$env/dynamic/private';
-import { createWalletClient, http, type Account, type Chain, type Hex, type Transport, type WalletClient } from 'viem';
+import {
+	createWalletClient,
+	getAddress,
+	http,
+	type Account,
+	type Chain,
+	type Hex,
+	type Transport,
+	type WalletClient
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // Safe proposal status
 export type SafeProposalStatus = 'not_proposed' | 'pending' | 'confirmed' | 'executed' | 'already_owner';
 
 function requireEnv(name: string): string {
-	const value = env[name];
+	const value = env[name]?.trim();
 	if (!value) {
 		throw new Error(`Safe configuration is incomplete: ${name} is missing`);
 	}
@@ -29,6 +38,14 @@ function normalizePrivateKey(privateKey: string): Hex {
 	return withPrefix as Hex;
 }
 
+function checksumAddress(address: string, label: string): string {
+	try {
+		return getAddress(address as `0x${string}`);
+	} catch {
+		throw new Error(`Safe configuration is incomplete: ${label} is not a valid Ethereum address`);
+	}
+}
+
 function getChain(chainId: bigint, rpcUrl: string): Chain {
 	return {
 		id: Number(chainId),
@@ -38,15 +55,38 @@ function getChain(chainId: bigint, rpcUrl: string): Chain {
 	};
 }
 
+export function getSafeAddress(): string {
+	return checksumAddress(requireEnv('SAFE_ADDRESS'), 'SAFE_ADDRESS');
+}
+
+function isHttpError(err: unknown): err is { status: number; body: unknown } {
+	return (
+		typeof err === 'object' &&
+		err !== null &&
+		'status' in err &&
+		typeof (err as { status?: unknown }).status === 'number' &&
+		'body' in err
+	);
+}
+
+function serializeHttpError(err: { status: number; body: unknown }): Record<string, unknown> {
+	const body = err.body as unknown;
+	if (typeof body === 'object' && body !== null) return { status: err.status, body };
+	if (typeof body === 'string') return { status: err.status, body: { message: body } };
+	return { status: err.status, body: { message: String(body) } };
+}
+
 interface ProposalResult {
 	success: boolean;
 	safeTxHash?: string;
 	error?: string;
+	details?: Record<string, unknown>;
 }
 
 interface DelegateResult {
 	success: boolean;
 	error?: string;
+	details?: Record<string, unknown>;
 }
 
 interface StatusResult {
@@ -90,15 +130,16 @@ function getDelegatorSigner(): WalletClient<Transport, Chain, Account> {
  */
 export async function isSafeOwner(walletAddress: string): Promise<boolean> {
 	const apiKit = getApiKit();
-	const safeInfo = await apiKit.getSafeInfo(requireEnv('SAFE_ADDRESS'));
-	return safeInfo.owners.some((owner) => owner.toLowerCase() === walletAddress.toLowerCase());
+	const safeInfo = await apiKit.getSafeInfo(getSafeAddress());
+	const target = checksumAddress(walletAddress, 'wallet address').toLowerCase();
+	return safeInfo.owners.some((owner) => owner.toLowerCase() === target);
 }
 
 export async function isSafeDelegate(walletAddress: string): Promise<boolean> {
 	const apiKit = getApiKit();
 	const delegates = await apiKit.getSafeDelegates({
-		safeAddress: requireEnv('SAFE_ADDRESS'),
-		delegateAddress: walletAddress,
+		safeAddress: getSafeAddress(),
+		delegateAddress: checksumAddress(walletAddress, 'wallet address'),
 		limit: 1,
 		offset: 0
 	});
@@ -106,6 +147,9 @@ export async function isSafeDelegate(walletAddress: string): Promise<boolean> {
 }
 
 export async function addSafeDelegate(walletAddress: string, label = 'Ecohubs Proposer'): Promise<DelegateResult> {
+	let safeAddress: string | null = null;
+	let delegateAddress: string | null = null;
+	let delegateSignerAddress: string | null = null;
 	try {
 		const alreadyDelegate = await isSafeDelegate(walletAddress);
 		if (alreadyDelegate) {
@@ -114,12 +158,14 @@ export async function addSafeDelegate(walletAddress: string, label = 'Ecohubs Pr
 
 		const apiKit = getApiKit();
 		const delegatorSigner = getDelegatorSigner();
-		const delegatorAddress = delegatorSigner.account.address;
+		delegateSignerAddress = delegatorSigner.account.address;
+		safeAddress = getSafeAddress();
+		delegateAddress = checksumAddress(walletAddress, 'wallet address');
 
 		await apiKit.addSafeDelegate({
-			safeAddress: requireEnv('SAFE_ADDRESS'),
-			delegateAddress: walletAddress,
-			delegatorAddress,
+			safeAddress,
+			delegateAddress,
+			delegatorAddress: checksumAddress(delegateSignerAddress, 'delegate signer address'),
 			label,
 			signer: delegatorSigner
 		});
@@ -127,7 +173,23 @@ export async function addSafeDelegate(walletAddress: string, label = 'Ecohubs Pr
 		return { success: true };
 	} catch (err) {
 		console.error('Error adding Safe delegate:', err);
-		return { success: false, error: err instanceof Error ? err.message : 'Failed to add Safe delegate' };
+		const details: Record<string, unknown> = {
+			stage: 'addSafeDelegate',
+			safeAddress: env.SAFE_ADDRESS ?? null,
+			safeAddressChecksummed: safeAddress,
+			chainId: env.SAFE_CHAIN_ID ?? null,
+			walletAddress,
+			delegateAddressChecksummed: delegateAddress,
+			delegateSignerAddress: delegateSignerAddress ? checksumAddress(delegateSignerAddress, 'delegate signer address') : null
+		};
+		if (isHttpError(err)) {
+			details.http = serializeHttpError(err);
+		}
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : 'Failed to add Safe delegate',
+			details
+		};
 	}
 }
 
@@ -151,7 +213,8 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 
 	try {
 		// Check if already an owner
-		const alreadyOwner = await isSafeOwner(walletAddress);
+		const ownerAddress = checksumAddress(walletAddress, 'wallet address');
+		const alreadyOwner = await isSafeOwner(ownerAddress);
 		if (alreadyOwner) {
 			return {
 				success: false,
@@ -166,13 +229,13 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 		const protocolKit = await Safe.init({
 			provider,
 			signer: env.SAFE_PROPOSER_PRIVATE_KEY,
-			safeAddress: env.SAFE_ADDRESS
+			safeAddress: getSafeAddress()
 		});
 
 		// Create the addOwner transaction
 		// Keep the current threshold (don't change it)
 		const safeTransaction = await protocolKit.createAddOwnerTx({
-			ownerAddress: walletAddress
+			ownerAddress
 		});
 
 		// Get the transaction hash
@@ -194,7 +257,7 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 		const proposerIsOwner = await isSafeOwner(proposerAddress);
 		if (!proposerIsOwner) {
 			const delegates = await apiKit.getSafeDelegates({
-				safeAddress: env.SAFE_ADDRESS,
+				safeAddress: getSafeAddress(),
 				delegateAddress: proposerAddress,
 				limit: 1,
 				offset: 0
@@ -207,7 +270,7 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 			}
 		}
 		await apiKit.proposeTransaction({
-			safeAddress: env.SAFE_ADDRESS,
+			safeAddress: getSafeAddress(),
 			safeTransactionData: safeTransaction.data,
 			safeTxHash,
 			senderAddress: proposerAddress,
@@ -220,9 +283,19 @@ export async function proposeAddOwner(walletAddress: string): Promise<ProposalRe
 		};
 	} catch (err) {
 		console.error('Error proposing addOwner transaction:', err);
+		const details: Record<string, unknown> = {
+			stage: 'proposeAddOwner',
+			safeAddress: env.SAFE_ADDRESS ?? null,
+			chainId: env.SAFE_CHAIN_ID ?? null,
+			walletAddress
+		};
+		if (isHttpError(err)) {
+			details.http = serializeHttpError(err);
+		}
 		return {
 			success: false,
-			error: err instanceof Error ? err.message : 'Failed to propose transaction'
+			error: err instanceof Error ? err.message : 'Failed to propose transaction',
+			details
 		};
 	}
 }
