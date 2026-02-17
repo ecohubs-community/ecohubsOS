@@ -11,11 +11,14 @@ import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
 import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Members from './apps/members/Members.svelte';
+import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
 import PuckstackFavicon from './assets/icons/puckstack.svg';
 import NewsletterFavicon from './assets/icons/newsletter.svg';
+import MembersFavicon from './assets/icons/members.svg';
+import AdminLogsFavicon from './assets/icons/admin-logs.svg';
 
 export interface AppDefinition {
 	id: string;
@@ -194,13 +197,23 @@ export const APPS: AppDefinition[] = [
 	{
 		id: 'members',
 		name: 'Members',
-		icon: 'users',
 		category: 'ops',
 		isInternalApp: true,
+		icon: MembersFavicon,
 		component: Members,
 		description: 'View and manage community members.',
 		groups: ['EcoHubs Admin']
 	},
+	{
+		id: 'admin-logs',
+		name: 'System Logs',
+		category: 'ops',
+		icon: AdminLogsFavicon,
+		isInternalApp: true,
+		component: AdminLogs,
+		description: 'View system logs and server activity.',
+		groups: ['EcoHubs Admin']
+	}
 ];
 
 export const MOCK_NOTIFICATIONS: Notification[] = [
