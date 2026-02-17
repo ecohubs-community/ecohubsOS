@@ -482,7 +482,9 @@
 					<div>
 						<h2 class="text-lg font-semibold text-white">{viewingApplication.fullName}</h2>
 						<p class="text-solar-300/60 text-xs">
-							{viewingApplication.email} • Submitted {formatDate(viewingApplication.submittedAt)}
+							{obscureEmail(viewingApplication.email)} • Submitted {formatDate(
+								viewingApplication.submittedAt
+							)}
 						</p>
 					</div>
 				</div>
