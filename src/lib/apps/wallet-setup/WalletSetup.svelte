@@ -27,11 +27,6 @@
 		}
 	});
 
-	function markDone() {
-		markSubStepCompletedById('wallet-setup');
-		os.closeApp();
-	}
-
 	function openMetaMaskDownload() {
 		window.open('https://metamask.io/download/', '_blank', 'noopener,noreferrer');
 	}
@@ -109,12 +104,6 @@
 				class="h-12 flex-1 rounded-xl bg-white/10 font-medium text-white transition-all hover:bg-white/20"
 			>
 				I have MetaMask
-			</button>
-			<button
-				onclick={markDone}
-				class="h-12 flex-1 rounded-xl border border-white/10 font-medium text-white/60 transition-all hover:bg-white/5"
-			>
-				Skip for now
 			</button>
 		</div>
 	{/if}

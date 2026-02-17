@@ -4,6 +4,7 @@
 	import HelpSection from '$lib/components/HelpSection.svelte';
 	import Icon from '@iconify/svelte';
 	import { fade, slide } from 'svelte/transition';
+	import { obscureEmail } from '$lib/utils/email.utils';
 
 	interface Application {
 		id: string;
@@ -448,7 +449,9 @@
 			{/if}
 		</button>
 	{:else if app.confirmationEmailSentAt}
-		<span class="flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-300">
+		<span
+			class="flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-300"
+		>
 			<Icon icon="tabler:mail-check" class="h-4 w-4" />
 			Email Sent {formatDate(app.confirmationEmailSentAt)}
 		</span>
@@ -461,10 +464,10 @@
 		{@const formData = parseFormData(viewingApplication)}
 		<div class="flex h-full flex-col" transition:fade>
 			<!-- Header with Back Button -->
-			<div class="mb-4 flex flex-col md:flex-row md:items-center gap-4">
+			<div class="mb-4 flex flex-col gap-4 md:flex-row md:items-center">
 				<button
 					type="button"
-					class="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+					class="flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 md:w-auto"
 					onclick={closeApplicationView}
 				>
 					<Icon icon="tabler:arrow-left" class="h-4 w-4" />
@@ -472,13 +475,13 @@
 				</button>
 				<div class="flex items-center gap-3">
 					<div
-						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-solar-400 to-solar-600 font-bold text-white"
+						class="from-solar-400 to-solar-600 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br font-bold text-white"
 					>
 						{viewingApplication.fullName[0].toUpperCase()}
 					</div>
 					<div>
 						<h2 class="text-lg font-semibold text-white">{viewingApplication.fullName}</h2>
-						<p class="text-xs text-solar-300/60">
+						<p class="text-solar-300/60 text-xs">
 							{viewingApplication.email} • Submitted {formatDate(viewingApplication.submittedAt)}
 						</p>
 					</div>
@@ -494,10 +497,10 @@
 					{#each Object.entries(formData) as [key, value] (key)}
 						{#if value && typeof value === 'string' && value.trim()}
 							<div class="border-b border-white/5 pb-4 last:border-0">
-								<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-solar-300/60">
+								<h3 class="text-solar-300/60 mb-2 text-xs font-semibold tracking-wider uppercase">
 									{formatFieldName(key)}
 								</h3>
-								<div class="text-sm leading-relaxed text-solar-100/90 whitespace-pre-wrap">
+								<div class="text-solar-100/90 text-sm leading-relaxed whitespace-pre-wrap">
 									{value}
 								</div>
 							</div>
@@ -506,11 +509,11 @@
 
 					{#if viewingApplication.aiRecommendation}
 						<div class="border-b border-white/5 pb-4 last:border-0">
-							<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-solar-300/60">
+							<h3 class="text-solar-300/60 mb-2 text-xs font-semibold tracking-wider uppercase">
 								AI Recommendation
 							</h3>
 							<div
-								class="rounded-lg bg-blue-500/10 p-3 text-sm leading-relaxed text-blue-200 whitespace-pre-wrap"
+								class="rounded-lg bg-blue-500/10 p-3 text-sm leading-relaxed whitespace-pre-wrap text-blue-200"
 							>
 								{viewingApplication.aiRecommendation}
 							</div>
@@ -520,7 +523,7 @@
 			</div>
 
 			<!-- Actions Footer -->
-			<div class="mt-4 flex flex-col md:flex-row gap-2">
+			<div class="mt-4 flex flex-col gap-2 md:flex-row">
 				{@render actionButtons(viewingApplication)}
 			</div>
 		</div>
@@ -534,151 +537,155 @@
 				<li>Track proposal status and voting results</li>
 				<li>Send confirmation emails to approved applicants</li>
 			</ul>
-			<p class="text-solar-300/60">Only Safe wallet owners can create proposals and send confirmation emails.</p>
+			<p class="text-solar-300/60">
+				Only Safe wallet owners can create proposals and send confirmation emails.
+			</p>
 		</HelpSection>
 
-	<!-- Status Message -->
-	{#if statusMessage}
-		<div
-			class="flex items-center gap-2 rounded-lg p-3 {statusMessage.type === 'success'
-				? 'bg-green-500/20 text-green-300'
-				: 'bg-red-500/20 text-red-300'}"
-			transition:fade
-		>
-			<Icon
-				icon={statusMessage.type === 'success' ? 'tabler:check' : 'tabler:alert-circle'}
-				class="h-5 w-5"
-			/>
-			{statusMessage.text}
-			<button
-				type="button"
-				class="ml-auto hover:opacity-70"
-				onclick={() => (statusMessage = null)}
+		<!-- Status Message -->
+		{#if statusMessage}
+			<div
+				class="flex items-center gap-2 rounded-lg p-3 {statusMessage.type === 'success'
+					? 'bg-green-500/20 text-green-300'
+					: 'bg-red-500/20 text-red-300'}"
+				transition:fade
 			>
-				<Icon icon="tabler:x" class="h-4 w-4" />
-			</button>
-		</div>
-	{/if}
-
-	<!-- Applications List -->
-	<div class="flex-1 space-y-3 overflow-auto">
-		{#if isLoading}
-			<div class="flex items-center justify-center py-12">
-				<Icon icon="tabler:loader-2" class="h-8 w-8 animate-spin text-solar-300" />
-			</div>
-		{:else if error}
-			<div class="rounded-lg bg-red-500/20 p-4 text-center text-red-300">
-				<Icon icon="tabler:alert-circle" class="mx-auto mb-2 h-8 w-8" />
-				<p>{error}</p>
+				<Icon
+					icon={statusMessage.type === 'success' ? 'tabler:check' : 'tabler:alert-circle'}
+					class="h-5 w-5"
+				/>
+				{statusMessage.text}
 				<button
 					type="button"
-					class="mt-2 rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
-					onclick={loadApplications}
+					class="ml-auto hover:opacity-70"
+					onclick={() => (statusMessage = null)}
 				>
-					Try Again
+					<Icon icon="tabler:x" class="h-4 w-4" />
 				</button>
 			</div>
-		{:else if applications.length === 0}
-			<div class="rounded-lg bg-white/5 p-8 text-center text-solar-300/60">
-				<Icon icon="tabler:inbox" class="mx-auto mb-2 h-12 w-12" />
-				<p>No applications yet</p>
-			</div>
-		{:else}
-			{#each applications as app (app.id)}
-				<div
-					class="rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/[0.07]"
-				>
-					<!-- Card Header -->
+		{/if}
+
+		<!-- Applications List -->
+		<div class="flex-1 space-y-3 overflow-auto">
+			{#if isLoading}
+				<div class="flex items-center justify-center py-12">
+					<Icon icon="tabler:loader-2" class="text-solar-300 h-8 w-8 animate-spin" />
+				</div>
+			{:else if error}
+				<div class="rounded-lg bg-red-500/20 p-4 text-center text-red-300">
+					<Icon icon="tabler:alert-circle" class="mx-auto mb-2 h-8 w-8" />
+					<p>{error}</p>
 					<button
 						type="button"
-						class="flex w-full items-center justify-between p-4 text-left"
-						onclick={() => toggleExpanded(app.id)}
+						class="mt-2 rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+						onclick={loadApplications}
 					>
-						<div class="flex items-center gap-3">
-							<div
-								class="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-solar-400 to-solar-600 font-bold text-white"
-							>
-								{app.fullName[0].toUpperCase()}
-							</div>
-							<div>
-								<h3 class="font-medium text-white">{app.fullName}</h3>
-								<p class="text-xs text-solar-300/60">
-									{app.email} • {formatDate(app.submittedAt)}
-								</p>
-							</div>
-						</div>
-						<div class="flex items-center gap-3">
-							{@render statusBadge(app)}
-							<Icon
-								icon={expandedId === app.id ? 'tabler:chevron-up' : 'tabler:chevron-down'}
-								class="h-5 w-5 text-solar-300/60"
-							/>
-						</div>
+						Try Again
 					</button>
-
-					<!-- Expanded Content -->
-					{#if expandedId === app.id}
-						{@const formData = parseFormData(app)}
-						<div class="border-t border-white/10 p-4" transition:slide>
-							<!-- Motivation Preview -->
-							{#if formData.motivation}
-								<div class="mb-4">
-									<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Motivation</h4>
-									<p class="text-sm text-solar-100/80">
-										{formData.motivation.length > 200
-											? formData.motivation.slice(0, 200) + '...'
-											: formData.motivation}
-									</p>
-								</div>
-							{/if}
-
-							<!-- Contribution Preview -->
-							{#if formData.contribution}
-								<div class="mb-4">
-									<h4 class="mb-1 text-xs font-medium uppercase text-solar-300/60">Contribution</h4>
-									<p class="text-sm text-solar-100/80">
-										{formData.contribution.length > 200
-											? formData.contribution.slice(0, 200) + '...'
-											: formData.contribution}
-									</p>
-								</div>
-							{/if}
-
-							<!-- Additional Info -->
-							{#if formData.location || formData.languages}
-								<div class="mb-4 flex flex-wrap gap-2 text-xs text-solar-300/60">
-									{#if formData.location}
-										<span class="flex items-center gap-1">
-											<Icon icon="tabler:map-pin" class="h-3 w-3" />
-											{formData.location}
-										</span>
-									{/if}
-									{#if formData.languages}
-										<span class="flex items-center gap-1">
-											<Icon icon="tabler:language" class="h-3 w-3" />
-											{formData.languages}
-										</span>
-									{/if}
-								</div>
-							{/if}
-
-							<!-- Actions -->
-							<div class="flex flex-col md:flex-row flex-wrap gap-2">
-								<button
-									type="button"
-									class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
-									onclick={() => viewApplication(app)}
-								>
-									<Icon icon="tabler:eye" class="h-4 w-4" />
-									View Full Application
-								</button>
-								{@render actionButtons(app)}
-							</div>
-						</div>
-					{/if}
 				</div>
-			{/each}
-		{/if}
-	</div>
+			{:else if applications.length === 0}
+				<div class="text-solar-300/60 rounded-lg bg-white/5 p-8 text-center">
+					<Icon icon="tabler:inbox" class="mx-auto mb-2 h-12 w-12" />
+					<p>No applications yet</p>
+				</div>
+			{:else}
+				{#each applications as app (app.id)}
+					<div
+						class="rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/[0.07]"
+					>
+						<!-- Card Header -->
+						<button
+							type="button"
+							class="flex w-full items-center justify-between p-4 text-left"
+							onclick={() => toggleExpanded(app.id)}
+						>
+							<div class="flex items-center gap-3">
+								<div
+									class="from-solar-400 to-solar-600 flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br font-bold text-white"
+								>
+									{app.fullName[0].toUpperCase()}
+								</div>
+								<div>
+									<h3 class="font-medium text-white">{app.fullName}</h3>
+									<p class="text-solar-300/60 text-xs">
+										{obscureEmail(app.email)} • {formatDate(app.submittedAt)}
+									</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-3">
+								{@render statusBadge(app)}
+								<Icon
+									icon={expandedId === app.id ? 'tabler:chevron-up' : 'tabler:chevron-down'}
+									class="text-solar-300/60 h-5 w-5"
+								/>
+							</div>
+						</button>
+
+						<!-- Expanded Content -->
+						{#if expandedId === app.id}
+							{@const formData = parseFormData(app)}
+							<div class="border-t border-white/10 p-4" transition:slide>
+								<!-- Motivation Preview -->
+								{#if formData.motivation}
+									<div class="mb-4">
+										<h4 class="text-solar-300/60 mb-1 text-xs font-medium uppercase">Motivation</h4>
+										<p class="text-solar-100/80 text-sm">
+											{formData.motivation.length > 200
+												? formData.motivation.slice(0, 200) + '...'
+												: formData.motivation}
+										</p>
+									</div>
+								{/if}
+
+								<!-- Contribution Preview -->
+								{#if formData.contribution}
+									<div class="mb-4">
+										<h4 class="text-solar-300/60 mb-1 text-xs font-medium uppercase">
+											Contribution
+										</h4>
+										<p class="text-solar-100/80 text-sm">
+											{formData.contribution.length > 200
+												? formData.contribution.slice(0, 200) + '...'
+												: formData.contribution}
+										</p>
+									</div>
+								{/if}
+
+								<!-- Additional Info -->
+								{#if formData.location || formData.languages}
+									<div class="text-solar-300/60 mb-4 flex flex-wrap gap-2 text-xs">
+										{#if formData.location}
+											<span class="flex items-center gap-1">
+												<Icon icon="tabler:map-pin" class="h-3 w-3" />
+												{formData.location}
+											</span>
+										{/if}
+										{#if formData.languages}
+											<span class="flex items-center gap-1">
+												<Icon icon="tabler:language" class="h-3 w-3" />
+												{formData.languages}
+											</span>
+										{/if}
+									</div>
+								{/if}
+
+								<!-- Actions -->
+								<div class="flex flex-col flex-wrap gap-2 md:flex-row">
+									<button
+										type="button"
+										class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+										onclick={() => viewApplication(app)}
+									>
+										<Icon icon="tabler:eye" class="h-4 w-4" />
+										View Full Application
+									</button>
+									{@render actionButtons(app)}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			{/if}
+		</div>
 	{/if}
 </div>
