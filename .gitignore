@@ -25,3 +25,12 @@ vite.config.ts.timestamp-*
 
 # SQLite
 *.db
+
+# Logs
+*.log
+
+# Debug
+*.debug
+
+# Temp
+*.tmp

@@ -19,6 +19,7 @@ class AuthState {
 	user = $state<AuthUser | null>(null);
 
 	setUser(user: AuthUser | null) {
+		console.log('Setting user:', user);
 		this.user = user;
 	}
 

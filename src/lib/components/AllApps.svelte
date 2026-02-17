@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { page } from '$app/state';
 	import { os } from '$lib/os.svelte';
 	import { APPS } from '$lib/data';
 	import Icon from '@iconify/svelte';
@@ -21,7 +22,7 @@
 	) as Category[];
 
 	let searchQuery = $state('');
-	let activeCategories = new SvelteSet<Category>(ALL_CATEGORIES.filter(x => x !== 'system'));
+	let activeCategories = new SvelteSet<Category>(ALL_CATEGORIES.filter((x) => x !== 'system'));
 
 	function toggleCategory(category: Category) {
 		if (activeCategories.has(category)) {
@@ -35,7 +36,10 @@
 		APPS.filter(
 			(app) =>
 				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-				activeCategories.has(app.category)
+				activeCategories.has(app.category) &&
+				(!app.groups ||
+					(page.data.user?.groups &&
+						app.groups.some((g: string) => page.data.user.groups.includes(g))))
 		)
 	);
 
@@ -112,24 +116,24 @@
 	tabindex="-1"
 >
 	<!-- Search bar -->
-	<div class="mt-8 md:mt-16 w-full max-w-md px-6" transition:scale={{ duration: 200, delay: 50 }}>
+	<div class="mt-8 w-full max-w-md px-6 md:mt-16" transition:scale={{ duration: 200, delay: 50 }}>
 		<div class="relative">
 			<Icon
 				icon="tabler:search"
-				class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/50"
+				class="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-white/50"
 			/>
 			<input
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Search apps..."
-				class="w-full rounded-xl border border-white/20 bg-white/10 py-3 pl-12 pr-4 text-white placeholder-white/50 backdrop-blur-md focus:border-white/40 focus:outline-none"
+				class="w-full rounded-xl border border-white/20 bg-white/10 py-3 pr-4 pl-12 text-white placeholder-white/50 backdrop-blur-md focus:border-white/40 focus:outline-none"
 			/>
 		</div>
 	</div>
 
 	<!-- Category pills -->
 	<div
-		class="mt-4 flex flex-wrap justify-center gap-1.5 md:gap-2 px-6"
+		class="mt-4 flex flex-wrap justify-center gap-1.5 px-6 md:gap-2"
 		transition:scale={{ duration: 200, delay: 75 }}
 	>
 		{#each ALL_CATEGORIES as category (category)}
@@ -148,22 +152,25 @@
 
 	<!-- Apps grid grouped by category -->
 	<div
-		class="mt-8 flex max-h-[65vh] md:max-h-[55vh] w-full max-w-4xl flex-col gap-4 md:gap-8 overflow-y-auto px-6 pb-6"
+		class="mt-8 flex max-h-[65vh] w-full max-w-4xl flex-col gap-4 overflow-y-auto px-6 pb-6 md:max-h-[55vh] md:gap-8"
 		transition:scale={{ duration: 200, delay: 100 }}
 	>
 		{#each visibleCategories as category (category)}
 			<div class="flex flex-col gap-4">
-				<h2 class="text-sm font-semibold uppercase tracking-wider text-white/50">
+				<h2 class="text-sm font-semibold tracking-wider text-white/50 uppercase">
 					{CATEGORY_LABELS[category]}
 				</h2>
 				<div class="flex flex-wrap gap-3 md:gap-6">
 					{#each groupedApps[category] as app (app.id)}
 						<button
-							class="group flex w-20 md:w-24 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10"
+							class="group flex w-20 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10 md:w-24"
 							onclick={() => openApp(app.id)}
 						>
 							<div
-								class="from-solar-800 flex h-12 w-12 md:h-16 md:w-16 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110"
+								class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110 md:h-16 md:w-16 {app.groups &&
+								app.groups.includes('EcoHubs Admin')
+									? 'border-2 border-blue-500/50 bg-blue-500/10'
+									: ''}"
 							>
 								<img
 									src={getAppIcon(app)}

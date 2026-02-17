@@ -10,6 +10,7 @@ import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
 import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
 import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
+import Members from './apps/members/Members.svelte';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
@@ -27,6 +28,7 @@ export interface AppDefinition {
 	description: string;
 	hidden?: boolean; // Hidden apps don't appear in the dock
 	helpItems?: string[]; // List of help items for external apps
+	groups?: string[]; // List of required user groups to see/access the app
 }
 
 export interface Notification {
@@ -189,6 +191,16 @@ export const APPS: AppDefinition[] = [
 	// 	description: 'Create your account on the ecohubs Discussions Forum.',
 	// 	hidden: true // Only accessible via onboarding, not shown in dock
 	// },
+	{
+		id: 'members',
+		name: 'Members',
+		icon: 'users',
+		category: 'ops',
+		isInternalApp: true,
+		component: Members,
+		description: 'View and manage community members.',
+		groups: ['EcoHubs Admin']
+	},
 ];
 
 export const MOCK_NOTIFICATIONS: Notification[] = [

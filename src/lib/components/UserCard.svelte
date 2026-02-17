@@ -27,35 +27,33 @@
 </script>
 
 <div
-	class="glass-panel group col-span-1 cursor-default rounded-2xl p-4 md:p-5 sm:col-span-6 md:col-span-6 lg:col-span-4 xl:col-span-3"
+	class="glass-panel group col-span-1 cursor-default rounded-2xl p-4 sm:col-span-6 md:col-span-6 md:p-5 lg:col-span-4 xl:col-span-3"
 	in:fly={{ y: 20, delay }}
 >
 	<div class="mb-4 flex items-center gap-3">
 		<div
-			class="from-indigo-400 to-purle-600 flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br font-bold text-indigo-200/80 shadow-lg overflow-hidden"
+			class="to-purle-600 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-indigo-400 font-bold text-indigo-200/80 shadow-lg"
 		>
 			{#if offcoin.isLoading}
 				<Icon icon="tabler:loader-2" class="h-5 w-5 animate-spin" />
+			{:else if auth.userImage}
+				<img
+					in:fade
+					src={auth.userImage}
+					alt="Avatar"
+					class="absolute h-10 w-10 rounded-full object-cover"
+				/>
+			{:else if offcoin.isConnected && offcoin.avatarUrl}
+				<img
+					in:fade
+					src={offcoin.avatarUrl}
+					alt="Avatar"
+					class="absolute h-10 w-10 rounded-full object-cover"
+				/>
+			{:else if offcoin.isConnected}
+				{offcoin.name[0]}
 			{:else}
-				{#if auth.userImage}
-					<img
-						in:fade
-						src={auth.userImage}
-						alt="Avatar"
-						class="absolute h-10 w-10 rounded-full object-cover"
-					/>
-				{:else if offcoin.isConnected && offcoin.avatarUrl}
-					<img
-						in:fade
-						src={offcoin.avatarUrl}
-						alt="Avatar"
-						class="absolute h-10 w-10 rounded-full object-cover"
-					/>
-				{:else if offcoin.isConnected}
-					{offcoin.name[0]}
-				{:else}
-					{auth.userName?.[0] ?? '?'}
-				{/if}
+				{auth.userName?.[0] ?? '?'}
 			{/if}
 		</div>
 		<div>
@@ -73,6 +71,11 @@
 					<p class="text-solar-300 text-xs">{offcoin.role} • Lvl {offcoin.level}</p>
 				{:else}
 					<p class="text-solar-300 text-xs">{auth.userEmail ?? 'Member'}</p>
+				{/if}
+				{#if auth.userGroups.includes('EcoHubs Admin')}
+					<span class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">Admin</span>
+				{:else if auth.userGroups.includes('EcoHubs Member')}
+					<span class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">Member</span>
 				{/if}
 			{/if}
 		</div>
@@ -97,13 +100,17 @@
 		{/if}
 	{/if}
 	{#if showWallet}
-		<div class="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-solar-300/60">
+		<div
+			class="text-solar-300/60 mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs"
+		>
 			<div class="flex items-center gap-2">
 				{#if auth.walletAddress}
 					<Icon icon="tabler:wallet" class="h-4 w-4" />
 					<span>{auth.shortWalletAddress}</span>
 					{#if auth.isSafeOwner}
-						<span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-300">Safe Owner</span>
+						<span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-300"
+							>Safe Owner</span
+						>
 					{/if}
 				{:else}
 					<Icon icon="tabler:wallet-off" class="h-4 w-4" />
