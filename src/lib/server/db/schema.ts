@@ -115,5 +115,6 @@ export const applications = sqliteTable('applications', {
 	snapshotProposalId: text('snapshot_proposal_id'),
 	snapshotProposalLink: text('snapshot_proposal_link'),
 	aiRecommendation: text('ai_recommendation'),
-	confirmationEmailSentAt: text('confirmation_email_sent_at')
+	confirmationEmailSentAt: text('confirmation_email_sent_at'),
+	rejectionEmailSentAt: text('rejection_email_sent_at')
 });

@@ -17,6 +17,7 @@
 		snapshotProposalLink: string | null;
 		aiRecommendation: string | null;
 		confirmationEmailSentAt: string | null;
+		rejectionEmailSentAt: string | null;
 		// Enriched fields from API
 		votingStatus: 'none' | 'active' | 'closed';
 		votingResult: 'approved' | 'rejected' | 'needs_review' | null;
@@ -62,6 +63,7 @@
 	let expandedId = $state<string | null>(null);
 	let creatingProposalFor = $state<string | null>(null);
 	let sendingEmailFor = $state<string | null>(null);
+	let sendingRejectionFor = $state<string | null>(null);
 	let snapshotConfig = $state<SnapshotConfig | null>(null);
 	let viewingApplication = $state<Application | null>(null);
 
@@ -144,7 +146,9 @@
 			if (app.votingResult === 'approved') {
 				return app.confirmationEmailSentAt ? 'Approved — Email Sent' : 'Approved';
 			}
-			if (app.votingResult === 'rejected') return 'Rejected';
+			if (app.votingResult === 'rejected') {
+				return app.rejectionEmailSentAt ? 'Rejected — Email Sent' : 'Rejected';
+			}
 			if (app.votingResult === 'needs_review') return 'Needs Review';
 			return 'Vote Closed';
 		}
@@ -337,6 +341,62 @@
 		}
 	}
 
+	async function sendRejectionEmail(app: Application) {
+		if (!auth.isSafeOwner) {
+			statusMessage = { type: 'error', text: 'Only Safe owners can send rejection emails' };
+			return;
+		}
+
+		sendingRejectionFor = app.id;
+		statusMessage = null;
+
+		try {
+			const response = await fetch(`/api/applications/${app.id}/reject`, {
+				method: 'POST'
+			});
+
+			if (!response.ok) {
+				const data = await response.json().catch(() => ({ message: 'Unknown error' }));
+				throw new Error(data.message || `Failed to send rejection email (${response.status})`);
+			}
+
+			const data = await response.json();
+
+			// Update local state
+			const idx = applications.findIndex((a) => a.id === app.id);
+			if (idx !== -1) {
+				applications[idx] = {
+					...applications[idx],
+					rejectionEmailSentAt: data.sentAt
+				};
+			}
+
+			// Also update the viewing application if we're in detail view
+			if (viewingApplication && viewingApplication.id === app.id) {
+				viewingApplication = {
+					...viewingApplication,
+					rejectionEmailSentAt: data.sentAt
+				};
+			}
+
+			statusMessage = {
+				type: 'success',
+				text: `Rejection email sent to ${app.email}`
+			};
+
+			// Refresh badge counts
+			badges.refresh();
+		} catch (err) {
+			console.error('Error sending rejection email:', err);
+			statusMessage = {
+				type: 'error',
+				text: err instanceof Error ? err.message : 'Failed to send rejection email'
+			};
+		} finally {
+			sendingRejectionFor = null;
+		}
+	}
+
 	function formatProposalBody(app: Application): string {
 		const data = parseFormData(app);
 		const sections = [
@@ -454,6 +514,29 @@
 		>
 			<Icon icon="tabler:mail-check" class="h-4 w-4" />
 			Email Sent {formatDate(app.confirmationEmailSentAt)}
+		</span>
+	{/if}
+	{#if app.votingResult === 'rejected' && !app.rejectionEmailSentAt}
+		<button
+			type="button"
+			class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+			onclick={() => sendRejectionEmail(app)}
+			disabled={sendingRejectionFor !== null || !auth.isSafeOwner}
+		>
+			{#if sendingRejectionFor === app.id}
+				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+				Sending...
+			{:else}
+				<Icon icon="tabler:mail-off" class="h-4 w-4" />
+				Send Rejection Email
+			{/if}
+		</button>
+	{:else if app.rejectionEmailSentAt}
+		<span
+			class="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300"
+		>
+			<Icon icon="tabler:mail-check" class="h-4 w-4" />
+			Rejection Email Sent {formatDate(app.rejectionEmailSentAt)}
 		</span>
 	{/if}
 {/snippet}
