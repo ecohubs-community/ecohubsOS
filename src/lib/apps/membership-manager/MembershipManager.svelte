@@ -402,7 +402,7 @@
 		const sections = [
 			`## Applicant Information`,
 			`- **Name:** ${data.fullName}`,
-			`- **Email:** ${data.email}`,
+			`- **Email:** ${obscureEmail(data.email)}`,
 			data.location ? `- **Location:** ${data.location}` : null,
 			data.timeAvailability ? `- **Time Availability:** ${data.timeAvailability}` : null,
 			data.languages ? `- **Languages:** ${data.languages}` : null,
@@ -586,7 +586,7 @@
 									{formatFieldName(key)}
 								</h3>
 								<div class="text-solar-100/90 text-sm leading-relaxed whitespace-pre-wrap">
-									{value}
+									{key === 'email' ? obscureEmail(value) : value}
 								</div>
 							</div>
 						{/if}
