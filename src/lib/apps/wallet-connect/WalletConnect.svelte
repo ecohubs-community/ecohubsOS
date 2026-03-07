@@ -36,7 +36,12 @@
 
 		if (success) {
 			status = 'success';
+			// Update the auth store so downstream components see the wallet address
+			if (auth.user) {
+				auth.setUser({ ...auth.user, walletAddress: address });
+			}
 			markSubStepCompletedById('wallet-connect');
+			window.dispatchEvent(new CustomEvent('onboarding-step-completed'));
 			setTimeout(() => os.closeApp(), 2000);
 		} else {
 			errorMessage = wallet.error || 'Failed to save wallet to profile';

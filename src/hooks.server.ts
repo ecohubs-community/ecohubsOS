@@ -90,7 +90,9 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				safeRole: (dbUser.safeRole as 'owner' | 'proposer' | null) ?? null,
 				safeRoleStatus: dbUser.safeRoleStatus ?? null,
 				puckstackUserId: dbUser.puckstackUserId ?? null,
-				onboardingProgress: dbUser.onboardingProgress ?? null
+				onboardingProgress: dbUser.onboardingProgress ?? null,
+				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
+				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null
 			};
 			event.locals.session = {
 				id: session.session.id,
@@ -111,16 +113,31 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		event.locals.session = null;
 	}
 
+	// Redirect authenticated users away from login page
+	if (event.url.pathname === '/login' && event.locals.user) {
+		redirect(303, '/');
+	}
+
 	// Protect main desktop route - require authentication
 	if (event.url.pathname === '/' || event.url.pathname.startsWith('/app')) {
 		if (!event.locals.user) {
 			redirect(303, '/login');
 		}
+		// Gate: redirect to onboarding if not completed
+		if (!event.locals.user.onboardingCompletedAt) {
+			redirect(303, '/onboarding');
+		}
 	}
 
-	// Redirect authenticated users away from login page
-	if (event.url.pathname === '/login' && event.locals.user) {
-		redirect(303, '/');
+	// Protect onboarding route
+	if (event.url.pathname === '/onboarding') {
+		if (!event.locals.user) {
+			redirect(303, '/login');
+		}
+		// Already completed onboarding — go to desktop
+		if (event.locals.user.onboardingCompletedAt) {
+			redirect(303, '/');
+		}
 	}
 
 	return resolve(event);

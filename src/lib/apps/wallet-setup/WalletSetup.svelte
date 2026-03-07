@@ -31,6 +31,12 @@
 		window.open('https://metamask.io/download/', '_blank', 'noopener,noreferrer');
 	}
 
+	function markDone() {
+		markSubStepCompletedById('wallet-setup');
+		window.dispatchEvent(new CustomEvent('onboarding-step-completed'));
+		os.closeApp();
+	}
+
 	function recheckMetaMask() {
 		wallet.checkMetaMask();
 		if (wallet.hasMetaMask) {

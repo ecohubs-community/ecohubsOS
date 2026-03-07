@@ -37,7 +37,11 @@ export const user = sqliteTable('user', {
 	puckstackUserId: text('puckstack_user_id'),
 
 	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
-	onboardingProgress: text('onboarding_progress')
+	onboardingProgress: text('onboarding_progress'),
+
+	// Onboarding lifecycle timestamps
+	onboardingStartedAt: integer('onboarding_started_at', { mode: 'timestamp' }),
+	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' })
 });
 
 // BetterAuth session table

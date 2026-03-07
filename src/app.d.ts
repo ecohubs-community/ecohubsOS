@@ -26,6 +26,9 @@ interface AuthUser {
 	puckstackUserId: string | null;
 	// Onboarding progress (JSON string: Record<string, string>)
 	onboardingProgress: string | null;
+	// Onboarding lifecycle timestamps
+	onboardingStartedAt: Date | null;
+	onboardingCompletedAt: Date | null;
 }
 
 interface AuthSession {

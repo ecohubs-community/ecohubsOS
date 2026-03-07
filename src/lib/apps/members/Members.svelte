@@ -4,14 +4,18 @@
 	import Icon from '@iconify/svelte';
 	import OnboardingDetails from './OnboardingDetails.svelte';
 
+	type OnboardingFilter = 'All' | 'Not Started' | 'In Progress' | 'Complete';
+
 	interface Member {
 		id: string;
 		name: string;
 		email: string;
 		groups: string[];
 		lastLogin: string | null;
-		onboardingStatus: string; // 'Complete' | 'In Progress' | 'Not Started'
+		onboardingStatus: 'Complete' | 'In Progress' | 'Not Started';
 		onboardingProgress: string;
+		onboardingStartedAt: string | null;
+		onboardingCompletedAt: string | null;
 		xp: number;
 		eco: number;
 		avatarUrl: string | null;
@@ -20,6 +24,15 @@
 	let members: Member[] = $state([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let activeFilter = $state<OnboardingFilter>('All');
+
+	let filteredMembers = $derived(
+		activeFilter === 'All'
+			? members
+			: members.filter((m) => m.onboardingStatus === activeFilter)
+	);
+
+	const FILTERS: OnboardingFilter[] = ['All', 'Not Started', 'In Progress', 'Complete'];
 
 	// Modal state
 	let showOnboardingModal = $state(false);
@@ -87,7 +100,7 @@
 		</div>
 	{:else}
 		<div class="overflow-x-auto p-6" transition:fade>
-			<div class="mb-6 flex items-center justify-between">
+			<div class="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 				<h2 class="flex items-center gap-2 text-xl font-bold">
 					<Icon icon="tabler:users" class="text-solar-400 h-6 w-6" />
 					Community Members
@@ -97,7 +110,29 @@
 						{members.length} Total
 					</span>
 				</h2>
-				<!-- Future controls: Search, Filter -->
+			</div>
+
+			<!-- Onboarding filter tabs -->
+			<div class="mb-4 flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+				{#each FILTERS as filter}
+					{@const count = filter === 'All' ? members.length : members.filter((m) => m.onboardingStatus === filter).length}
+					<button
+						type="button"
+						class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors
+							{activeFilter === filter
+							? 'bg-white/10 text-white'
+							: 'text-white/50 hover:text-white/70'}"
+						onclick={() => (activeFilter = filter)}
+					>
+						{filter}
+						<span
+							class="rounded-full px-1.5 py-0.5 text-[10px]
+								{activeFilter === filter ? 'bg-white/10' : 'bg-white/5'}"
+						>
+							{count}
+						</span>
+					</button>
+				{/each}
 			</div>
 
 			<table class="w-full border-collapse text-left text-sm">
@@ -112,7 +147,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-white/5">
-					{#each members as member}
+					{#each filteredMembers as member}
 						<tr class="group transition-colors hover:bg-white/5">
 							<td class="px-4 py-3">
 								<div class="flex items-center gap-3">

@@ -32,20 +32,17 @@ export const GET: RequestHandler = async ({ locals }) => {
                 if (typeof u.groups === 'string') groups = [u.groups];
             }
 
-            // Determine onboarding status
-            let onboardingStatus = 'Not Started';
-            if (u.onboardingProgress) {
+            // Determine onboarding status from lifecycle timestamps
+            let onboardingStatus: 'Not Started' | 'In Progress' | 'Complete' = 'Not Started';
+            if (u.onboardingCompletedAt) {
+                onboardingStatus = 'Complete';
+            } else if (u.onboardingStartedAt) {
+                onboardingStatus = 'In Progress';
+            } else if (u.onboardingProgress) {
+                // Fallback: check progress JSON for users who started before timestamps were added
                 try {
                     const progress = JSON.parse(u.onboardingProgress);
-                    // Simple heuristic: if progress has entries, it's in progress
-                    const stepsCompleted = Object.keys(progress).length;
-                    if (stepsCompleted > 0) onboardingStatus = 'In Progress';
-                    // Determine 'Complete' based on known steps count? 
-                    // For now let's assume > 3 steps is likely done or close enough for 'In Progress' detail
-                    // If we knew the total steps we could say 'Complete'. 
-                    // Let's check a specific key or just leave it simple.
-                    // Actually, let's just mark 'Complete' if steps > 5 (arbitrary for placeholder logic)
-                    if (stepsCompleted >= 5) onboardingStatus = 'Complete';
+                    if (Object.keys(progress).length > 0) onboardingStatus = 'In Progress';
                 } catch {
                     // ignore
                 }
@@ -59,6 +56,8 @@ export const GET: RequestHandler = async ({ locals }) => {
                 lastLogin: u.updatedAt?.toISOString() || null, // Best proxy for now
                 onboardingStatus,
                 onboardingProgress: u.onboardingProgress,
+                onboardingStartedAt: u.onboardingStartedAt?.toISOString() || null,
+                onboardingCompletedAt: u.onboardingCompletedAt?.toISOString() || null,
                 xp: Math.floor(Math.random() * 5000), // Placeholder
                 eco: Math.floor(Math.random() * 1000), // Placeholder,
                 avatarUrl: u.image

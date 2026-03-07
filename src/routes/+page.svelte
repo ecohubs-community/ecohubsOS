@@ -8,7 +8,6 @@
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import AllApps from '$lib/components/AllApps.svelte';
-	import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 	import UserCard from '$lib/components/UserCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 	import Icon from '@iconify/svelte';
@@ -85,10 +84,8 @@
 			</div>
 		</header>
 
-		<!-- Scrollable content area (mobile: onboarding + profile scroll together) -->
+		<!-- Scrollable content area -->
 		<div class="flex-1 overflow-y-auto md:overflow-visible">
-			<OnboardingCard serverProgress={data.onboardingProgress} />
-
 			<div
 				class="relative grid grid-cols-1 content-start gap-4 p-4 md:grid-cols-12 md:gap-6 md:p-6"
 			>

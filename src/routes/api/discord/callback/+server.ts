@@ -21,9 +21,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const errorParam = url.searchParams.get('error');
 
 	// Handle user denying authorization
+	// Try to extract returnTo from state even on error
+	let errorReturnTo = '/';
+	if (state) {
+		try {
+			const stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
+			if (stateData.returnTo && typeof stateData.returnTo === 'string' && stateData.returnTo.startsWith('/') && !stateData.returnTo.startsWith('//')) {
+				errorReturnTo = stateData.returnTo;
+			}
+		} catch {
+			// ignore parse errors for error case
+		}
+	}
 	if (errorParam) {
 		discordLogger.info({ error: errorParam }, 'User denied Discord authorization');
-		redirect(302, '/?discord=denied');
+		redirect(302, `${errorReturnTo}?discord=denied`);
 	}
 
 	if (!code) {
@@ -37,9 +49,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 	// Parse state to get user info (state contains the user ID even if session expired)
 	let walletAddress: string | null;
+	let returnTo = '/';
 	try {
 		const stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
 		walletAddress = stateData.wallet ?? null;
+		// Extract returnTo from state (validated: must start with /, no //)
+		if (stateData.returnTo && typeof stateData.returnTo === 'string' && stateData.returnTo.startsWith('/') && !stateData.returnTo.startsWith('//')) {
+			returnTo = stateData.returnTo;
+		}
 
 		// Check timestamp (15 min expiry)
 		if (Date.now() - stateData.timestamp > 15 * 60 * 1000) {
@@ -171,6 +188,6 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		}
 	);
 
-	// Redirect back to main page - client will handle step completion
-	redirect(302, '/?discord=connected');
+	// Redirect back to the originating page - client will handle step completion
+	redirect(302, `${returnTo}?discord=connected`);
 };

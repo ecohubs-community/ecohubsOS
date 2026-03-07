@@ -1,4 +1,4 @@
-import { MOCK_NOTIFICATIONS } from './data';
+import { MOCK_NOTIFICATIONS } from './notifications';
 
 // Define available wallpapers with metadata for "Auto" contrast
 export const WALLPAPERS = [
