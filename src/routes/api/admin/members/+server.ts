@@ -1,8 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
-import { desc } from 'drizzle-orm';
+import { user, applications } from '$lib/server/db/schema';
+import { desc, isNotNull } from 'drizzle-orm';
 
 export const GET: RequestHandler = async ({ locals }) => {
     // Authentication check
@@ -21,6 +21,8 @@ export const GET: RequestHandler = async ({ locals }) => {
         const allUsers = await db.query.user.findMany({
             orderBy: [desc(user.createdAt)]
         });
+
+        const userEmails = new Set(allUsers.map((u) => u.email.toLowerCase()));
 
         const members = allUsers.map((u) => {
             // Parse groups if stored as string
@@ -60,11 +62,38 @@ export const GET: RequestHandler = async ({ locals }) => {
                 onboardingCompletedAt: u.onboardingCompletedAt?.toISOString() || null,
                 xp: Math.floor(Math.random() * 5000), // Placeholder
                 eco: Math.floor(Math.random() * 1000), // Placeholder,
-                avatarUrl: u.image
+                avatarUrl: u.image,
+                pendingLogin: false
             };
         });
 
-        return json({ members });
+        // Fetch approved applicants who received confirmation email but never logged in
+        const approvedApplicants = await db
+            .select()
+            .from(applications)
+            .where(isNotNull(applications.confirmationEmailSentAt))
+            .orderBy(desc(applications.submittedAt));
+
+        const pendingLoginMembers = approvedApplicants
+            .filter((app) => !userEmails.has(app.email.toLowerCase()))
+            .map((app) => ({
+                id: `pending-${app.id}`,
+                name: app.fullName,
+                email: app.email,
+                groups: [],
+                lastLogin: null,
+                onboardingStatus: 'Pending Login' as const,
+                onboardingProgress: '',
+                onboardingStartedAt: null,
+                onboardingCompletedAt: null,
+                xp: 0,
+                eco: 0,
+                avatarUrl: null,
+                pendingLogin: true,
+                inviteSentAt: app.confirmationEmailSentAt
+            }));
+
+        return json({ members: [...members, ...pendingLoginMembers] });
     } catch (e) {
         console.error('Error fetching members:', e);
         error(500, 'Internal Server Error');

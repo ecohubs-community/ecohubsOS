@@ -3,9 +3,8 @@
 	import { fade } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import OnboardingDetails from './OnboardingDetails.svelte';
-	import { obscureEmail } from '$lib/utils/email.utils';
 
-	type OnboardingFilter = 'All' | 'Not Started' | 'In Progress' | 'Complete';
+	type OnboardingFilter = 'All' | 'Not Started' | 'In Progress' | 'Complete' | 'Pending Login';
 
 	interface Member {
 		id: string;
@@ -13,13 +12,15 @@
 		email: string;
 		groups: string[];
 		lastLogin: string | null;
-		onboardingStatus: 'Complete' | 'In Progress' | 'Not Started';
+		onboardingStatus: 'Complete' | 'In Progress' | 'Not Started' | 'Pending Login';
 		onboardingProgress: string;
 		onboardingStartedAt: string | null;
 		onboardingCompletedAt: string | null;
 		xp: number;
 		eco: number;
 		avatarUrl: string | null;
+		pendingLogin?: boolean;
+		inviteSentAt?: string | null;
 	}
 
 	let members: Member[] = $state([]);
@@ -33,7 +34,7 @@
 			: members.filter((m) => m.onboardingStatus === activeFilter)
 	);
 
-	const FILTERS: OnboardingFilter[] = ['All', 'Not Started', 'In Progress', 'Complete'];
+	const FILTERS: OnboardingFilter[] = ['All', 'Not Started', 'In Progress', 'Complete', 'Pending Login'];
 
 	// Modal state
 	let showOnboardingModal = $state(false);
@@ -62,6 +63,8 @@
 				return 'text-green-400 bg-green-400/10 border-green-400/20';
 			case 'In Progress':
 				return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
+			case 'Pending Login':
+				return 'text-orange-400 bg-orange-400/10 border-orange-400/20';
 			default:
 				return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
 		}
@@ -169,7 +172,7 @@
 									</div>
 									<div class="flex flex-col">
 										<span class="text-solar-100 font-medium">{member.name}</span>
-										<span class="text-solar-400/60 text-xs">{obscureEmail(member.email)}</span>
+										<span class="text-solar-400/60 text-xs">{member.email}</span>
 									</div>
 								</div>
 							</td>
@@ -211,7 +214,11 @@
 								</div>
 							</td>
 							<td class="text-solar-300 px-4 py-3">
-								{formatDate(member.lastLogin)}
+								{#if member.pendingLogin}
+									<span class="text-orange-400/70 text-xs">Invite sent {formatDate(member.inviteSentAt ?? null)}</span>
+								{:else}
+									{formatDate(member.lastLogin)}
+								{/if}
 							</td>
 							<!-- <td class="px-4 py-3 text-right font-mono text-green-400">
 								{member.xp.toLocaleString()}
