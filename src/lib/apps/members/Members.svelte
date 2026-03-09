@@ -3,6 +3,7 @@
 	import { fade } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import OnboardingDetails from './OnboardingDetails.svelte';
+	import { obscureEmail } from '$lib/utils/email.utils';
 
 	type OnboardingFilter = 'All' | 'Not Started' | 'In Progress' | 'Complete';
 
@@ -168,7 +169,7 @@
 									</div>
 									<div class="flex flex-col">
 										<span class="text-solar-100 font-medium">{member.name}</span>
-										<span class="text-solar-400/60 text-xs">{member.email}</span>
+										<span class="text-solar-400/60 text-xs">{obscureEmail(member.email)}</span>
 									</div>
 								</div>
 							</td>

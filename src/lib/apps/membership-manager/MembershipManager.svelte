@@ -4,7 +4,7 @@
 	import HelpSection from '$lib/components/HelpSection.svelte';
 	import Icon from '@iconify/svelte';
 	import { fade, slide } from 'svelte/transition';
-	import { obscureEmail } from '$lib/utils/email.utils';
+	import { obscureEmail, getFirstName, obscureLastName } from '$lib/utils/email.utils';
 
 	interface Application {
 		id: string;
@@ -225,7 +225,7 @@
 			const receipt = (await client.proposal(signer as any, connectedAddress, {
 				space: snapshotConfig.snapshotSpace,
 				type: 'single-choice',
-				title: `Membership Application: ${app.fullName}`,
+				title: `Membership Application: ${getFirstName(app.fullName)}`,
 				body: proposalBody,
 				discussion: '',
 				choices: ['Approve', 'Reject', 'Needs Review'],
@@ -401,7 +401,7 @@
 		const data = parseFormData(app);
 		const sections = [
 			`## Applicant Information`,
-			`- **Name:** ${data.fullName}`,
+			`- **Name:** ${obscureLastName(data.fullName)}`,
 			`- **Email:** ${obscureEmail(data.email)}`,
 			data.location ? `- **Location:** ${data.location}` : null,
 			data.timeAvailability ? `- **Time Availability:** ${data.timeAvailability}` : null,
