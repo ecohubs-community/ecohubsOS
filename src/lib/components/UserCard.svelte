@@ -81,7 +81,15 @@
 			{:else}
 				<button type="button" onclick={openProfile} class="cursor-pointer text-left">
 					<h3 class="leading-tight font-bold text-white transition-colors hover:text-white/80" in:fade>
-						{offcoin.isConnected ? offcoin.name : (auth.userDisplayName ?? 'Anonymous')}
+						{#if auth.user?.displayName && offcoin.isConnected}
+							{auth.user.displayName} / {offcoin.name}
+						{:else if auth.user?.displayName}
+							{auth.user.displayName}
+						{:else if offcoin.isConnected}
+							{offcoin.name}
+						{:else}
+							{auth.userName ?? 'Anonymous'}
+						{/if}
 					</h3>
 				</button>
 				{#if offcoin.isConnected}
@@ -106,7 +114,8 @@
 				</div>
 				<div class="h-1.5 w-full overflow-hidden rounded-full bg-black/20">
 					<div
-						class={`h-full w-[${Math.max(xpPercent, 1)}%] bg-linear-to-r from-indigo-500 to-purple-300`}
+						class="h-full bg-linear-to-r from-indigo-500 to-purple-300"
+						style="width: {Math.max(xpPercent, 1)}%"
 					></div>
 				</div>
 			</div>
