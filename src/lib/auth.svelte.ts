@@ -7,6 +7,13 @@ export interface AuthUser {
 	// Authentik-specific fields (parsed from JSON)
 	groups: string[];
 	roles: string[];
+	// Profile fields
+	displayName: string | null;
+	avatar: string | null;
+	bio: string | null;
+	languages: string | null;
+	location: string | null;
+	contribution: string | null;
 	// Wallet connection
 	walletAddress: string | null;
 	// Safe owner status
@@ -36,6 +43,10 @@ class AuthState {
 	userImage = $derived(this.user?.image ?? null);
 	userGroups = $derived(this.user?.groups ?? []);
 	userRoles = $derived(this.user?.roles ?? []);
+
+	// Profile properties
+	userDisplayName = $derived(this.user?.displayName ?? this.user?.name ?? null);
+	userAvatar = $derived(this.user?.avatar ?? this.user?.image ?? null);
 
 	// Wallet properties (from post-login onboarding)
 	walletAddress = $derived(this.user?.walletAddress ?? null);

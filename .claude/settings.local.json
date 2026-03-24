@@ -15,7 +15,8 @@
       "Bash(printf:*)",
       "mcp__svelte__svelte-autofixer",
       "Bash(pnpm db:push:*)",
-      "Bash(pnpm rebuild:*)"
+      "Bash(pnpm rebuild:*)",
+      "Bash(npx drizzle-kit:*)"
     ]
   }
 }

@@ -12,6 +12,8 @@ import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Members from './apps/members/Members.svelte';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
+import MyProfile from './apps/my-profile/MyProfile.svelte';
+import MyProfileFavicon from './apps/my-profile/favicon.svg';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
@@ -189,6 +191,15 @@ export const APPS: AppDefinition[] = [
 	// 	description: 'Create your account on the ecohubs Discussions Forum.',
 	// 	hidden: true // Only accessible via onboarding, not shown in dock
 	// },
+	{
+		id: 'my-profile',
+		name: 'My Profile',
+		icon: MyProfileFavicon,
+		category: 'system',
+		isInternalApp: true,
+		component: MyProfile,
+		description: 'View and edit your profile information.'
+	},
 	{
 		id: 'members',
 		name: 'Members',

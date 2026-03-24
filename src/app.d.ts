@@ -24,6 +24,13 @@ interface AuthUser {
 	safeRoleStatus: string | null;
 	// Offcoin / Puckstack connection
 	puckstackUserId: string | null;
+	// Profile fields (user-editable)
+	displayName: string | null;
+	avatar: string | null;
+	bio: string | null;
+	languages: string | null;
+	location: string | null;
+	contribution: string | null;
 	// Onboarding progress (JSON string: Record<string, string>)
 	onboardingProgress: string | null;
 	// Onboarding lifecycle timestamps

@@ -12,7 +12,12 @@ export const MAX_LENGTHS = {
 	name: 200,
 	username: 50,
 	password: 128,
-	text: 10000
+	text: 10000,
+	displayName: 100,
+	bio: 2000,
+	languages: 200,
+	location: 200,
+	contribution: 2000
 } as const;
 
 /**

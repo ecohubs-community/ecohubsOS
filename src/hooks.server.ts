@@ -90,6 +90,12 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				safeRole: (dbUser.safeRole as 'owner' | 'proposer' | null) ?? null,
 				safeRoleStatus: dbUser.safeRoleStatus ?? null,
 				puckstackUserId: dbUser.puckstackUserId ?? null,
+				displayName: dbUser.displayName ?? null,
+				avatar: dbUser.avatar ?? null,
+				bio: dbUser.bio ?? null,
+				languages: dbUser.languages ?? null,
+				location: dbUser.location ?? null,
+				contribution: dbUser.contribution ?? null,
 				onboardingProgress: dbUser.onboardingProgress ?? null,
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null

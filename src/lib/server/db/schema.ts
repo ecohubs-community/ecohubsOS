@@ -36,6 +36,14 @@ export const user = sqliteTable('user', {
 	// Offcoin / Puckstack connection
 	puckstackUserId: text('puckstack_user_id'),
 
+	// Profile fields (user-editable)
+	displayName: text('display_name'),
+	avatar: text('avatar'),
+	bio: text('bio'),
+	languages: text('languages'),
+	location: text('location'),
+	contribution: text('contribution'),
+
 	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
 	onboardingProgress: text('onboarding_progress'),
 
