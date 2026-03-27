@@ -96,6 +96,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				languages: dbUser.languages ?? null,
 				location: dbUser.location ?? null,
 				contribution: dbUser.contribution ?? null,
+				showOnWebsite: dbUser.showOnWebsite ?? true,
 				onboardingProgress: dbUser.onboardingProgress ?? null,
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null

@@ -31,6 +31,7 @@ interface AuthUser {
 	languages: string | null;
 	location: string | null;
 	contribution: string | null;
+	showOnWebsite: boolean;
 	// Onboarding progress (JSON string: Record<string, string>)
 	onboardingProgress: string | null;
 	// Onboarding lifecycle timestamps

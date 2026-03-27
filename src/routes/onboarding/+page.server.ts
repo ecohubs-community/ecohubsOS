@@ -79,6 +79,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			languages: locals.user.languages,
 			location: locals.user.location,
 			contribution: locals.user.contribution,
+			showOnWebsite: locals.user.showOnWebsite ?? true,
 			safeOwnerStatus: locals.user.safeOwnerStatus,
 			safeRole: locals.user.safeRole,
 			safeRoleStatus: locals.user.safeRoleStatus,

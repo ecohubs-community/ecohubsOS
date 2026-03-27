@@ -43,6 +43,7 @@ export const user = sqliteTable('user', {
 	languages: text('languages'),
 	location: text('location'),
 	contribution: text('contribution'),
+	showOnWebsite: integer('show_on_website', { mode: 'boolean' }).default(true),
 
 	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
 	onboardingProgress: text('onboarding_progress'),

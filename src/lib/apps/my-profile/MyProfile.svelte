@@ -19,6 +19,7 @@
 	let avatarUrl = $state<string | null>(null);
 	let avatarPreview = $state<string | null>(null);
 	let avatarBlob = $state<Blob | null>(null);
+	let showOnWebsite = $state(true);
 
 	// Read-only derived from auth store
 	let userName = $derived(auth.user?.name ?? '');
@@ -41,6 +42,7 @@
 			location = data.location ?? '';
 			contribution = data.contribution ?? '';
 			avatarUrl = data.avatar;
+			showOnWebsite = data.showOnWebsite ?? true;
 		} catch (err) {
 			error = 'Failed to load profile data';
 		} finally {
@@ -155,7 +157,8 @@
 					bio,
 					languages,
 					location,
-					contribution
+					contribution,
+					showOnWebsite
 				})
 			});
 
@@ -172,7 +175,8 @@
 					bio: bio || null,
 					languages: languages || null,
 					location: location || null,
-					contribution: contribution || null
+					contribution: contribution || null,
+					showOnWebsite
 				});
 			}
 
@@ -404,7 +408,26 @@
 				></textarea>
 			</div>
 
-			<!-- Actions -->
+			<!-- Website Visibility -->
+		<div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+			<label class="flex cursor-pointer items-start gap-3">
+				<input
+					type="checkbox"
+					bind:checked={showOnWebsite}
+					class="mt-1 h-4 w-4 shrink-0 rounded border-white/20 bg-white/10 text-teal-500 accent-teal-500"
+				/>
+				<div>
+					<span class="text-sm font-medium text-white">
+						Display my profile on the EcoHubs website as a project contributor
+					</span>
+					<p class="mt-1 text-xs text-white/40">
+						We will show your avatar, display name, bio, languages, location & contribution on the website. If unchecked, only your display name, XP & ECO token balance will be shown.
+					</p>
+				</div>
+			</label>
+		</div>
+
+		<!-- Actions -->
 			<div class="flex flex-col gap-3 pb-4 sm:flex-row">
 				<button
 					type="button"

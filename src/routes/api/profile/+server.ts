@@ -45,7 +45,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 		bio: dbUser.bio ?? '',
 		languages: dbUser.languages ?? defaults.languages ?? '',
 		location: dbUser.location ?? defaults.location ?? '',
-		contribution: dbUser.contribution ?? defaults.contribution ?? ''
+		contribution: dbUser.contribution ?? defaults.contribution ?? '',
+		showOnWebsite: dbUser.showOnWebsite ?? true
 	});
 };
 
@@ -95,6 +96,13 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			error(400, `Contribution must be less than ${MAX_LENGTHS.contribution} characters`);
 		}
 		updateFields.contribution = val ? sanitizeString(val, MAX_LENGTHS.contribution) : null;
+	}
+
+	if ('showOnWebsite' in body) {
+		if (typeof body.showOnWebsite !== 'boolean') {
+			error(400, 'showOnWebsite must be a boolean');
+		}
+		updateFields.showOnWebsite = body.showOnWebsite;
 	}
 
 	if (Object.keys(updateFields).length === 0) {

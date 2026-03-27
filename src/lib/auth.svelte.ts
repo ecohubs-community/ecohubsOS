@@ -14,6 +14,7 @@ export interface AuthUser {
 	languages: string | null;
 	location: string | null;
 	contribution: string | null;
+	showOnWebsite: boolean;
 	// Wallet connection
 	walletAddress: string | null;
 	// Safe owner status
