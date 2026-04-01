@@ -65,7 +65,7 @@
 			<Icon icon="tabler:check-circle" class="mb-4 h-16 w-16 text-green-400" />
 			<h3 class="text-lg font-bold text-white">MetaMask Detected!</h3>
 			<p class="text-solar-300 mt-2 text-center text-sm">
-				You already have MetaMask installed. You can proceed to connect your wallet.
+				You already have MetaMask installed. It provides you with an Ethereum address for transparent voting on snapshot.org — no funds are required.
 			</p>
 		</div>
 		<button
@@ -80,7 +80,7 @@
 			<div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
 				<h4 class="mb-2 font-medium text-amber-200">MetaMask Not Found</h4>
 				<p class="text-sm text-amber-200/70">
-					To participate in voting and connect to blockchain features, you need MetaMask installed.
+					MetaMask gives you an Ethereum address needed for transparent voting on snapshot.org. No funds are required.
 				</p>
 			</div>
 

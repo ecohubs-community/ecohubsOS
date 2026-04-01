@@ -69,3 +69,4 @@ export const ghostLogger = logger.child({ module: 'ghost' });
 export const offcoinLogger = logger.child({ module: 'offcoin' });
 export const authentikLogger = logger.child({ module: 'authentik' });
 export const onboardingLogger = logger.child({ module: 'onboarding' });
+export const puckstackLogger = logger.child({ module: 'puckstack' });

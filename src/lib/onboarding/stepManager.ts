@@ -110,7 +110,7 @@ export function createDefaultSteps(): Step[] {
 				},
 				{
 					id: 'forum-read-latest',
-					title: 'Read latest discussions',
+					title: 'Introduce yourself in the forum',
 					actions: [{ type: 'none' }]
 				},
 				{

@@ -69,7 +69,10 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			try {
 				existing = JSON.parse(dbUser.onboardingProgress);
 			} catch {
-				// ignore corrupt data
+				onboardingLogger.warn(
+					{ userId: locals.user.id },
+					'Corrupt onboarding progress JSON in database, starting fresh merge'
+				);
 			}
 		}
 

@@ -54,11 +54,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Parse JSON fields for client (same shape as desktop +page.server.ts)
-	const safeJsonParse = <T,>(json: string | null | undefined, fallback: T): T => {
+	const safeJsonParse = <T,>(json: string | null | undefined, fallback: T, field?: string): T => {
 		if (!json) return fallback;
 		try {
 			return JSON.parse(json) as T;
 		} catch {
+			onboardingLogger.warn(
+				{ userId: locals.user!.id, field },
+				'Failed to parse user JSON field during onboarding load'
+			);
 			return fallback;
 		}
 	};
@@ -70,8 +74,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			email: locals.user.email,
 			emailVerified: locals.user.emailVerified,
 			image: locals.user.image,
-			groups: safeJsonParse<string[]>(locals.user.groups, []),
-			roles: safeJsonParse<string[]>(locals.user.roles, []),
+			groups: safeJsonParse<string[]>(locals.user.groups, [], 'groups'),
+			roles: safeJsonParse<string[]>(locals.user.roles, [], 'roles'),
 			walletAddress: locals.user.walletAddress,
 			displayName: locals.user.displayName,
 			avatar: locals.user.avatar,

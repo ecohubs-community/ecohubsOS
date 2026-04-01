@@ -59,7 +59,7 @@
 		</div>
 		<h2 class="text-xl font-bold text-white">Connect Your Wallet</h2>
 		<p class="text-solar-300 mt-2 text-sm">
-			Link your MetaMask wallet to your ecohubsOS account for voting and blockchain features.
+			MetaMask provides you with an Ethereum address — no funds are required. It's needed for transparent voting on snapshot.org.
 		</p>
 	</div>
 
@@ -116,8 +116,9 @@
 				<h4 class="text-solar-200 mb-2 text-sm font-medium">What happens next:</h4>
 				<ul class="space-y-1 text-xs text-white/70">
 					<li>1. MetaMask will ask you to connect</li>
-					<li>2. Your wallet address will be linked to your account</li>
-					<li>3. You can participate in Snapshot voting</li>
+					<li>2. Your Ethereum address will be linked to your account</li>
+					<li>3. You can participate in transparent voting on snapshot.org</li>
+					<li class="text-solar-400 font-medium">No funds are required!</li>
 				</ul>
 			</div>
 		</div>

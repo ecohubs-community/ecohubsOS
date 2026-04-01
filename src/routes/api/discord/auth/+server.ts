@@ -1,6 +1,7 @@
 import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
+import { discordLogger } from '$lib/server/logger';
 
 /**
  * Discord OAuth2 Authorization Endpoint
@@ -15,7 +16,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	const clientId = env.DISCORD_CLIENT_ID;
 	if (!clientId) {
-		console.error('DISCORD_CLIENT_ID not configured');
+		discordLogger.error('DISCORD_CLIENT_ID not configured');
 		error(500, 'Discord integration not configured');
 	}
 

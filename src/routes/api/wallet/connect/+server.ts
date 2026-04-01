@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import { walletLogger } from '$lib/server/logger';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) {
@@ -30,6 +31,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 
 		if (existingUser && existingUser.id !== locals.user.id) {
+			walletLogger.warn(
+				{ userId: locals.user.id, walletAddress: normalizedAddress },
+				'Wallet already connected to another account'
+			);
 			error(409, 'This wallet is already connected to another account');
 		}
 
@@ -43,12 +48,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			})
 			.where(eq(user.id, locals.user.id));
 
+		walletLogger.info(
+			{ userId: locals.user.id, walletAddress: normalizedAddress },
+			'Wallet connected successfully'
+		);
 		return json({ success: true, walletAddress: normalizedAddress });
 	} catch (err) {
-		console.error('Error connecting wallet:', err);
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err;
 		}
+		walletLogger.error({ err, userId: locals.user.id }, 'Failed to connect wallet');
 		error(500, 'Failed to connect wallet');
 	}
 };

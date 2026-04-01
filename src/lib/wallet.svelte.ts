@@ -38,7 +38,15 @@ class WalletState {
 				throw new Error('No accounts found');
 			}
 
-			this.address = accounts[0];
+			const addr = accounts[0];
+
+			// Ensure the address is a valid Ethereum address
+			if (typeof addr !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+				this.error = 'Only Ethereum addresses are supported';
+				return null;
+			}
+
+			this.address = addr;
 			return this.address;
 		} catch (err) {
 			this.error = err instanceof Error ? err.message : 'Failed to connect wallet';

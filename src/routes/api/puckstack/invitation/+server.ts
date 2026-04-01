@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
 import { env } from '$env/dynamic/private';
+import { puckstackLogger } from '$lib/server/logger';
 
 /**
  * Proxy endpoint to generate Puckstack workspace invitation.
@@ -18,7 +19,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const puckstackApiKey = env.PUCKSTACK_API_KEY;
 
 	if (!puckstackApiUrl || !puckstackApiKey) {
-		console.error('[puckstack/invitation] PUCKSTACK_API_URL or PUCKSTACK_API_KEY not configured');
+		puckstackLogger.error('PUCKSTACK_API_URL or PUCKSTACK_API_KEY not configured');
 		return json({ success: false, error: 'Puckstack integration not configured' }, { status: 500 });
 	}
 
@@ -37,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-			console.error('[puckstack/invitation] API error:', response.status, errorData);
+			puckstackLogger.error({ status: response.status, errorData }, 'Puckstack invitation API error');
 			return json(
 				{ success: false, error: errorData.error || 'Failed to generate invitation' },
 				{ status: response.status }
@@ -61,8 +62,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			joinUrl: data.invitation?.joinUrl,
 			expiresAt: data.invitation?.expiresAt
 		});
-	} catch (error) {
-		console.error('[puckstack/invitation] Error:', error);
+	} catch (err) {
+		puckstackLogger.error({ err }, 'Failed to connect to Puckstack');
 		return json({ success: false, error: 'Failed to connect to Puckstack' }, { status: 500 });
 	}
 };
