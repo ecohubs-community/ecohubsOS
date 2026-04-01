@@ -7,6 +7,8 @@ import { env } from '$env/dynamic/private';
 import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
 import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
+import { sendDiscordMessage } from '$lib/server/discord';
+import { newApplicationMessage } from '$lib/server/discord-templates';
 
 // Rate limiting for external submissions
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -146,6 +148,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 				formData: JSON.stringify(body)
 			})
 			.returning();
+
+		// Discord notification (fire-and-forget)
+		sendDiscordMessage({ content: newApplicationMessage({ fullName: sanitizedName }) });
 
 		return json({
 			success: true,

@@ -7,6 +7,8 @@ import { env } from '$env/dynamic/private';
 import { sendEmail } from '$lib/email';
 import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
 import { apiLogger, emailLogger } from '$lib/server/logger';
+import { sendDiscordMessage } from '$lib/server/discord';
+import { rejectionSentMessage } from '$lib/server/discord-templates';
 
 // POST - Send rejection email to applicant
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -95,6 +97,14 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	}
 
 	apiLogger.info({ applicationId: id }, '[Step 2/3] Rejection email sent');
+
+	// Discord notification (fire-and-forget)
+	sendDiscordMessage({
+		content: rejectionSentMessage({
+			fullName: application.fullName,
+			snapshotLink: application.snapshotProposalLink || ''
+		})
+	});
 
 	// Step 3: Update application with rejection email timestamp
 	try {

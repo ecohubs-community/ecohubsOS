@@ -4,6 +4,8 @@ import { db } from '$lib/server/db';
 import { applications } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
+import { sendDiscordMessage } from '$lib/server/discord';
+import { proposalCreatedMessage } from '$lib/server/discord-templates';
 
 // POST - Update application with Snapshot proposal details
 // Note: The actual Snapshot proposal creation happens client-side via ethers/Snapshot SDK
@@ -58,6 +60,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			})
 			.where(eq(applications.id, applicationId))
 			.returning();
+
+		// Discord notification (fire-and-forget)
+		let location = 'unknown location';
+		try {
+			const formData = JSON.parse(application.formData);
+			if (formData.location) location = formData.location;
+		} catch { /* formData parse failure is non-critical */ }
+
+		sendDiscordMessage({
+			content: proposalCreatedMessage({
+				fullName: application.fullName,
+				location,
+				snapshotLink: proposalLink
+			})
+		});
 
 		return json({
 			success: true,

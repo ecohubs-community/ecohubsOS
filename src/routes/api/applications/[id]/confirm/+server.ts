@@ -8,6 +8,8 @@ import { sendEmail } from '$lib/email';
 import { createAuthentikInvitation } from '$lib/server/authentik';
 import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
 import { apiLogger, authentikLogger, emailLogger } from '$lib/server/logger';
+import { sendDiscordMessage } from '$lib/server/discord';
+import { confirmationSentMessage } from '$lib/server/discord-templates';
 
 // POST - Send confirmation email with Authentik enrollment invitation
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -119,6 +121,17 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	}
 
 	apiLogger.info({ applicationId: id }, '[Step 3/4] Welcome email sent');
+
+	// Discord notification (fire-and-forget)
+	let location = 'unknown location';
+	try {
+		const formData = JSON.parse(application.formData);
+		if (formData.location) location = formData.location;
+	} catch { /* formData parse failure is non-critical */ }
+
+	sendDiscordMessage({
+		content: confirmationSentMessage({ fullName: application.fullName, location })
+	});
 
 	// Step 4: Update application with confirmation timestamp
 	try {
