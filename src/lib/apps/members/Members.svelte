@@ -19,6 +19,7 @@
 		xp: number;
 		eco: number;
 		avatarUrl: string | null;
+		walletAddress: string | null;
 		pendingLogin?: boolean;
 		inviteSentAt?: string | null;
 	}
@@ -78,6 +79,20 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	}
+
+	let copiedWalletId = $state<string | null>(null);
+
+	function shortWallet(address: string): string {
+		return `${address.slice(0, 6)}...${address.slice(-4)}`;
+	}
+
+	async function copyWallet(address: string, memberId: string) {
+		await navigator.clipboard.writeText(address);
+		copiedWalletId = memberId;
+		setTimeout(() => {
+			if (copiedWalletId === memberId) copiedWalletId = null;
+		}, 1500);
 	}
 
 	function openOnboardingDetails(member: Member) {
@@ -144,6 +159,7 @@
 					<tr class="text-solar-400/80 border-b border-white/10">
 						<th class="px-4 py-3 font-medium">Member</th>
 						<th class="px-4 py-3 font-medium">Groups</th>
+						<th class="px-4 py-3 font-medium">Wallet</th>
 						<th class="px-4 py-3 font-medium">Onboarding</th>
 						<th class="px-4 py-3 font-medium">Last Login</th>
 						<!-- <th class="px-4 py-3 text-right font-medium">XP</th>
@@ -194,6 +210,26 @@
 										{/if}
 									{/each}
 								</div>
+							</td>
+							<td class="px-4 py-3">
+								{#if member.walletAddress}
+									<div class="flex items-center gap-1">
+										<span class="font-mono text-xs text-white/60">{shortWallet(member.walletAddress)}</span>
+										<button
+											class="text-solar-400 rounded p-0.5 transition-colors hover:bg-white/10 hover:text-white"
+											onclick={() => copyWallet(member.walletAddress!, member.id)}
+											title="Copy full address"
+										>
+											{#if copiedWalletId === member.id}
+												<Icon icon="tabler:check" class="h-3.5 w-3.5 text-green-400" />
+											{:else}
+												<Icon icon="tabler:copy" class="h-3.5 w-3.5" />
+											{/if}
+										</button>
+									</div>
+								{:else}
+									<span class="text-xs text-white/20">--</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3">
 								<div class="flex items-center gap-2">
