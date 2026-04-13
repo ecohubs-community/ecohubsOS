@@ -70,3 +70,4 @@ export const offcoinLogger = logger.child({ module: 'offcoin' });
 export const authentikLogger = logger.child({ module: 'authentik' });
 export const onboardingLogger = logger.child({ module: 'onboarding' });
 export const puckstackLogger = logger.child({ module: 'puckstack' });
+export const listmonkLogger = logger.child({ module: 'listmonk' });

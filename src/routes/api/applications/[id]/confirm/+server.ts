@@ -10,6 +10,7 @@ import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-s
 import { apiLogger, authentikLogger, emailLogger } from '$lib/server/logger';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { confirmationSentMessage } from '$lib/server/discord-templates';
+import { subscribeToNewsletter } from '$lib/server/listmonk';
 
 // POST - Send confirmation email with Authentik enrollment invitation
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -121,6 +122,9 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	}
 
 	apiLogger.info({ applicationId: id }, '[Step 3/4] Welcome email sent');
+
+	// Newsletter subscription (fire-and-forget)
+	subscribeToNewsletter(application.fullName, application.email);
 
 	// Discord notification (fire-and-forget)
 	let location = 'unknown location';
