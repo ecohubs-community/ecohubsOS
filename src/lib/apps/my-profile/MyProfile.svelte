@@ -409,7 +409,7 @@
 					placeholder="How would you like to contribute..."
 					maxlength={2000}
 					rows={3}
-					class="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+					class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
 				></textarea>
 			</div>
 
