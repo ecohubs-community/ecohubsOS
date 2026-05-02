@@ -75,30 +75,13 @@ export function createDefaultSteps(): Step[] {
 				}
 			]
 		},
-		// Forum onboarding step removed — the discussions forum isn't
-		// currently in active use, so the substeps `forum-login`,
-		// `forum-read-latest`, and `forum-howto-create` are retired.
-		{
-			id: 'voting',
-			title: 'Voting & Governance',
-			subSteps: [
-				{
-					id: 'voting-open',
-					title: 'Open the Voting app',
-					actions: [{ type: 'app', appId: 'voting' }]
-				},
-				{
-					id: 'voting-read',
-					title: 'Read current proposals',
-					actions: [{ type: 'none' }]
-				},
-				{
-					id: 'voting-vote',
-					title: 'Vote on a proposal',
-					actions: [{ type: 'none' }]
-				}
-			]
-		}
+		// Removed steps:
+		//  - `discussions` (forum-login / forum-read-latest /
+		//    forum-howto-create): the discussions forum isn't in active
+		//    use yet.
+		//  - `voting` (voting-open / voting-read / voting-vote): the
+		//    voting app is one entry in the dock — members discover it
+		//    naturally without an onboarding nudge.
 	];
 }
 
@@ -117,7 +100,10 @@ export const RETIRED_SUBSTEP_IDS = [
 	'puckstack-copy-id',
 	'forum-login',
 	'forum-read-latest',
-	'forum-howto-create'
+	'forum-howto-create',
+	'voting-open',
+	'voting-read',
+	'voting-vote'
 ] as const;
 
 export function loadSteps(): Step[] {

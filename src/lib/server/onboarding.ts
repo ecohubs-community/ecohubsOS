@@ -53,16 +53,6 @@ export async function getOnboardingProgress(userId: string): Promise<OnboardingP
 		onboardingLogger.warn({ err, userId }, 'Failed to check Discord account for auto-detection');
 	}
 
-	// Voting & governance substeps were added when the internal voting app
-	// shipped. Users who completed onboarding before that point should not
-	// regress to "in progress" — backfill the voting substeps for them.
-	if (dbUser.onboardingCompletedAt) {
-		const completedAtIso = dbUser.onboardingCompletedAt.toISOString();
-		for (const substepId of ['voting-open', 'voting-read', 'voting-vote'] as const) {
-			if (!progress[substepId]) progress[substepId] = completedAtIso;
-		}
-	}
-
 	return progress;
 }
 
@@ -77,16 +67,16 @@ export const VALID_SUBSTEP_IDS = [
 	'snapshot-open',
 	'snapshot-read',
 	'snapshot-vote',
-	// Current substeps
-	'puckstack-signup',
 	'puckstack-copy-id',
 	'offcoin-connect',
-	'discord-connect',
-	'discord-introduce',
 	'forum-login',
 	'forum-read-latest',
 	'forum-howto-create',
 	'voting-open',
 	'voting-read',
-	'voting-vote'
+	'voting-vote',
+	// Current substeps
+	'puckstack-signup',
+	'discord-connect',
+	'discord-introduce'
 ] as const;
