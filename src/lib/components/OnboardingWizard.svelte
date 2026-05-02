@@ -22,6 +22,7 @@
 	import PuckstackIllustration from './onboarding-illustrations/PuckstackIllustration.svelte';
 	import DiscordIllustration from './onboarding-illustrations/DiscordIllustration.svelte';
 	import { APPS } from '$lib/data';
+	import { auth } from '$lib/auth.svelte';
 	import type { Component } from 'svelte';
 
 	// Looks up an internal app component by id from the single APPS
@@ -40,6 +41,13 @@
 		serverProgress?: OnboardingProgress;
 		userName?: string;
 	} = $props();
+
+	// Welcome screen name: prefer the displayName the user entered in
+	// the profile step (live in the auth store after profile save),
+	// then the prop value (their Authentik name), then a safe default.
+	let welcomeName = $derived(
+		auth.user?.displayName?.trim() || userName || 'Member'
+	);
 
 	// State
 	let steps = $state<Step[]>(createDefaultSteps());
@@ -246,7 +254,7 @@
 </script>
 
 {#if showCompletion}
-	<OnboardingComplete {userName} onEnter={handleComplete} />
+	<OnboardingComplete userName={welcomeName} onEnter={handleComplete} />
 {:else}
 	<div
 		class="flex min-h-full flex-col items-center justify-center px-3 py-4 sm:px-4 sm:py-8 md:px-6"

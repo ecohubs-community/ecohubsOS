@@ -86,8 +86,8 @@
 			<span
 				class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"
 			>
-				<Icon icon="tabler:wallet" class="mr-1 inline h-3 w-3" />
-				Wallet Connected
+				<Icon icon="tabler:checklist" class="mr-1 inline h-3 w-3" />
+				Puckstack Connected
 			</span>
 			<span
 				class="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300"
