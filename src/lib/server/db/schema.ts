@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // BetterAuth user table with extended fields
 export const user = sqliteTable('user', {
@@ -110,6 +110,74 @@ export const verification = sqliteTable('verification', {
 		.notNull()
 		.$defaultFn(() => new Date())
 });
+
+export const proposals = sqliteTable('proposals', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+
+	// 'operational' | 'strategic' | 'constitutional'
+	type: text('type').notNull(),
+
+	title: text('title').notNull(),
+	body: text('body').notNull(),
+
+	// nullable for system-generated proposals
+	authorUserId: text('author_user_id').references(() => user.id, { onDelete: 'set null' }),
+
+	// JSON array of tags (lower-kebab-case, max 5 — enforced in code)
+	tags: text('tags').notNull().default('[]'),
+
+	// Registry key in CHOICE_SETS — kept for traceability
+	choiceSetKey: text('choice_set_key').notNull(),
+	// JSON array snapshot of choices at creation time
+	choices: text('choices').notNull(),
+
+	// 'majority' | 'supermajority'
+	threshold: text('threshold').notNull(),
+
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date()),
+	voteOpensAt: integer('vote_opens_at', { mode: 'timestamp' }).notNull(),
+	voteClosesAt: integer('vote_closes_at', { mode: 'timestamp' }).notNull(),
+	ratificationEndsAt: integer('ratification_ends_at', { mode: 'timestamp' }),
+
+	// 'deliberating' | 'active' | 'closed' | 'ratifying' | 'ratified' | 'withdrawn'
+	status: text('status').notNull().default('deliberating'),
+
+	// 'approved' | 'rejected' | 'needs_review' | 'tied' | null (while open)
+	result: text('result'),
+
+	// JSON array of statuses already announced — idempotency for Discord
+	discordNotifiedTransitions: text('discord_notified_transitions').notNull().default('[]'),
+
+	// Unique link to triggering entity (one system proposal per application/draft)
+	linkedApplicationId: text('linked_application_id').unique(),
+	linkedBlogDraftId: text('linked_blog_draft_id').unique()
+});
+
+export const proposalVotes = sqliteTable('proposal_votes', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	proposalId: text('proposal_id')
+		.notNull()
+		.references(() => proposals.id, { onDelete: 'cascade' }),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	choice: text('choice').notNull(),
+	reason: text('reason'),
+	votedAt: integer('voted_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+}, (table) => ({
+	uniqueVotePerUser: uniqueIndex('proposal_votes_proposal_user_unique').on(
+		table.proposalId,
+		table.userId
+	)
+}));
 
 export const applications = sqliteTable('applications', {
 	id: text('id')

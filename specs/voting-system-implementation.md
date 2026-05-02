@@ -16,9 +16,9 @@ Goal: schema + server primitives in place, no UI yet.
 
 ### 0.1 Add `proposals` and `proposal_votes` tables to `src/lib/server/db/schema.ts`
 
-- `proposals`: `id` (uuid pk), `type` (`operational` | `strategic` | `constitutional`), `title` (text), `body` (text), `authorUserId` (text, nullable, FK→user), `tags` (text JSON), `choiceSetKey` (text — registry key), `choices` (text JSON snapshot), `threshold` (`majority` | `supermajority`), `createdAt`, `voteOpensAt`, `voteClosesAt`, `ratificationEndsAt` (nullable), `status` (`deliberating` | `active` | `closed` | `ratifying` | `ratified`), `result` (`approved` | `rejected` | `needs_review` | `tied` | nullable), `linkedApplicationId` (nullable, FK→applications), `linkedBlogDraftId` (nullable, text).
-- `proposal_votes`: `id`, `proposalId` (FK→proposals, cascade), `userId` (FK→user), `choice` (text), `reason` (text, nullable), `votedAt`. Unique index on `(proposalId, userId)`.
-- *Rationale:* one schema migration up front avoids re-migrating mid-feature; the `choiceSetKey` + `choices` snapshot lets us evolve the registry without rewriting historical proposals.
+- `proposals`: `id` (uuid pk), `type` (`operational` | `strategic` | `constitutional`), `title`, `body`, `authorUserId` (text, nullable, FK→user), `tags` (text JSON, max 5 entries enforced in code), `choiceSetKey` (text — registry key), `choices` (text JSON snapshot), `threshold` (`majority` | `supermajority`), `createdAt`, `voteOpensAt`, `voteClosesAt`, `ratificationEndsAt` (nullable), `status` (`deliberating` | `active` | `closed` | `ratifying` | `ratified` | `withdrawn`), `result` (`approved` | `rejected` | `needs_review` | `tied` | nullable), `discordNotifiedTransitions` (text JSON array of status names — for idempotency, default `'[]'`), `linkedApplicationId` (nullable, **unique**, FK→applications), `linkedBlogDraftId` (nullable, **unique**, text). Add `votingLogger = logger.child({ module: 'voting' })` in the same change.
+- `proposal_votes`: `id`, `proposalId` (FK→proposals, cascade), `userId` (FK→user), `choice` (text), `reason` (text, nullable), `votedAt`. **Unique index** on `(proposalId, userId)` (constraint + perf index).
+- *Rationale:* `withdrawn` reserved + linked-id uniqueness + notification-idempotency column avoid follow-up migrations; one source-of-truth log channel for voting; choice snapshot keeps history intact when registry evolves.
 
 ### 0.2 Run `pnpm db:push` and commit the generated migration in `drizzle/`
 
@@ -32,19 +32,14 @@ Goal: schema + server primitives in place, no UI yet.
 
 ### 0.4 Type/period config at `src/lib/server/voting/types.ts`
 
-- Map of `type → { deliberationDays, voteDays, threshold, ratificationDays }` matching the locked table in voting-system.md §3.5.
-- Pure helper `computePeriods(type, now)` returns `{ voteOpensAt, voteClosesAt, ratificationEndsAt }`.
-- *Rationale:* one source of truth for governance periods; tested in isolation.
+- Map of `type → { deliberationDays, voteDays, threshold, ratificationDays }` matching voting-system.md §3.5.
+- Pure helper `computePeriods(type, now)` → `{ voteOpensAt, voteClosesAt, ratificationEndsAt }`.
+- *Rationale:* single source of truth for governance periods; tested in isolation.
 
 ### 0.5 Pure result-resolver at `src/lib/server/voting/resolve.ts`
 
-- `resolveResult(votes, choices, threshold) → 'approved' | 'rejected' | 'needs_review' | 'tied'` returning the winning choice mapped to the canonical result, with explicit tie semantics.
-- *Rationale:* the single function that decides outcomes is unit-testable and reusable across the close job, status enrichers, and any backfill.
-
-### 0.6 Server logger child at `src/lib/server/logger.ts`
-
-- Add `votingLogger = logger.child({ module: 'voting' })`.
-- *Rationale:* keeps voting telemetry filterable, matching existing module conventions.
+- `resolveResult(voteTallies, choices, threshold) → 'approved' | 'rejected' | 'needs_review' | 'tied'` implementing the 3-choice mapping rules in voting-system.md §3.4 (first-choice meets threshold → approved; otherwise runner-up between Choice[1] and Choice[2] decides; equal runner-ups → tied; zero votes → rejected).
+- *Rationale:* the resolver is the single function that decides outcomes; centralised + unit-tested = governance-grade.
 
 ---
 
@@ -52,42 +47,47 @@ Goal: schema + server primitives in place, no UI yet.
 
 Goal: full proposal CRUD + voting endpoints, callable but not yet wired into UI.
 
-### 1.1 `GET /api/proposals` at `src/routes/api/proposals/+server.ts`
+### 1.1 Move existing Snapshot-update endpoint out of the way
 
-- Replace the current Snapshot-update endpoint logic. Auth-gated. Query params: `?status=active|past`, `?type=...`, `?tag=...`. Returns proposals with computed counts (`votes_total`, `votes_by_choice`) and `userHasVoted` for the caller.
-- *Rationale:* one list endpoint serves both the proposals UI and the badge store; pre-computed counts avoid N+1 on the list view.
+- The current [api/proposals/+server.ts](src/routes/api/proposals/+server.ts) handles Snapshot-update calls from `MembershipManager`. Rename to `src/routes/api/applications/[id]/snapshot-proposal/+server.ts` and update the one client call site to match. Mark as deprecated in a code comment.
+- *Rationale:* avoids a route-shape collision when the new `/api/proposals` surface lands. The renamed endpoint is removed entirely in Phase 5.
 
-### 1.2 `POST /api/proposals`
+### 1.2 `GET /api/proposals` at `src/routes/api/proposals/+server.ts`
 
-- Body: `{ type, title, body, tags? }`. Validates: Offcoin level ≥ 3 (server-side fetch), char limits (140/10 000), type enum, tag normalisation. Computes periods via `computePeriods`. Inserts proposal with `status='deliberating'` (or `active` if `deliberationDays === 0`).
-- *Rationale:* server-side eligibility check is mandatory — UI gating is a UX nicety, not a security boundary.
+- Auth-gated (any authenticated user). Query params: `?status=active|past|all`, `?type=...`, `?tag=...`, `?unvoted=1`. Calls `materialiseAllStale()` (1.7) before reading. Returns proposals with `votes_total`, `votes_by_choice`, and `userHasVoted` for the caller. Tag filter uses SQLite `json_each` (json1 extension is on by default in `better-sqlite3`).
+- *Rationale:* single list endpoint serves UI + badge; pre-computed counts avoid N+1; lazy materialisation guarantees fresh status without a cron.
 
-### 1.3 `GET /api/proposals/[id]` at `src/routes/api/proposals/[id]/+server.ts`
+### 1.3 `POST /api/proposals`
 
-- Returns proposal + vote list (userId, displayName, choice, reason, votedAt) + tally.
-- *Rationale:* detail page needs the full voter list per spec; one query keeps the page fast.
+- Body: `{ type, title, body, tags? }`. Validates: server-side Offcoin level ≥ 3 (look up via `puckstackUserId` on the user row → `offcoin.members.getXp(...)`), title ≤ 140, body ≤ 10 000, type enum, tags ≤ 5 (normalised to lower-kebab-case). Computes periods via `computePeriods`. Inserts with `status='deliberating'` (or `active` when `deliberationDays === 0`). Snapshots `choices` from `CHOICE_SETS.default`. Sends Discord `proposalCreatedMessage`.
+- *Rationale:* server is the only authoritative eligibility gate; choices snapshotted so future registry changes don't rewrite history.
 
-### 1.4 `POST /api/proposals/[id]/vote`
+### 1.4 `GET /api/proposals/[id]` at `src/routes/api/proposals/[id]/+server.ts`
 
-- Body: `{ choice, reason? }`. Validates: proposal `status === 'active'`, choice in `proposal.choices`, reason ≤ 1 000 chars, no existing vote for this user (DB unique constraint as the safety net). Inserts vote.
-- *Rationale:* unique constraint + status check together prevent double-voting and out-of-window votes even under race conditions.
+- Returns proposal + voter list (`userId`, `displayName` || `name`, `choice`, `reason`, `votedAt`) + tally. Never returns email or wallet address.
+- *Rationale:* detail page needs voter list per spec; identity projection prevents accidental PII leak.
 
-### 1.5 Status materialiser at `src/lib/server/voting/materialise.ts`
+### 1.5 `POST /api/proposals/[id]/vote`
 
-- `materialiseProposal(p, now)` advances `deliberating → active → closed → ratifying → ratified` based on timestamps and writes the new `status`/`result` if changed.
-- Called on each `GET /api/proposals*` request for any proposal whose timestamps imply a transition.
-- *Rationale:* avoids needing a cron/timer infra; the lazy approach is sufficient for a low-traffic governance app and is easier to test.
+- Body: `{ choice, reason? }`. Validates: caller is authenticated, proposal `status === 'active'`, `choice` in `proposal.choices`, `reason` ≤ 1 000. DB unique constraint is the race-condition safety net.
+- *Rationale:* keeping the gate at "authenticated" only — no Offcoin / wallet dependency — means anyone who has logged in via SSO can vote. The status check + unique index together close the double-vote and out-of-window race.
 
-### 1.6 Optional cron-style sweep at startup
+### 1.6 `GET /api/proposals/tags`
 
-- On server boot (or first request to the voting API), run `materialiseAllStale()` so backed-up transitions land even without traffic to a specific proposal.
-- *Rationale:* protects against the lazy-materialiser missing transitions during quiet periods.
+- Returns distinct tags + usage counts. Used by the proposal form for autocomplete.
+- *Rationale:* keeps the tag vocabulary from fragmenting without imposing a fixed taxonomy.
 
-### 1.7 Tests for Phase 0/1
+### 1.7 Status materialiser at `src/lib/server/voting/materialise.ts`
 
-- Unit tests for `computePeriods`, `resolveResult`, `materialiseProposal` covering: no-deliberation Operational, normal Strategic, Constitutional with ratification, tied → fails, all-zero score → no result, choice not in set → 400.
-- Integration: vote uniqueness, level gate, status gate.
-- *Rationale:* state machine + result resolver are the riskiest correctness surface; lock them with tests early.
+- `materialiseProposal(p, now)` advances `deliberating → active → closed → ratifying → ratified` based on timestamps; writes new `status`/`result` if changed. On each transition that maps to a Discord template, push the status into `discordNotifiedTransitions` and fire the message *only if not already present* (idempotent).
+- `materialiseAllStale()` runs an indexed scan for proposals whose timestamps imply a pending transition; called from every `GET /api/proposals*` request.
+- *Rationale:* lazy materialiser avoids cron infra; idempotency column kills duplicate Discord pings even under concurrent calls.
+
+### 1.8 Tests for Phase 0/1
+
+- Unit: `computePeriods` (all three types), `resolveResult` covering each example in voting-system.md §3.4 plus zero-vote and tied edge cases, `materialiseProposal` walking each transition, idempotency check on Discord notifications.
+- Integration: vote uniqueness under concurrent POSTs, level gate, voter-eligibility gate, status gate, tag-filter query.
+- *Rationale:* state machine + resolver + idempotency are the riskiest surfaces; lock them with tests before any UI lands.
 
 ---
 
@@ -123,20 +123,15 @@ Goal: members can read, vote, and create proposals.
 
 ### 2.6 Markdown editor + view
 
-- `MarkdownEditor.svelte`: simple textarea + toolbar (bold/italic/link/list/code/heading) + live preview pane.
-- `MarkdownView.svelte`: renders sanitised HTML.
-- Add `marked` + `dompurify` to dependencies (lightweight, well-known).
-- *Rationale:* sanitisation is non-negotiable for member-authored content; `marked` + `dompurify` is the minimal pairing that gives correctness without pulling in a full editor framework.
+- `MarkdownEditor.svelte`: plain textarea + side-by-side live preview pane. **No toolbar in v1** — markdown is the format, no WYSIWYG.
+- `MarkdownView.svelte`: renders sanitised HTML via `marked` + `dompurify`.
+- Add `marked` + `dompurify` to dependencies.
+- *Rationale:* "simple markdown editor" means simple — a toolbar adds significant code surface for marginal UX gain. Sanitisation, however, is non-negotiable.
 
 ### 2.7 Proposal form (`ProposalForm.svelte`)
 
-- Type select, title input (140-char counter), markdown editor (10 000-char counter), tag chip input. Submits to `POST /api/proposals`. Disabled if level check fails (server is still authoritative).
-- *Rationale:* matches spec §3.3; counters in the UI prevent the first-attempt 400 from char-limit overruns.
-
-### 2.8 Tag autocomplete
-
-- `GET /api/proposals/tags` returns distinct tags with usage counts; `ProposalForm` fetches and offers them as suggestions.
-- *Rationale:* keeps tag vocabulary from fragmenting without forcing a fixed taxonomy.
+- Type select, title input (140-char counter), markdown editor (10 000-char counter), tag chip input (max 5, autocomplete from §1.6). Submits to `POST /api/proposals`. Hidden if `offcoin.level < 3` (server is the authoritative gate regardless).
+- *Rationale:* matches spec §3.3; counters prevent first-attempt 400s from char-limit overruns.
 
 ---
 
@@ -146,18 +141,23 @@ Goal: red badge on the voting app + auto-creation flows for membership and blog.
 
 ### 3.1 Extend `src/lib/badges.svelte.ts`
 
-- Add `voting: number` to `BadgeCounts`. Refresh fetches `GET /api/proposals?status=active&unvoted=1` and counts results.
-- *Rationale:* same pattern as the other two badged apps; one extra fetch on auth.
+- Add `voting: number` to `BadgeCounts`. Refresh fetches `GET /api/proposals?status=active&unvoted=1` and counts results. (Filter is already implemented in §1.2.)
+- *Rationale:* same pattern as the other two badged apps; one extra fetch on auth, no new endpoint.
 
-### 3.2 Add `unvoted=1` filter to `GET /api/proposals`
+### 3.2 `createSystemProposal` helper at `src/lib/server/voting/system-proposal.ts`
 
-- When `unvoted=1` and authenticated, filter out proposals the caller has already voted on.
-- *Rationale:* keeps the badge query single-trip and avoids leaking the vote list to the badge code path.
+- Shared helper used by application + blog hooks: takes `{ type, choiceSetKey, tags, title, body, linkedApplicationId?, linkedBlogDraftId? }`, computes periods, snapshots choices, inserts the proposal, fires Discord. Idempotent on linked-id (returns the existing proposal if one already exists).
+- *Rationale:* one helper for both auto-creation paths; idempotency closes the door on duplicate proposals from request retries.
 
 ### 3.3 Auto-create membership proposal in `POST /api/applications` ([+server.ts](src/routes/api/applications/+server.ts))
 
-- After insert, call `createSystemProposal({ type: 'operational', choiceSetKey: 'membership', tags: ['Membership', 'System'], title: 'Membership Application: <fullName>', body: formatApplicationBody(application), linkedApplicationId })`.
+- After insert, call `createSystemProposal({ type: 'operational', choiceSetKey: 'membership', tags: ['membership', 'system'], title: 'Membership Application: <fullName>', body: formatApplicationBody(application), linkedApplicationId })`.
 - *Rationale:* removes the manual admin step; spec §6.3.
+
+### 3.3a One-shot backfill for in-flight applications
+
+- Migration script (run once) that finds applications with `status = 'pending'` and no linked proposal, and creates a proposal for each via `createSystemProposal`.
+- *Rationale:* without this, applications already in the database when Phase 3 ships would never get a proposal and would stall in the admin UI.
 
 ### 3.4 Replace Snapshot status enrichment in `GET /api/applications`
 
@@ -171,16 +171,17 @@ Goal: red badge on the voting app + auto-creation flows for membership and blog.
 
 ### 3.6 Auto-create blog proposal
 
-- In the existing draft-publish flow ([api/blog/drafts/[id]/update-proposal/+server.ts](src/routes/api/blog/drafts/[id]/update-proposal/+server.ts)), replace the Snapshot creation with `createSystemProposal({ type: 'operational', choiceSetKey: 'blog', tags: ['Blog', 'System'], ..., linkedBlogDraftId })`.
-- Update `BlogManager.svelte` to read status from local proposal instead of `getProposalForDraft`.
-- *Rationale:* spec §6.4; same pipeline as membership for consistency.
+- In the existing draft-publish flow ([api/blog/drafts/[id]/update-proposal/+server.ts](src/routes/api/blog/drafts/[id]/update-proposal/+server.ts)), replace the Snapshot creation with `createSystemProposal({ type: 'operational', choiceSetKey: 'blog', tags: ['blog', 'system'], ..., linkedBlogDraftId })`.
+- Update `BlogManager.svelte` to read status from the local proposal instead of `getProposalForDraft`.
+- One-shot backfill: for every blog draft currently linked to a Snapshot proposal, create a local proposal mirroring its remaining lifecycle.
+- *Rationale:* spec §6.4; backfill keeps in-flight blog publication votes from disappearing on cutover.
 
 ### 3.7 Discord templates ([discord-templates.ts](src/lib/server/discord-templates.ts))
 
 - Update `proposalCreatedMessage` to drop the link argument.
-- Add `proposalClosedApproved`, `proposalClosedRejected`, `proposalRatified` (link-free).
-- Wire them into the materialiser (fire-and-forget on transition).
-- *Rationale:* spec §6.6; firing on transition keeps Discord in sync without a separate scheduler.
+- Add `proposalClosedApproved`, `proposalClosedRejected`, `proposalNeedsReview`, `proposalRatified` (all link-free).
+- Wired in §1.7 with the idempotency check via `discordNotifiedTransitions`.
+- *Rationale:* spec §6.6; idempotency-aware materialiser means we don't need a separate scheduler.
 
 ---
 
@@ -289,11 +290,16 @@ Goal: governance docs reflect the new mechanism.
 
 ## Risks / things to watch
 
-- **Lazy materialiser drift:** if no traffic hits the API, transitions stall. Phase 1.6 mitigates; consider a real cron later.
-- **Markdown XSS:** sanitisation regressions are silent and dangerous — keep the test from §7.1 in CI.
-- **Rollback:** keeping Snapshot columns in `applications` for one release (§5.4) is the rollback hatch.
-- **Constitutional ratification timer:** edge case if a Constitutional vote passes but is invalidated mid-ratification — out of scope here, but document the manual override path.
+- **Lazy materialiser drift:** if no traffic hits the API, transitions stall. Acceptable for low-traffic v1; revisit with a real cron if the badge / Discord pings start lagging visibly.
+- **Markdown XSS:** sanitisation regressions are silent and dangerous — keep §7.1's test in CI.
+- **Endpoint rename in §1.1:** the renamed Snapshot-update route must ship in the same PR as the client call-site change to avoid a broken `MembershipManager`.
+- **Backfill timing:** §3.3a / §3.6 backfills must run **after** the new schema is live and **before** users hit the new flows.
+- **Rollback:** Snapshot columns on `applications` stay nullable indefinitely (§5.4 deferred — no real cost, gives an out).
+- **Constitutional ratification timer:** edge case if a passed Constitutional proposal is invalidated mid-ratification — out of scope here; document the manual override path.
 
 ## Phase ordering / merge dependencies
 
-- 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 in order. Phases can be merged separately; the system is functional after each phase boundary except mid-phase. Phase 5.5 (historical import) is independent and can be deferred indefinitely.
+- 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7. Each phase leaves the system functional at its boundary; mid-phase commits may not.
+- Within Phase 1: §1.1 (endpoint rename) **must merge first** to clear the route shape.
+- Phase 3 must merge **after** Phase 1 and **before** Phase 5 (decommission).
+- Phase 5.5 (historical Snapshot import) is independent and can be deferred indefinitely.

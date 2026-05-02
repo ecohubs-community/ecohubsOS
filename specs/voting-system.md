@@ -64,10 +64,26 @@ Replaces the current `snapshot` entry in [data.ts](src/lib/data.ts) (which only 
 ### 3.4 Choice sets (extensible)
 
 - Default choice set: `['For', 'Against', 'Needs Review']`.
-- Stored on each proposal as a JSON array, so other sets can be assigned per proposal type:
+- Stored on each proposal as a JSON snapshot, so other sets can be assigned per proposal type:
   - Membership applications → `['Approve', 'Reject', 'Needs Review']`
   - Blog publications → `['Publish', 'Reject', 'Needs Revision']`
-- Implementation registers choice sets in code (e.g. `CHOICE_SETS` map keyed by proposal type) so adding a new set later requires only a code change, no schema change.
+- Implementation registers choice sets in code (`CHOICE_SETS` registry); choices are snapshotted onto the proposal at creation time so future registry edits don't change historical proposals.
+
+#### Choice → result mapping (3-choice ballots)
+
+The threshold (`majority` or `supermajority`) applies to the **first choice** ("For" / "Approve" / "Publish") against **all votes cast** (per protocol §"Voting Principles": "% of votes cast"). Resolution rules:
+
+1. If first-choice share **meets the threshold** → result = `approved`.
+2. Otherwise, the runner-up choice between Choice[1] (Against / Reject) and Choice[2] (Needs Review) by raw count determines the result:
+   - Choice[1] wins → `rejected`
+   - Choice[2] wins → `needs_review`
+   - Choice[1] == Choice[2] → `tied` (treated as fail; status quo holds).
+3. Zero votes cast → `rejected` (no mandate; status quo holds).
+
+Examples (Strategic, majority threshold):
+- 60% For / 30% Against / 10% Needs Review → `approved`.
+- 40% For / 35% Against / 25% Needs Review → `rejected` (Against beats Needs Review).
+- 30% For / 35% Against / 35% Needs Review → `tied`.
 
 ### 3.5 Type → period mapping (locked)
 
@@ -85,14 +101,17 @@ Replaces the current `snapshot` entry in [data.ts](src/lib/data.ts) (which only 
 
 ## 4. Eligibility
 
-| Action                                          | Who                                                    |
-| ----------------------------------------------- | ------------------------------------------------------ |
-| Read proposals                                  | Any authenticated user                                 |
-| Vote                                            | Any member (any Offcoin level) — one vote per proposal |
-| Create proposal (Operational/Strategic/Constitutional) | Offcoin Level ≥ 3                              |
-| Auto-created (membership / blog)                | System (author shown as "System")                      |
+| Action                            | Who                                                |
+| --------------------------------- | -------------------------------------------------- |
+| Read proposals                    | Any authenticated user                             |
+| Vote                              | Any authenticated user — one vote per proposal     |
+| Create proposal                   | Authenticated user with Offcoin Level ≥ 3          |
+| Auto-created (membership / blog)  | System (author shown as "System")                  |
 
-(No public / unauthenticated read in v1.)
+- Voting only requires authentication — no Offcoin link, no wallet, no Safe ownership. A user that completed SSO login is a voting member.
+- Proposal authoring still requires an Offcoin Level ≥ 3 lookup (server-side via `puckstackUserId` → Offcoin SDK). Users without Offcoin connection see "Connect Offcoin to author proposals" in place of the New Proposal button.
+- No public / unauthenticated read in v1.
+- This is the v1 mapping for the protocol's "Full Member" concept. A stricter definition (group membership, Safe owner, etc.) can replace it later without a schema change.
 
 ---
 
@@ -157,8 +176,13 @@ Replaces the current `snapshot` entry in [data.ts](src/lib/data.ts) (which only 
 
 New tables (names indicative):
 
-- `proposals` — id, type (`operational` / `strategic` / `constitutional`), title, body, authorUserId (nullable for system), tags (JSON array), createdAt, voteOpensAt, voteClosesAt, ratificationEndsAt (nullable), threshold (`majority` / `supermajority`), choices (JSON array), status (`deliberating` / `active` / `closed` / `ratifying` / `ratified`), result (`approved` / `rejected` / `needs_review` / `tied` / nullable), linkedApplicationId (nullable), linkedBlogDraftId (nullable).
+- `proposals` — id, type (`operational` / `strategic` / `constitutional`), title, body, authorUserId (nullable for system), tags (JSON array), createdAt, voteOpensAt, voteClosesAt, ratificationEndsAt (nullable), threshold (`majority` / `supermajority`), choiceSetKey, choices (JSON snapshot), status (`deliberating` / `active` / `closed` / `ratifying` / `ratified` / `withdrawn`), result (`approved` / `rejected` / `needs_review` / `tied` / nullable), discordNotifiedTransitions (JSON array of statuses already announced — for idempotency), linkedApplicationId (nullable, unique), linkedBlogDraftId (nullable, unique).
 - `proposal_votes` — proposalId, userId, choice, reason (nullable, max 1 000 chars), votedAt. Unique on `(proposalId, userId)`.
+
+Notes:
+- `withdrawn` status is reserved in the enum but no UI in v1 (covers future protocol §"Withdrawal" without a follow-up migration).
+- `linkedApplicationId` / `linkedBlogDraftId` are unique to prevent double-creation of system proposals.
+- `discordNotifiedTransitions` prevents the lazy materialiser from firing duplicate notifications when called multiple times.
 
 Migration: SQLite via Drizzle (`pnpm db:push`).
 
@@ -195,7 +219,19 @@ The decision matrix in `01-decision-matrix.md` currently mandates Snapshot as th
 
 ---
 
-## 10. Open items (post-decision)
+## 10. Design decisions (worth being explicit about)
+
+- **Live tally during voting:** counts and the voter list are visible while the vote is open. Trade-off: this enables a possible bandwagon effect; in exchange members can self-correct if a proposal is being misread. Accepted as v1 default; revisit if abuse surfaces.
+- **Proposal immutability after submission:** title/body/tags are immutable once a proposal is submitted (no edits during deliberation in v1). Typo fixes require withdrawal + re-submission once that flow lands.
+- **Voter identity in the list:** show `displayName` if set, else `name` from Authentik. Never show email or wallet address.
+- **Tags:** max 5 tags per proposal, normalised to lower-kebab-case server-side.
+- **Membership-application proposals — admin pre-screen:** auto-creation skips any admin pre-screen. Existing per-IP rate limit on `POST /api/applications` is the only spam gate. If spam becomes a problem, add an admin "publish proposal" button gating step (post-v1).
+- **`pending` application status becomes vestigial:** with auto-creation, every application immediately has a proposal. Keep the column to avoid a breaking schema change but treat it as legacy.
+- **Notifications to author:** v1 — author sees their own proposals in the list view, no separate ping. Discord channel notification is the broadcast.
+
+## 11. Open items (post-decision)
 
 - **Historical Snapshot migration** — optional, decide whether to spend effort on it or just archive a static export.
 - **Snapshot mirror** — decide whether to keep a one-way mirror (announce passed proposals on Snapshot for transparency) or fully cut over. Default: full cut-over.
+- **Withdrawal UI** — reserved in the schema; no UI in v1.
+- **Re-vote / reasoned-objection workflow** — protocol §"Appeal and Review"; future spec.
