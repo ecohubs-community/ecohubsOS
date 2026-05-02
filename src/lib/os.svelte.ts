@@ -34,6 +34,10 @@ class OSState {
 	dockOpen = $state(true);
 	showAllApps = $state(false); // All Apps modal visibility
 
+	// One-shot deep-link payload an app picks up when it opens.
+	// Cleared by the consuming app immediately after reading.
+	pendingDeepLink = $state<{ appId: string; payload: unknown } | null>(null);
+
 	// User State
 	xp = $state(1250);
 	notifications = $state([...MOCK_NOTIFICATIONS]);
@@ -63,9 +67,23 @@ class OSState {
 		window.location.href = '/login';
 	}
 
-	openApp(appId: string) {
+	openApp(appId: string, deepLink?: unknown) {
 		this.showAllApps = false; // Close All Apps modal when opening an app
+		if (deepLink !== undefined) {
+			this.pendingDeepLink = { appId, payload: deepLink };
+		}
 		this.activeWindow = appId;
+	}
+
+	/**
+	 * Apps call this in $effect to receive a deep-link payload addressed to them.
+	 * Returns the payload exactly once per addressing — subsequent reads see null.
+	 */
+	consumeDeepLink<T = unknown>(appId: string): T | null {
+		const link = this.pendingDeepLink;
+		if (!link || link.appId !== appId) return null;
+		this.pendingDeepLink = null;
+		return link.payload as T;
 	}
 
 	closeApp() {

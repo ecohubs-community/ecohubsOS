@@ -4,7 +4,8 @@
 	import HelpSection from '$lib/components/HelpSection.svelte';
 	import Icon from '@iconify/svelte';
 	import { fade, slide } from 'svelte/transition';
-	import { obscureEmail, getFirstName, obscureLastName } from '$lib/utils/email.utils';
+	import { obscureEmail } from '$lib/utils/email.utils';
+	import { os } from '$lib/os.svelte';
 
 	interface Application {
 		id: string;
@@ -13,12 +14,16 @@
 		formData: string; // JSON string containing all form fields
 		status: string;
 		submittedAt: string;
+		// Legacy Snapshot identifiers — preserved for read-only display
+		// of historical applications until Phase 5 cuts the columns.
 		snapshotProposalId: string | null;
 		snapshotProposalLink: string | null;
 		aiRecommendation: string | null;
 		confirmationEmailSentAt: string | null;
 		rejectionEmailSentAt: string | null;
-		// Enriched fields from API
+		// Local-proposal id for new applications (auto-created on submit)
+		proposalId: string | null;
+		// Enriched fields from API (now sourced from local proposals)
 		votingStatus: 'none' | 'active' | 'closed';
 		votingResult: 'approved' | 'rejected' | 'needs_review' | null;
 		votingEnd: number | null;
@@ -51,21 +56,18 @@
 		}
 	}
 
-	interface SnapshotConfig {
-		snapshotSpace: string;
-		votingDuration: number;
-	}
-
 	let applications = $state<Application[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let statusMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 	let expandedId = $state<string | null>(null);
-	let creatingProposalFor = $state<string | null>(null);
 	let sendingEmailFor = $state<string | null>(null);
 	let sendingRejectionFor = $state<string | null>(null);
-	let snapshotConfig = $state<SnapshotConfig | null>(null);
 	let viewingApplication = $state<Application | null>(null);
+
+	function openProposal(proposalId: string) {
+		os.openApp('voting', { proposalId });
+	}
 
 	async function loadApplications() {
 		isLoading = true;
@@ -81,18 +83,6 @@
 			error = err instanceof Error ? err.message : 'Failed to load applications';
 		} finally {
 			isLoading = false;
-		}
-	}
-
-	async function loadSnapshotConfig() {
-		try {
-			// Endpoint moved during voting-system rewrite — `[id]` is ignored on GET.
-			const response = await fetch('/api/applications/_/snapshot-proposal');
-			if (response.ok) {
-				snapshotConfig = await response.json();
-			}
-		} catch {
-			console.error('Failed to load Snapshot config');
 		}
 	}
 
@@ -156,133 +146,6 @@
 		// Fallback
 		if (app.status === 'proposal_created') return 'Proposal Created';
 		return app.status;
-	}
-
-	async function createProposal(app: Application) {
-		if (!auth.isSafeOwner) {
-			statusMessage = { type: 'error', text: 'Only Safe owners can create proposals' };
-			return;
-		}
-
-		if (!snapshotConfig) {
-			statusMessage = { type: 'error', text: 'Snapshot configuration not loaded' };
-			return;
-		}
-
-		// Check for MetaMask
-		if (typeof window === 'undefined' || !window.ethereum) {
-			statusMessage = { type: 'error', text: 'MetaMask is required to create proposals' };
-			return;
-		}
-
-		creatingProposalFor = app.id;
-		statusMessage = null;
-
-		try {
-			// Request wallet connection
-			const accounts = (await window.ethereum.request({
-				method: 'eth_requestAccounts'
-			})) as string[];
-			const connectedAddress = accounts[0].toLowerCase();
-
-			// Verify wallet matches authenticated user
-			if (connectedAddress !== auth.walletAddress?.toLowerCase()) {
-				throw new Error(`Please connect wallet ${auth.shortAddress}`);
-			}
-
-			// Dynamically import ethers and Snapshot SDK
-			const { BrowserProvider } = await import('ethers');
-			const snapshot = await import('@snapshot-labs/snapshot.js');
-
-			const provider = new BrowserProvider(window.ethereum);
-			const ethersV6Signer = await provider.getSigner();
-
-			// Create a wrapper that adapts ethers v6 signer to v5 interface
-			// Snapshot SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
-			const signer = {
-				getAddress: () => ethersV6Signer.getAddress(),
-				_signTypedData: (
-					domain: Record<string, unknown>,
-					types: Record<string, Array<{ name: string; type: string }>>,
-					value: Record<string, unknown>
-				) => ethersV6Signer.signTypedData(domain, types, value)
-			};
-
-			// Get current block number for snapshot
-			const blockNumber = await provider.getBlockNumber();
-
-			// Format proposal body
-			const proposalBody = formatProposalBody(app);
-
-			// Calculate voting times
-			const now = Math.floor(Date.now() / 1000);
-			const end = now + snapshotConfig.votingDuration;
-
-			// Create and sign proposal
-			const hub = 'https://hub.snapshot.org';
-			const client = new snapshot.default.Client712(hub);
-
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const receipt = (await client.proposal(signer as any, connectedAddress, {
-				space: snapshotConfig.snapshotSpace,
-				type: 'single-choice',
-				title: `Membership Application: ${getFirstName(app.fullName)}`,
-				body: proposalBody,
-				discussion: '',
-				choices: ['Approve', 'Reject', 'Needs Review'],
-				start: now,
-				end: end,
-				snapshot: blockNumber,
-				plugins: JSON.stringify({}),
-				app: 'ecohubs-os'
-			})) as { id: string };
-
-			const proposalId = receipt.id;
-			const proposalLink = `https://snapshot.org/#/${snapshotConfig.snapshotSpace}/proposal/${proposalId}`;
-
-			// Update application in database
-			const updateResponse = await fetch(`/api/applications/${app.id}/snapshot-proposal`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					snapshotProposalId: proposalId,
-					snapshotProposalLink: proposalLink
-				})
-			});
-
-			if (!updateResponse.ok) {
-				throw new Error('Failed to update application with proposal details');
-			}
-
-			// Update local state
-			const idx = applications.findIndex((a) => a.id === app.id);
-			if (idx !== -1) {
-				applications[idx] = {
-					...applications[idx],
-					status: 'proposal_created',
-					snapshotProposalId: proposalId,
-					snapshotProposalLink: proposalLink,
-					votingStatus: 'active',
-					votingEnd: end
-				};
-			}
-
-			statusMessage = {
-				type: 'success',
-				text: `Proposal created successfully for ${app.fullName}`
-			};
-
-			// Refresh badge counts
-			badges.refresh();
-		} catch (err) {
-			console.error('Error creating proposal:', err);
-			statusMessage = {
-				type: 'error',
-				text: err instanceof Error ? err.message : 'Failed to create proposal'
-			};
-		} finally {
-			creatingProposalFor = null;
-		}
 	}
 
 	async function sendConfirmationEmail(app: Application) {
@@ -397,37 +260,6 @@
 		}
 	}
 
-	function formatProposalBody(app: Application): string {
-		const data = parseFormData(app);
-		const sections = [
-			`## Applicant Information`,
-			`- **Name:** ${obscureLastName(data.fullName)}`,
-			`- **Email:** ${obscureEmail(data.email)}`,
-			data.location ? `- **Location:** ${data.location}` : null,
-			data.timeAvailability ? `- **Time Availability:** ${data.timeAvailability}` : null,
-			data.languages ? `- **Languages:** ${data.languages}` : null,
-			``,
-			`## Motivation`,
-			data.motivation || 'Not provided',
-			``,
-			`## Contribution`,
-			data.contribution || 'Not provided',
-			data.experienceAreas ? `\n## Experience Areas\n${data.experienceAreas}` : null,
-			data.proudProject ? `\n## Proud Project\n${data.proudProject}` : null,
-			data.values ? `\n## Values\n${data.values}` : null,
-			data.resonanceCombined ? `\n## Resonance\n${data.resonanceCombined}` : null,
-			data.natureCommunityMeaning
-				? `\n## Nature & Community Meaning\n${data.natureCommunityMeaning}`
-				: null,
-			app.aiRecommendation ? `\n## AI Recommendation\n${app.aiRecommendation}` : null,
-			``,
-			`---`,
-			`*Submitted: ${new Date(app.submittedAt).toLocaleString()}*`
-		];
-
-		return sections.filter(Boolean).join('\n');
-	}
-
 	function toggleExpanded(id: string) {
 		expandedId = expandedId === id ? null : id;
 	}
@@ -450,7 +282,6 @@
 
 	$effect(() => {
 		loadApplications();
-		loadSnapshotConfig();
 	});
 </script>
 
@@ -466,23 +297,16 @@
 {/snippet}
 
 {#snippet actionButtons(app: Application)}
-	{#if app.status === 'pending'}
+	{#if app.proposalId}
 		<button
 			type="button"
-			class="flex items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-solar-900 transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
-			onclick={() => createProposal(app)}
-			disabled={creatingProposalFor !== null || !auth.isSafeOwner}
+			class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+			onclick={() => app.proposalId && openProposal(app.proposalId)}
 		>
-			{#if creatingProposalFor === app.id}
-				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
-				Creating...
-			{:else}
-				<Icon icon="tabler:rocket" class="h-4 w-4" />
-				Create Proposal
-			{/if}
+			<Icon icon="tabler:external-link" class="h-4 w-4" />
+			View Proposal
 		</button>
-	{/if}
-	{#if app.snapshotProposalLink}
+	{:else if app.snapshotProposalLink}
 		<a
 			href={app.snapshotProposalLink}
 			target="_blank"
@@ -490,7 +314,7 @@
 			class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 		>
 			<Icon icon="tabler:external-link" class="h-4 w-4" />
-			View on Snapshot
+			View on Snapshot (legacy)
 		</a>
 	{/if}
 	{#if app.votingResult === 'approved' && !app.confirmationEmailSentAt}

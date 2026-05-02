@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { offcoin } from '$lib/offcoin.svelte';
+	import { os } from '$lib/os.svelte';
 	import { onMount } from 'svelte';
 	import ProposalList from './ProposalList.svelte';
 	import ProposalDetail from './ProposalDetail.svelte';
@@ -100,6 +101,13 @@
 
 	onMount(() => {
 		loadTags();
+	});
+
+	// React to deep-link payloads addressed to the voting app. Triggered
+	// both on first mount and whenever another app calls os.openApp('voting', ...).
+	$effect(() => {
+		const target = os.consumeDeepLink<{ proposalId: string }>('voting');
+		if (target?.proposalId) selectProposal(target.proposalId);
 	});
 
 	// Drives the initial list load and re-fetches whenever filters change

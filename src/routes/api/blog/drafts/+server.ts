@@ -1,8 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
 import { getAllGhostDrafts } from '$lib/server/ghost';
-import { getProposalForDraft, getProposalStatus, isProposalApproved } from '$lib/server/blog-snapshot';
+import { db } from '$lib/server/db';
+import { proposals, proposalVotes } from '$lib/server/db/schema';
+import { inArray, sql } from 'drizzle-orm';
+import { materialiseAllStale } from '$lib/server/voting/materialise';
 
 export interface DraftWithProposal {
 	id: string;
@@ -18,70 +20,90 @@ export interface DraftWithProposal {
 	proposalEnd?: number;
 }
 
-// GET - List all blog drafts with proposal status
+// GET - List all blog drafts with proposal status.
+// Status is enriched from the local proposals table (linkedBlogDraftId).
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		error(401, 'Not authenticated');
 	}
 
 	try {
-		// Fetch all drafts from Ghost
+		await materialiseAllStale();
+
 		const drafts = await getAllGhostDrafts();
+		const draftIds = drafts.map((d) => d.id);
 
-		// Enrich drafts with proposal information
-		const draftsWithProposals: DraftWithProposal[] = await Promise.all(
-			drafts.map(async (draft) => {
-				// Check custom fields first
-				const customFields = draft.custom_fields as Record<string, unknown> | undefined;
-				const proposalIdFromFields = customFields?.snapshot_proposal_id;
-				let proposalId: string | null =
-					typeof proposalIdFromFields === 'string' ? proposalIdFromFields : null;
+		const linkedProposals = draftIds.length
+			? await db
+					.select()
+					.from(proposals)
+					.where(inArray(proposals.linkedBlogDraftId, draftIds))
+			: [];
 
-				// If not in custom fields, try to find by title pattern
-				if (!proposalId) {
-					proposalId = await getProposalForDraft(draft.title, draft.slug);
+		const proposalIds = linkedProposals.map((p) => p.id);
+		const tallies = proposalIds.length
+			? await db
+					.select({
+						proposalId: proposalVotes.proposalId,
+						choice: proposalVotes.choice,
+						n: sql<number>`count(*)`
+					})
+					.from(proposalVotes)
+					.where(inArray(proposalVotes.proposalId, proposalIds))
+					.groupBy(proposalVotes.proposalId, proposalVotes.choice)
+			: [];
+
+		const tallyByProposal = new Map<string, Record<string, number>>();
+		for (const r of tallies) {
+			const m = tallyByProposal.get(r.proposalId) ?? {};
+			m[r.choice] = Number(r.n);
+			tallyByProposal.set(r.proposalId, m);
+		}
+
+		const proposalByDraft = new Map<string, (typeof linkedProposals)[number]>();
+		for (const p of linkedProposals) {
+			if (p.linkedBlogDraftId) proposalByDraft.set(p.linkedBlogDraftId, p);
+		}
+
+		const draftsWithProposals: DraftWithProposal[] = drafts.map((draft) => {
+			const proposal = proposalByDraft.get(draft.id);
+
+			let proposalId: string | null = null;
+			let proposalStatus: 'none' | 'active' | 'closed' = 'none';
+			let isApproved = false;
+			let proposalEnd: number | undefined;
+
+			if (proposal) {
+				proposalId = proposal.id;
+				if (proposal.status === 'active' || proposal.status === 'deliberating') {
+					proposalStatus = 'active';
+				} else if (
+					proposal.status === 'closed' ||
+					proposal.status === 'ratifying' ||
+					proposal.status === 'ratified'
+				) {
+					proposalStatus = 'closed';
+					isApproved = proposal.result === 'approved';
 				}
+				proposalEnd = Math.floor(proposal.voteClosesAt.getTime() / 1000);
+			}
 
-				let proposalStatus: 'none' | 'active' | 'closed' = 'none';
-				let isApproved = false;
-				let proposalEnd: number | undefined;
-
-				if (proposalId) {
-					const status = await getProposalStatus(proposalId);
-					if (status) {
-						proposalStatus = status.status;
-						proposalEnd = status.end;
-						if (status.status === 'closed') {
-							isApproved = await isProposalApproved(proposalId);
-						}
-					}
-				}
-
-				return {
-					id: draft.id,
-					slug: draft.slug,
-					title: draft.title,
-					excerpt: draft.excerpt || draft.custom_excerpt || '',
-					author: draft.authors?.[0]?.name || 'Unknown',
-					updated_at: draft.updated_at,
-					tags: draft.tags?.map((tag) => tag.name) || [],
-					proposalId,
-					proposalStatus,
-					isApproved,
-					proposalEnd
-				};
-			})
-		);
-
-		// Return drafts with Snapshot configuration for client-side proposal creation
-		const snapshotSpace = env.SNAPSHOT_SPACE || 'ecohubs.eth';
-		const votingDuration = parseInt(env.SNAPSHOT_BLOG_VOTING_DURATION || '172800', 10); // 2 days default
-
-		return json({
-			drafts: draftsWithProposals,
-			snapshotSpace,
-			votingDuration
+			return {
+				id: draft.id,
+				slug: draft.slug,
+				title: draft.title,
+				excerpt: draft.excerpt || draft.custom_excerpt || '',
+				author: draft.authors?.[0]?.name || 'Unknown',
+				updated_at: draft.updated_at,
+				tags: draft.tags?.map((tag) => tag.name) || [],
+				proposalId,
+				proposalStatus,
+				isApproved,
+				proposalEnd
+			};
 		});
+
+		return json({ drafts: draftsWithProposals });
 	} catch (err) {
 		console.error('Error fetching blog drafts:', err);
 		error(500, 'Failed to fetch blog drafts');

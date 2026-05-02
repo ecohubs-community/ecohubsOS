@@ -15,6 +15,12 @@ interface CreateSystemProposalInput {
 	body: string;
 	linkedApplicationId?: string;
 	linkedBlogDraftId?: string;
+	/**
+	 * Skip the "new proposal" Discord ping. Useful when the calling flow
+	 * already announces the same underlying event (e.g. membership
+	 * applications post their own "new application arrived" message).
+	 */
+	skipDiscord?: boolean;
 }
 
 type ProposalRow = typeof proposals.$inferSelect;
@@ -68,16 +74,18 @@ export async function createSystemProposal(
 		})
 		.returning();
 
-	try {
-		await sendDiscordMessage({
-			content: newProposalMessage({
-				title: created.title,
-				type: created.type,
-				authorName: 'System'
-			})
-		});
-	} catch (err) {
-		votingLogger.error({ err, proposalId: created.id }, 'Discord notification failed');
+	if (!input.skipDiscord) {
+		try {
+			await sendDiscordMessage({
+				content: newProposalMessage({
+					title: created.title,
+					type: created.type,
+					authorName: 'System'
+				})
+			});
+		} catch (err) {
+			votingLogger.error({ err, proposalId: created.id }, 'Discord notification failed');
+		}
 	}
 
 	votingLogger.info(

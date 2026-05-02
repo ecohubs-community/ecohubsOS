@@ -34,7 +34,7 @@ interface RejectionSentData {
 
 export function newApplicationMessage(data: NewApplicationData): string {
 	const firstName = getFirstName(data.fullName);
-	return `📋 A new membership application from **${firstName}** arrived! Log into os.ecohubs.community to create a voting proposal!`;
+	return `📋🗳️ A new membership application from **${firstName}** arrived. A voting proposal has been opened — head to os.ecohubs.community to vote.`;
 }
 
 export function proposalCreatedMessage(data: ProposalCreatedData): string {
