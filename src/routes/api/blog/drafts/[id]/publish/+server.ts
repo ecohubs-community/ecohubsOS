@@ -1,9 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getGhostDraft, publishGhostPost } from '$lib/server/ghost';
-import { isProposalApproved, getProposalStatus, getProposalForDraft } from '$lib/server/blog-snapshot';
+import { db } from '$lib/server/db';
+import { proposals } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
+import { materialiseProposal } from '$lib/server/voting/materialise';
 
-// POST - Publish a draft that has an approved Snapshot proposal
+// POST - Publish a draft whose linked voting proposal has closed with an approval.
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.user) {
 		error(401, 'Not authenticated');
@@ -15,47 +18,31 @@ export const POST: RequestHandler = async ({ locals, params }) => {
 	}
 
 	try {
-		// Fetch the draft
 		const draft = await getGhostDraft(draftId);
 		if (!draft) {
 			error(404, 'Draft not found');
 		}
 
-		// Check if draft has a proposal ID in custom fields
-		const customFields = draft.custom_fields as Record<string, unknown> | undefined;
-		let proposalId: string | null = null;
+		const [linkedProposal] = await db
+			.select()
+			.from(proposals)
+			.where(eq(proposals.linkedBlogDraftId, draftId));
 
-		const proposalIdFromFields = customFields?.snapshot_proposal_id;
-		if (typeof proposalIdFromFields === 'string') {
-			proposalId = proposalIdFromFields;
-		}
-
-		// Fallback: try to find proposal by title pattern if not in custom fields
-		if (!proposalId) {
-			proposalId = await getProposalForDraft(draft.title, draft.slug);
-		}
-
-		if (!proposalId) {
+		if (!linkedProposal) {
 			error(400, 'No proposal found for this draft');
 		}
 
-		// Check proposal status
-		const status = await getProposalStatus(proposalId);
-		if (!status) {
-			error(400, 'Could not fetch proposal status');
-		}
+		const proposal = await materialiseProposal(linkedProposal);
 
-		if (status.status !== 'closed') {
+		const closedStatuses = ['closed', 'ratifying', 'ratified'] as const;
+		if (!closedStatuses.includes(proposal.status as (typeof closedStatuses)[number])) {
 			error(400, 'Proposal voting is still active');
 		}
 
-		// Check if proposal was approved
-		const approved = await isProposalApproved(proposalId);
-		if (!approved) {
+		if (proposal.result !== 'approved') {
 			error(400, 'Proposal was not approved for publication');
 		}
 
-		// Publish the draft
 		const publishedPost = await publishGhostPost(draftId);
 		if (!publishedPost) {
 			error(500, 'Failed to publish draft');

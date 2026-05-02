@@ -60,7 +60,6 @@
 		"@offcoin/sdk": "^0.0.9",
 		"@safe-global/api-kit": "^4.0.1",
 		"@safe-global/protocol-kit": "^6.1.2",
-		"@snapshot-labs/snapshot.js": "^0.14.18",
 		"@tryghost/admin-api": "^1.14.3",
 		"@tryghost/content-api": "^1.12.2",
 		"@types/dompurify": "^3.2.0",

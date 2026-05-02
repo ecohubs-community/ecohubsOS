@@ -45,8 +45,10 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	try {
 		const body = await request.json();
 
-		// Only allow updating specific fields
-		const allowedFields = ['status', 'snapshotProposalId', 'snapshotProposalLink', 'aiRecommendation', 'confirmationEmailSentAt'];
+		// Only allow updating specific fields. The legacy snapshotProposalId /
+		// snapshotProposalLink columns are read-only for historical applications
+		// and no longer accepted as updates.
+		const allowedFields = ['status', 'aiRecommendation', 'confirmationEmailSentAt'];
 		const updates: Record<string, string> = {};
 
 		for (const field of allowedFields) {

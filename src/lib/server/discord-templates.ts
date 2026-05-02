@@ -29,7 +29,6 @@ interface ConfirmationSentData {
 
 interface RejectionSentData {
 	fullName: string;
-	snapshotLink: string;
 }
 
 export function newApplicationMessage(data: NewApplicationData): string {
@@ -49,7 +48,7 @@ export function confirmationSentMessage(data: ConfirmationSentData): string {
 
 export function rejectionSentMessage(data: RejectionSentData): string {
 	const firstName = getFirstName(data.fullName);
-	return `📊 Application was declined — the vote decided against application of **${firstName}**. [Here](${data.snapshotLink}) you can see the voting result`;
+	return `📊 Application was declined — the vote decided against application of **${firstName}**. Open ecohubsOS for the voting record.`;
 }
 
 // --- Internal voting system (link-free per spec §6.6) ---

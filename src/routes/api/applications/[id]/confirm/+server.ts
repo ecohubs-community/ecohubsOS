@@ -1,12 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { applications } from '$lib/server/db/schema';
+import { applications, proposals } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { sendEmail } from '$lib/email';
 import { createAuthentikInvitation } from '$lib/server/authentik';
-import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
+import { materialiseProposal } from '$lib/server/voting/materialise';
 import { apiLogger, authentikLogger, emailLogger } from '$lib/server/logger';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { confirmationSentMessage } from '$lib/server/discord-templates';
@@ -38,10 +38,6 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(404, 'Application not found');
 	}
 
-	if (!application.snapshotProposalId) {
-		error(400, 'Application does not have a Snapshot proposal');
-	}
-
 	if (application.confirmationEmailSentAt) {
 		error(400, 'Confirmation email has already been sent');
 	}
@@ -51,32 +47,26 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		'Starting confirmation email flow'
 	);
 
-	// Step 1: Verify the proposal is closed and approved on Snapshot
-	let proposalStatus;
-	try {
-		proposalStatus = await getProposalStatus(application.snapshotProposalId);
-	} catch (snapshotErr) {
-		apiLogger.error(
-			{ err: snapshotErr, applicationId: id, snapshotProposalId: application.snapshotProposalId },
-			'[Step 1/4] Failed to fetch proposal status from Snapshot'
-		);
-		error(500, 'Failed to verify proposal status on Snapshot');
+	// Step 1: Verify the linked local proposal closed with an approval.
+	const [linkedProposal] = await db
+		.select()
+		.from(proposals)
+		.where(eq(proposals.linkedApplicationId, id));
+
+	if (!linkedProposal) {
+		error(400, 'Application does not have a voting proposal');
 	}
 
-	if (!proposalStatus) {
-		error(400, 'Unable to verify proposal status on Snapshot');
-	}
-
-	if (proposalStatus.status !== 'closed') {
+	const proposal = await materialiseProposal(linkedProposal);
+	const closedStatuses = ['closed', 'ratifying', 'ratified'] as const;
+	if (!closedStatuses.includes(proposal.status as (typeof closedStatuses)[number])) {
 		error(400, 'Voting has not ended yet');
 	}
-
-	const votingResult = getMembershipVotingResult(proposalStatus);
-	if (votingResult !== 'approved') {
-		error(400, `Application was not approved (result: ${votingResult || 'unknown'})`);
+	if (proposal.result !== 'approved') {
+		error(400, `Application was not approved (result: ${proposal.result || 'unknown'})`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 1/4] Snapshot proposal verified: closed & approved');
+	apiLogger.info({ applicationId: id }, '[Step 1/4] Voting proposal verified: closed & approved');
 
 	// Step 2: Create Authentik enrollment invitation
 	let enrollmentUrl: string;
