@@ -35,7 +35,11 @@
 	let filteredApps = $derived(
 		APPS.filter(
 			(app) =>
-				!app.hidden &&
+				// `hidden` only filters the dock — apps still surface in All
+				// Apps so users can discover opt-in / context-launched apps.
+				// `hiddenFromAllApps` is the stronger flag that also excludes
+				// from this grid (forum, newsletter while they're inactive).
+				!app.hiddenFromAllApps &&
 				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
 				activeCategories.has(app.category) &&
 				(!app.groups ||

@@ -32,7 +32,19 @@ export interface AppDefinition {
 	isInternalApp?: boolean;
 	component?: Component;
 	description: string;
-	hidden?: boolean; // Hidden apps don't appear in the dock
+	/**
+	 * Hidden from the **dock** only. Still shows up in All Apps (so users
+	 * can discover and open it via the grid). Use this for apps that are
+	 * opt-in or context-launched (e.g. system/onboarding apps).
+	 */
+	hidden?: boolean;
+	/**
+	 * Also hidden from the **All Apps** grid. Use this for apps that are
+	 * registered but not actively in use yet (e.g. forum, newsletter)
+	 * and shouldn't surface for new members. Apps with this flag are
+	 * still openable programmatically via os.openApp(id).
+	 */
+	hiddenFromAllApps?: boolean;
 	helpItems?: string[]; // List of help items for external apps
 	groups?: string[]; // List of required user groups to see/access the app
 }
@@ -78,7 +90,11 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://discussions.ecohubs.community',
 		description: 'Deep discussions and sense-making.',
-		hidden: true, // Forum is not actively used yet — keep registered but hidden from dock + All Apps
+		// Not actively in use yet — registered for programmatic open via
+		// os.openApp() but hidden from both the dock and All Apps so new
+		// members don't get sent into a dead end.
+		hidden: true,
+		hiddenFromAllApps: true,
 		helpItems: [
 			'Start and join discussions on community topics',
 			'Share ideas and get feedback from members',
@@ -107,7 +123,9 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.',
-		hidden: true, // Hidden from dock and All Apps; still openable via os.openApp() if needed
+		// Not actively in use yet — same treatment as the forum app.
+		hidden: true,
+		hiddenFromAllApps: true,
 		helpItems: [
 			'Browse past newsletter editions',
 			'Subscribe to receive community updates',
