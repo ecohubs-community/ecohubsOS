@@ -183,8 +183,7 @@
 		</div>
 		<h2 class="text-xl font-bold text-white">Join ecohubs on Puckstack</h2>
 		<p class="text-solar-300 mt-2 text-sm">
-			Puckstack is where ecohubs members collaborate on tasks, earn ECO tokens, and level up through
-			contributions.
+			Puckstack is the task &amp; rewards platform we use to organise contributions.
 		</p>
 	</div>
 
@@ -269,6 +268,23 @@
 		</div>
 	{:else}
 		<div class="flex-1 space-y-4">
+			<div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+				<h4 class="text-solar-200 mb-2 flex items-center gap-2 text-sm font-medium">
+					<Icon icon="tabler:info-circle" class="h-4 w-4 text-emerald-400" />
+					What is Puckstack?
+				</h4>
+				<p class="text-solar-300 text-sm leading-relaxed">
+					Puckstack is a separate platform that ecohubs uses to keep track of who's
+					contributing and to recognise that work. Every time you take on a task — running an
+					event, writing an article, helping with infrastructure — it gets recorded there and
+					earns you XP and ECO tokens, which determine your member level over time.
+				</p>
+				<p class="text-solar-400 mt-3 text-xs leading-relaxed">
+					You'll create a free Puckstack account in the next step (sign in with Google or
+					GitHub — no separate password). It only takes a moment.
+				</p>
+			</div>
+
 			<div class="rounded-xl bg-white/5 p-4">
 				<h4 class="text-solar-200 mb-3 text-sm font-medium">What you'll get:</h4>
 				<ul class="text-solar-300 space-y-2 text-sm">
