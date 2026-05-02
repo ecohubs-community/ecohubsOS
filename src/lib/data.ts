@@ -10,6 +10,7 @@ import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
 import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
 import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
+import Voting from './apps/voting/Voting.svelte';
 import Members from './apps/members/Members.svelte';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
@@ -41,17 +42,18 @@ export { MOCK_NOTIFICATIONS, type Notification } from './notifications';
 
 export const APPS: AppDefinition[] = [
 	{
-		id: 'snapshot',
+		id: 'voting',
 		name: 'Voting',
 		icon: VotingFavicon,
 		category: 'governance',
-		url: 'https://snapshot.org/#/s:ecohubs.eth',
+		isInternalApp: true,
+		component: Voting,
 		description: 'Vote on active proposals and shape the future.',
 		helpItems: [
 			'View and vote on active governance proposals',
-			'Create new proposals for community decisions',
+			'Create new proposals (requires Offcoin Level 3 or higher)',
 			'Track voting results and proposal history',
-			'Participate in shaping ecohubs governance'
+			'Read voter reasons and outcomes for past decisions'
 		]
 	},
 	{
