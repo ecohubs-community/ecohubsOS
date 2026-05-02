@@ -369,11 +369,9 @@
 											: 'Complete all tasks below to proceed to the next step.'}
 									</p>
 									{#if currentStep.description}
-										<div
-											class="ml-9 mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 sm:text-sm"
-										>
+										<p class="ml-9 mt-3 text-xs leading-relaxed text-white/70 sm:text-sm">
 											{currentStep.description}
-										</div>
+										</p>
 									{/if}
 								</div>
 

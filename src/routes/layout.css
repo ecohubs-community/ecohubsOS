@@ -65,3 +65,37 @@ button {
 .min-w-touch {
 	min-width: 44px;
 }
+
+/* --- Scrollbars ---
+   Slim, translucent, theme-neutral. Applies app-wide so any scrollable
+   surface (the onboarding wizard body, app windows, modals, etc) gets
+   a consistent look. Mobile / touch platforms keep their native
+   transient scrollbars — `overlay` / `auto` color-scheme behaviour is
+   left alone. */
+
+/* Firefox */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* WebKit / Chromium / Safari */
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.18);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+	border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+	background-color: rgba(255, 255, 255, 0.32);
+}
+*::-webkit-scrollbar-corner {
+	background: transparent;
+}

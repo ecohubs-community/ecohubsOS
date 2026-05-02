@@ -92,7 +92,7 @@ export function createDefaultSteps(): Step[] {
 			shortTitle: 'Puckstack',
 			icon: 'tabler:checklist',
 			description:
-				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (running an event, writing an article, helping with infrastructure) are tracked there and earn you XP and ECO tokens, which determine your member level over time. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
+				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (e.g. writing an article, helping with infrastructure, etc.) are tracked there and earn you XP and ECO tokens, which determine your member level over time. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
 			subSteps: [
 				{
 					id: 'puckstack-signup',
