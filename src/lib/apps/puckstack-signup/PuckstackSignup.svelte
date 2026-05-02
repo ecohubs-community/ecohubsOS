@@ -10,7 +10,6 @@
 	let verifying = $state(false);
 	let errorMessage = $state('');
 	let joinUrl = $state<string | null>(null);
-	let inviteToken = $state<string | null>(null);
 	let alreadyMember = $state(false);
 	let workspaceUrl = $state<string | null>(null);
 	let puckstackUserId = $state<string | null>(null);
@@ -29,10 +28,11 @@
 		errorMessage = '';
 
 		try {
+			// The server reads the user's stored invite token from the DB,
+			// so the client doesn't need to track or pass it.
 			const response = await fetch('/api/puckstack/invitation', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(inviteToken ? { inviteToken } : {})
+				headers: { 'Content-Type': 'application/json' }
 			});
 
 			const data = await response.json();
@@ -47,13 +47,11 @@
 				puckstackUserId = data.puckstackUserId ?? null;
 				status = 'idle';
 				if (puckstackUserId) {
-					// User ID captured server-side — both substeps are done.
 					markSubStepCompletedById('puckstack-signup');
 					markSubStepCompletedById('puckstack-copy-id');
 				}
 			} else if (data.joinUrl) {
 				joinUrl = data.joinUrl;
-				inviteToken = data.inviteToken ?? null;
 				window.open(data.joinUrl, '_blank', 'noopener,noreferrer');
 				status = 'pending-return';
 			} else {
@@ -76,8 +74,7 @@
 		try {
 			const response = await fetch('/api/puckstack/invitation', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(inviteToken ? { inviteToken } : {})
+				headers: { 'Content-Type': 'application/json' }
 			});
 			const data = await response.json();
 
@@ -102,11 +99,10 @@
 				errorMessage =
 					"You're a member but we couldn't auto-detect your Puckstack User ID. Please copy it manually from your Puckstack profile.";
 			} else if (data.joinUrl) {
-				// Invitation was re-issued (e.g. previous one expired) or the
-				// caller didn't have one yet. Update both the joinUrl and the
-				// stored token so future verify calls use the fresh token.
+				// Invitation was re-issued (e.g. previous one expired). Server
+				// has already persisted the new token; we just update the
+				// joinUrl so the "Reopen invitation link" button is fresh.
 				joinUrl = data.joinUrl;
-				inviteToken = data.inviteToken ?? null;
 				status = 'pending-return';
 				errorMessage =
 					"Your previous invitation link expired — we issued a fresh one. Please open it and accept the invitation.";
@@ -125,11 +121,43 @@
 		window.open('https://puckstack.xyz/join', '_blank', 'noopener,noreferrer');
 	}
 
+	// On mount: probe the server. If the user is already linked, we
+	// short-circuit to the "you're a member" view; if a stored invitation
+	// is still pending, we land directly in pending-return so the user
+	// sees the explainer + Verify button instead of the initial Join CTA.
+	async function bootstrap() {
+		try {
+			const response = await fetch('/api/puckstack/invitation', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const data = await response.json();
+			if (!response.ok || !data.success) return; // stay on idle, fall through to manual
+			if (data.alreadyMember) {
+				alreadyMember = true;
+				workspaceUrl = data.workspaceUrl;
+				puckstackUserId = data.puckstackUserId ?? null;
+				if (puckstackUserId) {
+					markSubStepCompletedById('puckstack-signup');
+					markSubStepCompletedById('puckstack-copy-id');
+				}
+			} else if (data.joinUrl) {
+				// Stored invitation is still pending — surface the verify view
+				// without re-opening the join tab automatically.
+				joinUrl = data.joinUrl;
+				status = 'pending-return';
+			}
+		} catch {
+			// Network blip on bootstrap — leave the user on the idle CTA.
+		}
+	}
+
 	// While we're waiting for the user to come back from the Puckstack tab,
 	// auto-verify on window focus. This collapses the happy path to a single
 	// ecohubsOS click — the user accepts the invite on Puckstack, switches
 	// back, and verification runs silently.
 	onMount(() => {
+		bootstrap();
 		const onFocus = () => {
 			if (status === 'pending-return' && !verifying && !alreadyMember) {
 				verifyMembership();

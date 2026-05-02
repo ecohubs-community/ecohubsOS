@@ -35,6 +35,11 @@ export const user = sqliteTable('user', {
 
 	// Offcoin / Puckstack connection
 	puckstackUserId: text('puckstack_user_id'),
+	// Active Puckstack invitation token while onboarding is in progress.
+	// Persisted across sessions so the verify step still works when the
+	// user closes the PuckstackSignup window between handleJoin and accept.
+	// Cleared once `puckstackUserId` is set.
+	puckstackInviteToken: text('puckstack_invite_token'),
 
 	// Profile fields (user-editable)
 	displayName: text('display_name'),

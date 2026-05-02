@@ -56,17 +56,26 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: false, error: 'Puckstack integration not configured' }, { status: 500 });
 	}
 
-	// Optional inviteToken from a previous response. When the user signs
-	// up to Puckstack with an email different from their ecohubs email,
-	// the email-based lookup on Puckstack can't find them — token-based
-	// lookup works regardless.
+	// Optional client-supplied inviteToken — overrides the DB value if
+	// provided. Useful if a stored token went bad and the user has a
+	// fresher one in hand.
 	let body: InvitationRequestBody = {};
 	try {
 		body = (await request.json()) as InvitationRequestBody;
 	} catch {
-		// No body / malformed body — treat as no token, fall back to email path.
+		// No body / malformed body — proceed with stored token (if any).
 	}
-	const inviteToken = typeof body.inviteToken === 'string' ? body.inviteToken : undefined;
+	const clientToken = typeof body.inviteToken === 'string' ? body.inviteToken : undefined;
+
+	// Pull the persisted invitation token from the user record so we
+	// survive component remounts, browser restarts, and device switches.
+	const [dbUser] = await db
+		.select({ puckstackInviteToken: user.puckstackInviteToken })
+		.from(user)
+		.where(eq(user.id, session.user.id));
+	const storedToken = dbUser?.puckstackInviteToken ?? undefined;
+
+	const inviteToken = clientToken ?? storedToken;
 
 	try {
 		const response = await fetch(`${puckstackApiUrl}/invitations/auto-generate`, {
@@ -94,13 +103,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		const data = (await response.json()) as AutoGenerateResponse;
 
 		if (isAlreadyMember(data)) {
-			// Persist the Puckstack User ID so onboarding can auto-complete
-			// the previously-manual "copy your User ID" step.
+			// Persist the Puckstack User ID and clear the now-redundant
+			// invite token so future calls don't keep retrying it.
 			const puckstackUserId = data.user.id;
 			try {
 				await db
 					.update(user)
-					.set({ puckstackUserId, updatedAt: new Date() })
+					.set({
+						puckstackUserId,
+						puckstackInviteToken: null,
+						updatedAt: new Date()
+					})
 					.where(eq(user.id, session.user.id));
 			} catch (dbErr) {
 				puckstackLogger.error(
@@ -118,6 +131,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		if (isInvitation(data)) {
+			// Persist the new (or refreshed) token so it survives across
+			// sessions, devices, and component remounts.
+			try {
+				await db
+					.update(user)
+					.set({
+						puckstackInviteToken: data.invitation.token,
+						updatedAt: new Date()
+					})
+					.where(eq(user.id, session.user.id));
+			} catch (dbErr) {
+				puckstackLogger.error(
+					{ err: dbErr, userId: session.user.id },
+					'Failed to persist puckstackInviteToken (non-fatal)'
+				);
+			}
+
 			return json({
 				success: true,
 				joinUrl: data.invitation.joinUrl,
