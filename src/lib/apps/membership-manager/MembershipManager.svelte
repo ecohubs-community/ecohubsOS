@@ -86,7 +86,8 @@
 
 	async function loadSnapshotConfig() {
 		try {
-			const response = await fetch('/api/proposals');
+			// Endpoint moved during voting-system rewrite — `[id]` is ignored on GET.
+			const response = await fetch('/api/applications/_/snapshot-proposal');
 			if (response.ok) {
 				snapshotConfig = await response.json();
 			}
@@ -240,11 +241,10 @@
 			const proposalLink = `https://snapshot.org/#/${snapshotConfig.snapshotSpace}/proposal/${proposalId}`;
 
 			// Update application in database
-			const updateResponse = await fetch('/api/proposals', {
+			const updateResponse = await fetch(`/api/applications/${app.id}/snapshot-proposal`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					applicationId: app.id,
 					snapshotProposalId: proposalId,
 					snapshotProposalLink: proposalLink
 				})
