@@ -78,6 +78,7 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://discussions.ecohubs.community',
 		description: 'Deep discussions and sense-making.',
+		hidden: true, // Forum is not actively used yet — keep registered but hidden from dock + All Apps
 		helpItems: [
 			'Start and join discussions on community topics',
 			'Share ideas and get feedback from members',
@@ -106,7 +107,7 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.',
-		hidden: true, // Only shown in All Apps, not in dock
+		hidden: true, // Hidden from dock and All Apps; still openable via os.openApp() if needed
 		helpItems: [
 			'Browse past newsletter editions',
 			'Subscribe to receive community updates',

@@ -75,32 +75,9 @@ export function createDefaultSteps(): Step[] {
 				}
 			]
 		},
-		{
-			id: 'discussions',
-			title: 'Discover Discussions Forum',
-			subSteps: [
-				// {
-				// 	id: 'forum-request',
-				// 	title: 'Create Forum Account',
-				// 	actions: [{ type: 'app', appId: 'flarum-connect' }]
-				// },
-				{
-					id: 'forum-login',
-					title: 'Login to Discussions Forum',
-					actions: [{ type: 'url', url: 'https://discussions.ecohubs.community/' }]
-				},
-				{
-					id: 'forum-read-latest',
-					title: 'Introduce yourself in the forum',
-					actions: [{ type: 'none' }]
-				},
-				{
-					id: 'forum-howto-create',
-					title: 'Find out how to create new discussions',
-					actions: [{ type: 'none' }]
-				}
-			]
-		},
+		// Forum onboarding step removed — the discussions forum isn't
+		// currently in active use, so the substeps `forum-login`,
+		// `forum-read-latest`, and `forum-howto-create` are retired.
 		{
 			id: 'voting',
 			title: 'Voting & Governance',
@@ -137,7 +114,10 @@ export const RETIRED_SUBSTEP_IDS = [
 	'snapshot-vote',
 	'snapshot-request-rights',
 	'offcoin-connect',
-	'puckstack-copy-id'
+	'puckstack-copy-id',
+	'forum-login',
+	'forum-read-latest',
+	'forum-howto-create'
 ] as const;
 
 export function loadSteps(): Step[] {

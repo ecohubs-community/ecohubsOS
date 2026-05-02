@@ -35,6 +35,7 @@
 	let filteredApps = $derived(
 		APPS.filter(
 			(app) =>
+				!app.hidden &&
 				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
 				activeCategories.has(app.category) &&
 				(!app.groups ||
