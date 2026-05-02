@@ -1,4 +1,5 @@
 import type { applications } from '$lib/server/db/schema';
+import { obscureEmail, obscureLastName } from '$lib/utils/email.utils';
 
 type Application = typeof applications.$inferSelect;
 
@@ -6,6 +7,10 @@ type Application = typeof applications.$inferSelect;
  * Render a membership application as the body of a system-authored proposal.
  * Best-effort: if formData JSON cannot be parsed, falls back to whatever
  * structured fields we know from the row.
+ *
+ * Privacy: the proposal body is visible to every member voting on the
+ * application. Surname is reduced to an initial and the email's local
+ * part is obscured so identifying details aren't broadcast verbatim.
  */
 export function formatApplicationBody(app: Application): string {
 	let formData: Record<string, unknown> = {};
@@ -17,8 +22,8 @@ export function formatApplicationBody(app: Application): string {
 	}
 
 	const fields: Array<[string, unknown]> = [
-		['Full name', app.fullName],
-		['Email', app.email],
+		['Full name', obscureLastName(app.fullName)],
+		['Email', obscureEmail(app.email)],
 		['Location', formData.location],
 		['Languages', formData.languages],
 		['Bio', formData.bio],
