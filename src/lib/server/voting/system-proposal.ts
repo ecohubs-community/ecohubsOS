@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { proposals } from '$lib/server/db/schema';
-import { and, eq, or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { computePeriods, TYPE_CONFIG, type ProposalType } from './periods';
 import { getChoices, type ChoiceSetKey } from './choice-sets';
 import { sendDiscordMessage } from '$lib/server/discord';
