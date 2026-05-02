@@ -144,8 +144,13 @@
 	}
 
 	function markProfileSubstepDone() {
+		// Just update local state — markSubStepCompleted already wrote to
+		// localStorage and queued the server sync. Calling
+		// refreshFromLocalStorage() here would re-trigger its auto-advance
+		// branch, which combined with goNext's own currentStepIndex++ would
+		// skip past intermediate already-completed steps (e.g. landing on
+		// Discord after profile when Puckstack is already complete).
 		steps = markSubStepCompleted(steps, 'profile', 'profile-setup');
-		refreshFromLocalStorage();
 	}
 
 	function closeApp() {
