@@ -46,14 +46,19 @@ export function createDefaultSteps(): Step[] {
 		// "Safe Membership" system app from the dock. Voting happens inside
 		// ecohubsOS and no longer requires a Snapshot account, so the old
 		// Snapshot onboarding step has also been dropped.
+		// The profile step is rendered inline by OnboardingWizard
+		// (special-cased on step.id === 'profile'). We keep a single
+		// substep so the existing step.completed roll-up logic (which
+		// powers canGoNext / frontier) keeps working — but its `actions`
+		// is empty because the form is right there in the step body.
 		{
 			id: 'profile',
 			title: 'Set up your profile',
 			subSteps: [
 				{
 					id: 'profile-setup',
-					title: 'Add a photo, bio, location & contribution',
-					actions: [{ type: 'app', appId: 'onboarding-profile' }],
+					title: 'Profile details',
+					actions: [],
 					optional: true
 				}
 			]

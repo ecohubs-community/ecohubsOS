@@ -18,24 +18,18 @@
 	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 	import OnboardingAppFrame from './OnboardingAppFrame.svelte';
 	import OnboardingComplete from './OnboardingComplete.svelte';
-
-	// App component imports for inline rendering
-	import WalletSetup from '$lib/apps/wallet-setup/WalletSetup.svelte';
-	import WalletConnect from '$lib/apps/wallet-connect/WalletConnect.svelte';
-	import SafeProposal from '$lib/apps/safe-proposal/SafeProposal.svelte';
-	import PuckstackSignup from '$lib/apps/puckstack-signup/PuckstackSignup.svelte';
-	import OffcoinConnect from '$lib/apps/offcoin-connect/OffcoinConnect.svelte';
-	import OnboardingProfile from '$lib/apps/onboarding-profile/OnboardingProfile.svelte';
+	import OnboardingProfileFields from './OnboardingProfileFields.svelte';
+	import { APPS } from '$lib/data';
 	import type { Component } from 'svelte';
 
-	const APP_COMPONENTS: Record<string, { component: Component; title: string }> = {
-		'wallet-setup': { component: WalletSetup, title: 'Wallet Setup' },
-		'wallet-connect': { component: WalletConnect, title: 'Connect Wallet' },
-		'safe-proposal': { component: SafeProposal, title: 'Safe Proposal' },
-		'puckstack-signup': { component: PuckstackSignup, title: 'Puckstack Signup' },
-		'offcoin-connect': { component: OffcoinConnect, title: 'Offcoin Connect' },
-		'onboarding-profile': { component: OnboardingProfile, title: 'Set up your profile' }
-	};
+	// Looks up an internal app component by id from the single APPS
+	// registry in $lib/data. Avoids the previous dual-registry split
+	// (a local APP_COMPONENTS map + the dock's APPS list) that silently
+	// no-op'd when one was updated and the other forgotten.
+	function getAppDef(appId: string): { component: Component; title: string } | null {
+		const app = APPS.find((a) => a.id === appId && a.isInternalApp && a.component);
+		return app && app.component ? { component: app.component, title: app.name } : null;
+	}
 
 	let {
 		serverProgress = {},
@@ -89,7 +83,7 @@
 		const result = await performAction(sub);
 
 		if (result === 'app' && btn?.appId) {
-			const appDef = APP_COMPONENTS[btn.appId];
+			const appDef = getAppDef(btn.appId);
 			if (appDef) {
 				activeApp = appDef;
 			}
@@ -107,6 +101,11 @@
 		// Uses markSubStepCompleted (not …ById) so we can refresh local
 		// state synchronously and recompute frontier/canGoNext immediately.
 		steps = markSubStepCompleted(steps, stepId, sub.id);
+		refreshFromLocalStorage();
+	}
+
+	function markProfileSubstepDone() {
+		steps = markSubStepCompleted(steps, 'profile', 'profile-setup');
 		refreshFromLocalStorage();
 	}
 
@@ -335,12 +334,23 @@
 										<h3 class="text-xl font-bold text-white">{currentStep.title}</h3>
 									</div>
 									<p class="ml-9 text-sm text-solar-100/50">
-										Complete all tasks below to proceed to the next step.
+										{currentStep.id === 'profile'
+											? 'Optional — fill it in now or skip and finish later.'
+											: 'Complete all tasks below to proceed to the next step.'}
 									</p>
 								</div>
 
-								<!-- Substeps -->
-								{#if currentStep.subSteps}
+								<!--
+									Profile step renders its form inline rather than
+									opening a modal app — simpler UX (no "open this"
+									indirection) for what is really just a small form.
+								-->
+								{#if currentStep.id === 'profile'}
+									<OnboardingProfileFields
+										onSaved={() => markProfileSubstepDone()}
+										onSkipped={() => markProfileSubstepDone()}
+									/>
+								{:else if currentStep.subSteps}
 									<div class="space-y-3">
 										{#each currentStep.subSteps as sub, i (sub.id)}
 											{@const enabled = isSubStepEnabled(currentStep, i)}
