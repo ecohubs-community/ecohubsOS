@@ -25,6 +25,7 @@
 	import SafeProposal from '$lib/apps/safe-proposal/SafeProposal.svelte';
 	import PuckstackSignup from '$lib/apps/puckstack-signup/PuckstackSignup.svelte';
 	import OffcoinConnect from '$lib/apps/offcoin-connect/OffcoinConnect.svelte';
+	import OnboardingProfile from '$lib/apps/onboarding-profile/OnboardingProfile.svelte';
 	import type { Component } from 'svelte';
 
 	const APP_COMPONENTS: Record<string, { component: Component; title: string }> = {
@@ -32,7 +33,8 @@
 		'wallet-connect': { component: WalletConnect, title: 'Connect Wallet' },
 		'safe-proposal': { component: SafeProposal, title: 'Safe Proposal' },
 		'puckstack-signup': { component: PuckstackSignup, title: 'Puckstack Signup' },
-		'offcoin-connect': { component: OffcoinConnect, title: 'Offcoin Connect' }
+		'offcoin-connect': { component: OffcoinConnect, title: 'Offcoin Connect' },
+		'onboarding-profile': { component: OnboardingProfile, title: 'Set up your profile' }
 	};
 
 	let {

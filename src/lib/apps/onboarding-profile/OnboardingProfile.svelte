@@ -5,6 +5,13 @@
 	import { os } from '$lib/os.svelte';
 	import { markSubStepCompletedById } from '$lib/onboarding/stepManager';
 
+	// `markSubStepCompletedById` dispatches an `onboarding-step-completed`
+	// event which the OnboardingWizard listens for and uses to dismiss the
+	// frame. When opened from the regular dock (not onboarding), the
+	// component is just inside a Window — closing via os.closeApp() is the
+	// right move there. We do both: the wizard close path is the primary
+	// flow, os.closeApp() is the fallback for any non-onboarding entry.
+
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isUploadingAvatar = $state(false);
