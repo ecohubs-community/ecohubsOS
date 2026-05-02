@@ -77,7 +77,9 @@
 	): Promise<{ dataUrl: string; blob: Blob }> {
 		return new Promise((resolve, reject) => {
 			const img = new Image();
+			const objectUrl = URL.createObjectURL(file);
 			img.onload = () => {
+				URL.revokeObjectURL(objectUrl);
 				let { width, height } = img;
 
 				if (width > maxSize || height > maxSize) {
@@ -108,8 +110,11 @@
 					0.85
 				);
 			};
-			img.onerror = () => reject(new Error('Failed to load image'));
-			img.src = URL.createObjectURL(file);
+			img.onerror = () => {
+				URL.revokeObjectURL(objectUrl);
+				reject(new Error('Failed to load image'));
+			};
+			img.src = objectUrl;
 		});
 	}
 

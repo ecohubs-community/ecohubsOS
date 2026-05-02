@@ -125,10 +125,11 @@ Examples (Strategic, majority threshold):
 
 ## 6. Other changes triggered by this rework
 
-### 6.1 Onboarding — drop Snapshot step
+### 6.1 Onboarding — drop Snapshot step (no replacement)
 
 - Remove the `snapshot` step in [stepManager.ts](src/lib/onboarding/stepManager.ts) (`snapshot-open` / `snapshot-read` / `snapshot-vote`).
 - Voting now happens inside ecohubsOS; no external account required.
+- **Update (post-implementation):** an interim "Voting & Governance" onboarding step (with `voting-open` / `voting-read` / `voting-vote` substeps pointing at the new internal voting app) was added during Phase 4 and then dropped again — the voting app is one entry in the dock and members discover it naturally. The step manager just retires those substep ids for legacy progress validation. Net effect: no voting-related onboarding step in the default flow.
 
 ### 6.2 Onboarding — Wallet & Safe become optional
 

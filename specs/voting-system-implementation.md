@@ -195,15 +195,43 @@ Goal: onboarding no longer mentions Snapshot or Wallet/Safe; those apps remain a
 - Remove the `wallet-safe` step from the default sequence.
 - *Rationale:* spec §6.1 + §6.2; no more dead onboarding pointing at the deprecated Snapshot space.
 
+#### Update — voting onboarding step removed entirely (post-Phase 4)
+
+A `voting` step (substeps `voting-open`/`voting-read`/`voting-vote`) was added during Phase 4 to introduce members to the new in-app voting. It was dropped soon after: the voting app is one entry in the dock and members discover it naturally; the substep didn't reliably mark complete; and the dual-registry split between `data.ts/APPS` and the wizard's local map (since collapsed — see §4.2 update) made the "Open" action no-op silently. The substep ids are retired in `RETIRED_SUBSTEP_IDS` for legacy validation. Default flow ended as: **Profile (optional) → Puckstack → Discord**.
+
 ### 4.2 Make wallet/safe apps user-visible
 
 - In [data.ts](src/lib/data.ts): un-hide `safe-proposal` (rename to "Safe Membership"), keep it as `category: 'system'`. Group `wallet-setup` + `wallet-connect` either as a single combined system app or keep both and unhide.
 - *Rationale:* opt-in path for users who want governance / treasury power later.
 
+#### Update — wallet/safe re-hidden after review
+
+The wallet/safe apps were re-hidden after the original Phase 4 commit at the user's request. They remain registered in `APPS` so any code that opens them via `os.openApp()` works, but they don't surface in the dock or All Apps. Companion fix: `AllApps.svelte` now respects the `hidden` flag (it previously didn't, leaking every internal-onboarding-only app into the All Apps grid).
+
+#### Update — onboarding-app registry consolidated
+
+The wizard previously kept its own local `APP_COMPONENTS` map of imports parallel to `data.ts/APPS`. Adding a new internal app required updating both, and forgetting one silently no-op'd "Open" clicks (this bit the new profile step). The wizard now reads from `APPS` via a single `getAppDef(appId)` helper. Single source of truth.
+
 ### 4.3 Existing-user data migration
 
 - One-shot script (or `onboarding.ts` adapter) that marks the now-removed substeps as completed for users who already had them in `onboardingProgress`, so progress UI stays at 100% rather than regressing.
 - *Rationale:* avoid breaking the onboarding-completion state for everyone with progress already saved.
+
+#### Update — voting backfill removed
+
+The voting-* auto-mark-complete code in `getOnboardingProgress` was removed when the voting onboarding step itself was dropped. No backfill is needed because the substeps no longer exist in the default flow.
+
+### 4.4 Profile setup step (added post-Phase 4)
+
+New optional onboarding step that lets new members fill in the same fields the My Profile app exposes (avatar, display name, location, bio, contribution, "show on website") without leaving the flow. Pre-fills from the user's membership application via `GET /api/profile/application-prefill`.
+
+- The wizard renders the form **inline** (not as a modal-app) — simpler UX for what is just a form. Inline component: `OnboardingProfileFields.svelte`.
+- Step is marked `optional: true`. The wizard's Next button is always enabled on this step; clicking Next saves the form (idempotent PATCH to `/api/profile`) and advances. No in-form Save/Skip buttons — Next handles both "save what's there" and "advance with whatever fields the user filled".
+- Lives at the start of the default flow so members get personalisation out of the way while their application data is fresh.
+
+### 4.5 Forum onboarding step removed
+
+The `discussions` step (substeps `forum-login`/`forum-read-latest`/`forum-howto-create`) was dropped — the forum isn't actively used. The forum app is hidden from the dock + All Apps via the `hidden` flag.
 
 ---
 

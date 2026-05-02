@@ -45,12 +45,23 @@
 	let activeApp = $state<{ component: Component; title: string } | null>(null);
 	let showCompletion = $state(false);
 
+	// Reference to the inline profile fields component, so the wizard
+	// can drive its save() from the Next button.
+	let profileFields = $state<{ save: () => Promise<void>; isBusy: () => boolean } | null>(null);
+	let isSavingProfile = $state(false);
+
 	// Derived
 	let currentStep = $derived(steps[currentStepIndex]);
 	let completedStepCount = $derived(steps.filter((s) => s.completed).length);
 	let progressPercent = $derived(Math.round((completedStepCount / steps.length) * 100));
 	let allDone = $derived(steps.every((s) => s.completed));
-	let canGoNext = $derived(currentStep?.completed && currentStepIndex < steps.length - 1);
+	// Profile step lets the user advance unconditionally — the Next click
+	// itself saves the form. All other steps still gate on completion.
+	let canGoNext = $derived(
+		currentStepIndex < steps.length - 1 &&
+			(currentStep?.completed || currentStep?.id === 'profile') &&
+			!isSavingProfile
+	);
 	let canGoBack = $derived(currentStepIndex > 0);
 
 	// Find the first incomplete step index (the "frontier")
@@ -66,10 +77,24 @@
 		}
 	}
 
-	function goNext() {
-		if (canGoNext) {
-			currentStepIndex++;
+	async function goNext() {
+		if (!canGoNext) return;
+		// Profile step: trigger the inline form's save before advancing.
+		// On success the form fires onSaved (which marks the substep done
+		// and advances frontier). On failure the form surfaces the error
+		// inline and we stay on the step.
+		if (currentStep?.id === 'profile' && profileFields) {
+			isSavingProfile = true;
+			try {
+				await profileFields.save();
+			} catch {
+				// Error already shown inline by the component.
+				return;
+			} finally {
+				isSavingProfile = false;
+			}
 		}
+		currentStepIndex++;
 	}
 
 	function goBack() {
@@ -205,12 +230,14 @@
 	<OnboardingComplete {userName} onEnter={handleComplete} />
 {:else}
 	<div
-		class="flex min-h-full flex-col items-center justify-center px-4 py-8 md:px-6"
+		class="flex min-h-full flex-col items-center justify-center px-3 py-4 sm:px-4 sm:py-8 md:px-6"
 		transition:fade={{ duration: 200 }}
 	>
-		<!-- Wizard container -->
+		<!-- Wizard container — bounded to viewport height with internal
+		     scrolling so a long form (e.g. profile setup) never pushes
+		     the wizard footer (Back / Next) off-screen. -->
 		<div
-			class="w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl"
+			class="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl sm:max-h-[calc(100dvh-4rem)] sm:rounded-3xl"
 			in:fly={{ y: 20, duration: 600, delay: 200 }}
 		>
 			<!-- Progress bar -->
@@ -223,10 +250,10 @@
 
 			<!-- Header -->
 			<div
-				class="flex items-center justify-between border-b border-white/10 bg-white/5 px-6 py-4"
+				class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-white/5 px-4 py-3 sm:px-6 sm:py-4"
 			>
-				<div>
-					<h2 class="text-lg font-bold text-white">Setup Your Account</h2>
+				<div class="min-w-0 flex-1">
+					<h2 class="truncate text-base font-bold text-white sm:text-lg">Setup Your Account</h2>
 					<p class="text-sm text-solar-100/50">
 						Step {currentStepIndex + 1} of {steps.length}
 						{#if allDone}
@@ -234,15 +261,15 @@
 						{/if}
 					</p>
 				</div>
-				<span class="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white/70">
+				<span class="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white/70 sm:px-3 sm:text-sm">
 					{completedStepCount}/{steps.length}
 				</span>
 			</div>
 
-			<div class="flex flex-col md:flex-row">
-				<!-- Step sidebar (desktop) / stepper (mobile) -->
+			<div class="flex min-h-0 flex-1 flex-col md:flex-row">
+				<!-- Step sidebar (desktop) / horizontal stepper (mobile) -->
 				<nav
-					class="shrink-0 border-b border-white/10 bg-white/[0.03] md:w-64 md:border-b-0 md:border-r"
+					class="shrink-0 border-b border-white/10 bg-white/[0.03] md:w-64 md:overflow-y-auto md:border-b-0 md:border-r"
 				>
 					<!-- Mobile: horizontal stepper -->
 					<div class="flex overflow-x-auto px-4 py-3 md:hidden">
@@ -315,25 +342,26 @@
 					</div>
 				</nav>
 
-				<!-- Main content area -->
-				<div class="flex min-h-[400px] flex-1 flex-col md:min-h-[500px]">
+				<!-- Main content area — internal scrolling so the wizard
+				     footer (Back/Next) stays anchored on long forms. -->
+				<div class="flex min-h-0 flex-1 flex-col">
 					{#if currentStep}
 						{#key currentStep.id}
-							<div class="flex-1 p-6" transition:fade={{ duration: 150 }}>
+							<div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" transition:fade={{ duration: 150 }}>
 								<!-- Step title -->
-								<div class="mb-6">
+								<div class="mb-4 sm:mb-6">
 									<div class="mb-1 flex items-center gap-2">
 										<div
-											class="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20"
+											class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/20"
 										>
 											<Icon
 												icon={STEP_ICONS[currentStepIndex] || 'tabler:circle'}
 												class="h-4 w-4 text-amber-400"
 											/>
 										</div>
-										<h3 class="text-xl font-bold text-white">{currentStep.title}</h3>
+										<h3 class="text-lg font-bold text-white sm:text-xl">{currentStep.title}</h3>
 									</div>
-									<p class="ml-9 text-sm text-solar-100/50">
+									<p class="ml-9 text-xs text-solar-100/50 sm:text-sm">
 										{currentStep.id === 'profile'
 											? 'Optional — fill it in now or skip and finish later.'
 											: 'Complete all tasks below to proceed to the next step.'}
@@ -347,8 +375,8 @@
 								-->
 								{#if currentStep.id === 'profile'}
 									<OnboardingProfileFields
+										bind:this={profileFields}
 										onSaved={() => markProfileSubstepDone()}
-										onSkipped={() => markProfileSubstepDone()}
 									/>
 								{:else if currentStep.subSteps}
 									<div class="space-y-3">
@@ -356,7 +384,7 @@
 											{@const enabled = isSubStepEnabled(currentStep, i)}
 											{@const btn = getActionButton(sub)}
 											<div
-												class="flex items-center gap-4 rounded-xl border px-4 py-3 transition-all
+												class="flex flex-wrap items-center gap-3 rounded-xl border px-3 py-3 transition-all sm:flex-nowrap sm:gap-4 sm:px-4
 													{sub.completed
 													? 'border-emerald-500/20 bg-emerald-500/5'
 													: enabled
@@ -442,7 +470,7 @@
 
 					<!-- Navigation -->
 					<div
-						class="flex items-center justify-between border-t border-white/10 bg-white/[0.03] px-6 py-4"
+						class="flex shrink-0 items-center justify-between border-t border-white/10 bg-white/[0.03] px-4 py-3 sm:px-6 sm:py-4"
 					>
 						<button
 							type="button"
@@ -472,10 +500,15 @@
 										disabled={!canGoNext}
 										class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/10"
 									>
-										Next
-										<Icon icon="tabler:arrow-right" class="h-4 w-4" />
+										{#if isSavingProfile}
+											<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+											Saving…
+										{:else}
+											Next
+											<Icon icon="tabler:arrow-right" class="h-4 w-4" />
+										{/if}
 									</button>
-									{#if !canGoNext && !currentStep?.completed}
+									{#if !canGoNext && !currentStep?.completed && currentStep?.id !== 'profile' && !isSavingProfile}
 										<span
 											class="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded border border-white/10 bg-solar-900 px-2 py-1 text-xs text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
 										>

@@ -3,12 +3,16 @@
 	import Icon from '@iconify/svelte';
 	import { auth } from '$lib/auth.svelte';
 
+	// The wizard owns the Next/Back buttons. This component just renders
+	// the form fields; the wizard calls `save()` (exported below) on Next
+	// and advances on resolution. Both onSaved and onSkipped collapse to
+	// "the form is done" — kept as separate callbacks so the parent can
+	// distinguish if it ever needs to.
 	interface Props {
 		onSaved: () => void;
-		onSkipped: () => void;
 	}
 
-	let { onSaved, onSkipped }: Props = $props();
+	let { onSaved }: Props = $props();
 
 	let isLoading = $state(true);
 	let isSaving = $state(false);
@@ -107,7 +111,16 @@
 		});
 	}
 
-	async function save() {
+	/**
+	 * Persist whatever the form currently holds. Resolves on success
+	 * (after firing onSaved), rejects on failure with the error already
+	 * displayed inline. The wizard awaits this on Next.
+	 *
+	 * Idempotent and safe to call when nothing has changed — the API
+	 * accepts the same values and the avatar upload step is gated on
+	 * avatarBlob being non-null.
+	 */
+	export async function save(): Promise<void> {
 		if (isSaving) return;
 		isSaving = true;
 		error = null;
@@ -153,11 +166,17 @@
 			}
 			onSaved();
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to save profile';
+			const msg = err instanceof Error ? err.message : 'Failed to save profile';
+			error = msg;
+			throw err instanceof Error ? err : new Error(msg);
 		} finally {
 			isSaving = false;
 			isUploadingAvatar = false;
 		}
+	}
+
+	export function isBusy(): boolean {
+		return isSaving;
 	}
 </script>
 
@@ -296,31 +315,14 @@
 			</div>
 		</label>
 
-		<!-- Actions -->
-		<div class="flex flex-col gap-3 pt-2 sm:flex-row">
-			<button
-				type="button"
-				onclick={onSkipped}
-				disabled={isSaving}
-				class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-2.5 font-medium text-white/70 transition-all hover:bg-white/10 hover:text-white disabled:opacity-50"
-			>
-				I'll do it later
-			</button>
-
-			<button
-				type="button"
-				onclick={save}
-				disabled={isSaving}
-				class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-teal-500 to-emerald-500 px-6 py-2.5 font-medium text-white shadow-lg transition-all hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50"
-			>
-				{#if isSaving}
-					<Icon icon="tabler:loader-2" class="h-5 w-5 animate-spin" />
-					{isUploadingAvatar ? 'Uploading…' : 'Saving…'}
-				{:else}
-					<Icon icon="tabler:check" class="h-5 w-5" />
-					Save profile
-				{/if}
-			</button>
-		</div>
+		<!-- Saving indicator (only visible during in-flight save). The
+		     wizard's Next button drives save, so no in-form Save/Skip
+		     buttons are needed. -->
+		{#if isSaving}
+			<div class="flex items-center justify-center gap-2 pt-2 text-sm text-white/60">
+				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+				{isUploadingAvatar ? 'Uploading avatar…' : 'Saving profile…'}
+			</div>
+		{/if}
 	</div>
 {/if}
