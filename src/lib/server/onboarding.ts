@@ -78,5 +78,6 @@ export const VALID_SUBSTEP_IDS = [
 	// Current substeps
 	'puckstack-signup',
 	'discord-connect',
-	'discord-introduce'
+	'discord-introduce',
+	'profile-setup'
 ] as const;

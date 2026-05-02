@@ -75,6 +75,17 @@ export function createDefaultSteps(): Step[] {
 				}
 			]
 		},
+		{
+			id: 'profile',
+			title: 'Set up your profile',
+			subSteps: [
+				{
+					id: 'profile-setup',
+					title: 'Add a photo, bio, location & contribution',
+					actions: [{ type: 'app', appId: 'onboarding-profile' }]
+				}
+			]
+		},
 		// Removed steps:
 		//  - `discussions` (forum-login / forum-read-latest /
 		//    forum-howto-create): the discussions forum isn't in active

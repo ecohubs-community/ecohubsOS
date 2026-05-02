@@ -11,6 +11,7 @@ import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
 import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Voting from './apps/voting/Voting.svelte';
+import OnboardingProfile from './apps/onboarding-profile/OnboardingProfile.svelte';
 import Members from './apps/members/Members.svelte';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
@@ -184,6 +185,16 @@ export const APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: PuckstackSignup,
 		description: 'Join the ecohubs workspace on Puckstack.',
+		hidden: true // Only accessible via onboarding, not shown in dock
+	},
+	{
+		id: 'onboarding-profile',
+		name: 'Set up your profile',
+		icon: 'user-circle',
+		category: 'system',
+		isInternalApp: true,
+		component: OnboardingProfile,
+		description: 'Onboarding profile setup — pre-filled from your application.',
 		hidden: true // Only accessible via onboarding, not shown in dock
 	},
 	// {
