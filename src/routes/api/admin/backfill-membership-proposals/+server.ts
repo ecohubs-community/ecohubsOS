@@ -159,6 +159,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	let createdClosed = 0;
 	let repaired = 0;
 	let skippedHasVotes = 0;
+	let bodyRefreshed = 0;
 	let failed = 0;
 
 	// 1) Create proposals for orphaned applications.
@@ -239,8 +240,37 @@ export const POST: RequestHandler = async ({ locals }) => {
 		}
 	}
 
+	// 3) Refresh body on ALL backfill-tagged proposals — independent of
+	//    status — so privacy-formatter improvements (obscured email,
+	//    obscured surname) propagate to historical rows. Idempotent: if
+	//    the body already matches the formatter output, the UPDATE is a
+	//    no-op write but cheap.
+	const allBackfilled = await db
+		.select({ proposal: proposals, app: applications })
+		.from(proposals)
+		.innerJoin(applications, eq(applications.id, proposals.linkedApplicationId))
+		.where(
+			sql`exists (select 1 from json_each(${proposals.tags}) where json_each.value = 'backfill')`
+		);
+
+	for (const { proposal, app } of allBackfilled) {
+		try {
+			const fresh = formatApplicationBody(app);
+			if (fresh !== proposal.body) {
+				await db
+					.update(proposals)
+					.set({ body: fresh })
+					.where(eq(proposals.id, proposal.id));
+				bodyRefreshed++;
+			}
+		} catch (err) {
+			failed++;
+			votingLogger.error({ err, proposalId: proposal.id }, 'backfill: body refresh failed');
+		}
+	}
+
 	votingLogger.info(
-		{ createdActive, createdClosed, repaired, skippedHasVotes, failed },
+		{ createdActive, createdClosed, repaired, skippedHasVotes, bodyRefreshed, failed },
 		'backfill complete'
 	);
 
@@ -250,6 +280,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 		createdClosed,
 		repaired,
 		skippedHasVotes,
+		bodyRefreshed,
 		failed
 	});
 };
