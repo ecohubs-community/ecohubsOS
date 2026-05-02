@@ -97,6 +97,14 @@
 				status = 'idle';
 				errorMessage =
 					"You're a member but we couldn't auto-detect your Puckstack User ID. Please copy it manually from your Puckstack profile.";
+			} else if (data.joinUrl) {
+				// Invitation was re-issued (e.g. previous one expired). Update
+				// the joinUrl so the "Reopen invitation link" button uses the
+				// fresh token, and tell the user to retry.
+				joinUrl = data.joinUrl;
+				status = 'pending-return';
+				errorMessage =
+					"Your previous invitation link expired — we issued a fresh one. Please open it and accept the invitation.";
 			} else {
 				errorMessage =
 					"We couldn't find your Puckstack account yet. Please complete signup in the other tab and try again.";
