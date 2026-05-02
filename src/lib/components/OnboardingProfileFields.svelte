@@ -186,11 +186,6 @@
 	</div>
 {:else}
 	<div class="space-y-4">
-		<p class="text-sm text-white/60">
-			Tell other members a bit about you. We've pre-filled some fields from your application —
-			feel free to edit them, or skip and finish later.
-		</p>
-
 		{#if error}
 			<div
 				class="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300"

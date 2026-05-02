@@ -50,6 +50,18 @@
 	let profileFields = $state<{ save: () => Promise<void>; isBusy: () => boolean } | null>(null);
 	let isSavingProfile = $state(false);
 
+	// Per-step accordion state for the description block. Set of step ids
+	// that are currently expanded. Default = collapsed; user opens it on
+	// demand. Persists per session (not across reloads).
+	let expandedDescriptions = $state(new Set<string>());
+
+	function toggleDescription(stepId: string) {
+		const next = new Set(expandedDescriptions);
+		if (next.has(stepId)) next.delete(stepId);
+		else next.add(stepId);
+		expandedDescriptions = next;
+	}
+
 	// Derived
 	let currentStep = $derived(steps[currentStepIndex]);
 	let completedStepCount = $derived(steps.filter((s) => s.completed).length);
@@ -369,9 +381,29 @@
 											: 'Complete all tasks below to proceed to the next step.'}
 									</p>
 									{#if currentStep.description}
-										<p class="ml-9 mt-3 text-xs leading-relaxed text-white/70 sm:text-sm">
-											{currentStep.description}
-										</p>
+										{@const isOpen = expandedDescriptions.has(currentStep.id)}
+										<div class="ml-9 mt-3">
+											<button
+												type="button"
+												onclick={() => toggleDescription(currentStep.id)}
+												aria-expanded={isOpen}
+												class="inline-flex items-center gap-1.5 text-xs font-medium text-white/55 transition-colors hover:text-white/80 sm:text-sm"
+											>
+												<Icon
+													icon="tabler:chevron-right"
+													class="h-3.5 w-3.5 transition-transform {isOpen ? 'rotate-90' : ''}"
+												/>
+												{isOpen ? 'Hide details' : 'What is this step about?'}
+											</button>
+											{#if isOpen}
+												<p
+													class="mt-2 text-xs leading-relaxed text-white/70 sm:text-sm"
+													transition:slide={{ duration: 150 }}
+												>
+													{currentStep.description}
+												</p>
+											{/if}
+										</div>
 									{/if}
 								</div>
 
