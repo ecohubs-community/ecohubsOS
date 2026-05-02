@@ -5,14 +5,26 @@ export const WALLPAPERS = [
 	{
 		id: 'solar-night',
 		name: 'Neon Jungle',
-		url: '/wallpapers/neon01.webp', // Dark forest image
+		url: '/wallpapers/neon01.webp',
 		isDark: true
 	},
 	{
 		id: 'solar-day',
 		name: 'Cloud City',
-		url: '/wallpapers/solar01.webp', // Bright sky image
+		url: '/wallpapers/solar01.webp',
 		isDark: false
+	},
+	{
+		id: 'ecohub-dawn',
+		name: 'EcoHub Dawn',
+		url: '/wallpapers/ecohub01.webp',
+		isDark: false
+	},
+	{
+		id: 'ecohub-dusk',
+		name: 'EcoHub Dusk',
+		url: '/wallpapers/ecohub02.webp',
+		isDark: true
 	},
 	{
 		id: 'deep-green',
@@ -28,6 +40,38 @@ export const WALLPAPERS = [
 	}
 ];
 
+const WALLPAPER_KEY = 'ecohubsos:wallpaper-id';
+const CONTRAST_KEY = 'ecohubsos:contrast-mode';
+
+function readStorage(key: string): string | null {
+	if (typeof window === 'undefined') return null;
+	try {
+		return window.localStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+function writeStorage(key: string, value: string): void {
+	if (typeof window === 'undefined') return;
+	try {
+		window.localStorage.setItem(key, value);
+	} catch {
+		/* quota exceeded / disabled — ignore */
+	}
+}
+
+function loadStoredWallpaper() {
+	const stored = readStorage(WALLPAPER_KEY);
+	const match = stored ? WALLPAPERS.find((w) => w.id === stored) : null;
+	return match ?? WALLPAPERS[0];
+}
+
+function loadStoredContrast(): 'auto' | 'light' | 'dark' {
+	const stored = readStorage(CONTRAST_KEY);
+	return stored === 'light' || stored === 'dark' || stored === 'auto' ? stored : 'auto';
+}
+
 class OSState {
 	// State
 	activeWindow = $state<string | null>(null); // App ID
@@ -42,13 +86,14 @@ class OSState {
 	xp = $state(1250);
 	notifications = $state([...MOCK_NOTIFICATIONS]);
 
-	// Default to the first wallpaper
-	currentWallpaper = $state(WALLPAPERS[0]);
+	// Wallpaper + contrast preference. Hydrated from localStorage on
+	// construction; falls back to the first wallpaper / 'auto' contrast.
+	currentWallpaper = $state(loadStoredWallpaper());
 
 	// 'auto' calculates based on wallpaper.isDark
 	// 'light' forces Light Glass (for dark BGs)
 	// 'dark' forces Dark Glass (for bright BGs)
-	contrastMode = $state<'auto' | 'light' | 'dark'>('auto');
+	contrastMode = $state<'auto' | 'light' | 'dark'>(loadStoredContrast());
 
 	// Derived: What visual theme should the UI use?
 	// Returns 'theme-light' (white glass) or 'theme-dark' (black smoked glass)
@@ -104,7 +149,9 @@ class OSState {
 
 	setWallpaper(id: string) {
 		const wp = WALLPAPERS.find((w) => w.id === id);
-		if (wp) this.currentWallpaper = wp;
+		if (!wp) return;
+		this.currentWallpaper = wp;
+		writeStorage(WALLPAPER_KEY, wp.id);
 	}
 
 	toggleContrast() {
@@ -112,6 +159,7 @@ class OSState {
 		if (this.contrastMode === 'auto') this.contrastMode = 'light';
 		else if (this.contrastMode === 'light') this.contrastMode = 'dark';
 		else this.contrastMode = 'auto';
+		writeStorage(CONTRAST_KEY, this.contrastMode);
 	}
 }
 

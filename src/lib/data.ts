@@ -132,8 +132,9 @@ export const APPS: AppDefinition[] = [
 		component: BlogManager,
 		description: 'Manage blog drafts and create publication proposals.'
 	},
-	// Wallet & Safe — optional opt-in tooling for users who want to participate
-	// in treasury / on-chain governance. No longer required onboarding.
+	// Wallet & Safe — kept as registered apps so existing flows that open
+	// them via os.openApp() (and any deep links) continue to work, but
+	// hidden from the dock. Surfacing them is a separate UX decision.
 	{
 		id: 'wallet-setup',
 		name: 'Wallet Setup',
@@ -141,7 +142,8 @@ export const APPS: AppDefinition[] = [
 		category: 'system',
 		isInternalApp: true,
 		component: WalletSetup,
-		description: 'Set up your MetaMask wallet for blockchain features.'
+		description: 'Set up your MetaMask wallet for blockchain features.',
+		hidden: true
 	},
 	{
 		id: 'wallet-connect',
@@ -150,7 +152,8 @@ export const APPS: AppDefinition[] = [
 		category: 'system',
 		isInternalApp: true,
 		component: WalletConnect,
-		description: 'Link your wallet to your ecohubsOS account.'
+		description: 'Link your wallet to your ecohubsOS account.',
+		hidden: true
 	},
 	{
 		id: 'safe-proposal',
@@ -159,7 +162,8 @@ export const APPS: AppDefinition[] = [
 		category: 'system',
 		isInternalApp: true,
 		component: SafeProposal,
-		description: 'Request to become a Safe owner for treasury governance.'
+		description: 'Request to become a Safe owner for treasury governance.',
+		hidden: true
 	},
 	{
 		id: 'offcoin-connect',
