@@ -1,11 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { applications } from '$lib/server/db/schema';
+import { applications, proposals } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { sendEmail } from '$lib/email';
-import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
+import { materialiseProposal } from '$lib/server/voting/materialise';
 import { apiLogger, emailLogger } from '$lib/server/logger';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { rejectionSentMessage } from '$lib/server/discord-templates';
@@ -36,10 +36,6 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(404, 'Application not found');
 	}
 
-	if (!application.snapshotProposalId) {
-		error(400, 'Application does not have a Snapshot proposal');
-	}
-
 	if (application.rejectionEmailSentAt) {
 		error(400, 'Rejection email has already been sent');
 	}
@@ -49,32 +45,27 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		'Starting rejection email flow'
 	);
 
-	// Step 1: Verify the proposal is closed and rejected on Snapshot
-	let proposalStatus;
-	try {
-		proposalStatus = await getProposalStatus(application.snapshotProposalId);
-	} catch (snapshotErr) {
-		apiLogger.error(
-			{ err: snapshotErr, applicationId: id, snapshotProposalId: application.snapshotProposalId },
-			'[Step 1/3] Failed to fetch proposal status from Snapshot'
-		);
-		error(500, 'Failed to verify proposal status on Snapshot');
+	// Step 1: Verify the linked local proposal closed with a rejection.
+	const [linkedProposal] = await db
+		.select()
+		.from(proposals)
+		.where(eq(proposals.linkedApplicationId, id));
+
+	if (!linkedProposal) {
+		error(400, 'Application does not have a voting proposal');
 	}
 
-	if (!proposalStatus) {
-		error(400, 'Unable to verify proposal status on Snapshot');
-	}
-
-	if (proposalStatus.status !== 'closed') {
+	const proposal = await materialiseProposal(linkedProposal);
+	const closedStatuses = ['closed', 'ratifying', 'ratified'] as const;
+	if (!closedStatuses.includes(proposal.status as (typeof closedStatuses)[number])) {
 		error(400, 'Voting has not ended yet');
 	}
-
-	const votingResult = getMembershipVotingResult(proposalStatus);
-	if (votingResult !== 'rejected') {
-		error(400, `Application was not rejected (result: ${votingResult || 'unknown'})`);
+	// A 'tied' result is treated as rejected per the protocol (status quo holds).
+	if (proposal.result !== 'rejected' && proposal.result !== 'tied') {
+		error(400, `Application was not rejected (result: ${proposal.result || 'unknown'})`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 1/3] Snapshot proposal verified: closed & rejected');
+	apiLogger.info({ applicationId: id }, '[Step 1/3] Voting proposal verified: closed & rejected');
 
 	// Step 2: Build and send the rejection email
 	const discordInviteUrl = env.DISCORD_INVITE_URL || 'https://discord.gg/ecohubs';
@@ -101,8 +92,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	// Discord notification (fire-and-forget)
 	sendDiscordMessage({
 		content: rejectionSentMessage({
-			fullName: application.fullName,
-			snapshotLink: application.snapshotProposalLink || ''
+			fullName: application.fullName
 		})
 	});
 

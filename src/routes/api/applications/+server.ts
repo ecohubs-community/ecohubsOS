@@ -1,14 +1,16 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { applications } from '$lib/server/db/schema';
-import { desc } from 'drizzle-orm';
+import { applications, proposals, proposalVotes } from '$lib/server/db/schema';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { env } from '$env/dynamic/private';
 import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
-import { getProposalStatus, getMembershipVotingResult } from '$lib/server/blog-snapshot';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { newApplicationMessage } from '$lib/server/discord-templates';
+import { createSystemProposal } from '$lib/server/voting/system-proposal';
+import { formatApplicationBody } from '$lib/server/voting/format-application';
 
 // Rate limiting for external submissions
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -35,57 +37,107 @@ function checkRateLimit(identifier: string): boolean {
 	return true;
 }
 
-// GET - List all applications (authenticated users only)
-// Enriches applications that have Snapshot proposals with live voting status
+// GET - List all applications (authenticated users only).
+// Enriches applications with voting data from their linked local proposal.
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		error(401, 'Not authenticated');
 	}
 
 	try {
+		await materialiseAllStale();
+
 		const allApplications = await db
 			.select()
 			.from(applications)
 			.orderBy(desc(applications.submittedAt));
 
-		// Enrich applications with Snapshot voting data
-		const enrichedApplications = await Promise.all(
-			allApplications.map(async (app) => {
-				// Default enriched fields
-				let votingStatus: 'none' | 'active' | 'closed' = 'none';
-				let votingResult: 'approved' | 'rejected' | 'needs_review' | null = null;
-				let votingEnd: number | null = null;
-				let votingScores: number[] | null = null;
+		const applicationIds = allApplications.map((a) => a.id);
 
-				if (app.snapshotProposalId && app.status !== 'pending') {
-					try {
-						const status = await getProposalStatus(app.snapshotProposalId);
-						if (status) {
-							votingStatus = status.status;
-							votingEnd = status.end;
-							votingScores = status.scores as unknown as number[];
+		// Fetch all linked proposals + their tally counts in two batched queries.
+		const linkedProposals = applicationIds.length
+			? await db
+					.select()
+					.from(proposals)
+					.where(inArray(proposals.linkedApplicationId, applicationIds))
+			: [];
 
-							if (status.status === 'closed') {
-								votingResult = getMembershipVotingResult(status);
-							}
-						}
-					} catch (err) {
-						apiLogger.error(
-							{ err, applicationId: app.id },
-							'Error fetching Snapshot voting status'
-						);
-					}
+		const proposalIds = linkedProposals.map((p) => p.id);
+		const tallyRows = proposalIds.length
+			? await db
+					.select({
+						proposalId: proposalVotes.proposalId,
+						choice: proposalVotes.choice,
+						n: sql<number>`count(*)`
+					})
+					.from(proposalVotes)
+					.where(inArray(proposalVotes.proposalId, proposalIds))
+					.groupBy(proposalVotes.proposalId, proposalVotes.choice)
+			: [];
+
+		const tallyByProposal = new Map<string, Record<string, number>>();
+		for (const r of tallyRows) {
+			const m = tallyByProposal.get(r.proposalId) ?? {};
+			m[r.choice] = Number(r.n);
+			tallyByProposal.set(r.proposalId, m);
+		}
+
+		const proposalByApp = new Map<string, (typeof linkedProposals)[number]>();
+		for (const p of linkedProposals) {
+			if (p.linkedApplicationId) proposalByApp.set(p.linkedApplicationId, p);
+		}
+
+		const enrichedApplications = allApplications.map((app) => {
+			const proposal = proposalByApp.get(app.id);
+
+			let votingStatus: 'none' | 'active' | 'closed' = 'none';
+			let votingResult: 'approved' | 'rejected' | 'needs_review' | null = null;
+			let votingEnd: number | null = null;
+			let votingScores: number[] | null = null;
+			let proposalId: string | null = null;
+
+			if (proposal) {
+				proposalId = proposal.id;
+				if (proposal.status === 'active' || proposal.status === 'deliberating') {
+					votingStatus = 'active';
+				} else if (
+					proposal.status === 'closed' ||
+					proposal.status === 'ratifying' ||
+					proposal.status === 'ratified'
+				) {
+					votingStatus = 'closed';
+				}
+				votingEnd = Math.floor(proposal.voteClosesAt.getTime() / 1000);
+
+				const result = proposal.result;
+				if (result === 'approved' || result === 'rejected' || result === 'needs_review') {
+					votingResult = result;
 				}
 
-				return {
-					...app,
-					votingStatus,
-					votingResult,
-					votingEnd,
-					votingScores
-				};
-			})
-		);
+				// Project tally into the legacy [approve, reject, needs_review] order
+				// so existing UI consumers keep working.
+				const tally = tallyByProposal.get(proposal.id) ?? {};
+				let choices: string[] = [];
+				try {
+					const parsed = JSON.parse(proposal.choices);
+					if (Array.isArray(parsed)) choices = parsed.map(String);
+				} catch {
+					/* ignore */
+				}
+				if (choices.length > 0) {
+					votingScores = choices.map((c) => tally[c] ?? 0);
+				}
+			}
+
+			return {
+				...app,
+				proposalId,
+				votingStatus,
+				votingResult,
+				votingEnd,
+				votingScores
+			};
+		});
 
 		return json({ applications: enrichedApplications });
 	} catch (err) {
@@ -149,7 +201,35 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 			})
 			.returning();
 
-		// Discord notification (fire-and-forget)
+		// Auto-create the membership voting proposal. Idempotent on
+		// linkedApplicationId so request retries never duplicate.
+		try {
+			await createSystemProposal({
+				type: 'operational',
+				choiceSetKey: 'membership',
+				tags: ['membership', 'system'],
+				title: `Membership Application: ${sanitizedName}`,
+				body: formatApplicationBody(newApplication),
+				linkedApplicationId: newApplication.id,
+				// `newApplicationMessage` below covers the announcement.
+				skipDiscord: true
+			});
+			// Mark application as having a proposal so the legacy `pending`
+			// status doesn't keep prompting admins to create one manually.
+			await db
+				.update(applications)
+				.set({ status: 'proposal_created' })
+				.where(eq(applications.id, newApplication.id));
+		} catch (err) {
+			// Don't fail the application submission if proposal creation hiccups.
+			apiLogger.error(
+				{ err, applicationId: newApplication.id },
+				'Failed to auto-create membership proposal'
+			);
+		}
+
+		// Discord notification (fire-and-forget). The createSystemProposal
+		// call above also fires its own "new proposal" Discord ping.
 		sendDiscordMessage({ content: newApplicationMessage({ fullName: sanitizedName }) });
 
 		return json({

@@ -58,18 +58,26 @@ export async function getOnboardingProgress(userId: string): Promise<OnboardingP
 
 /** Whitelist of valid substep IDs for validation */
 export const VALID_SUBSTEP_IDS = [
+	// Retired substeps still appear here so already-stored progress JSON
+	// validates cleanly during the transition. The default step list no
+	// longer includes them — see stepManager.RETIRED_SUBSTEP_IDS.
 	'wallet-setup',
 	'wallet-connect',
 	'safe-proposal',
-	'puckstack-signup',
+	'snapshot-open',
+	'snapshot-read',
+	'snapshot-vote',
 	'puckstack-copy-id',
 	'offcoin-connect',
-	'discord-connect',
-	'discord-introduce',
 	'forum-login',
 	'forum-read-latest',
 	'forum-howto-create',
-	'snapshot-open',
-	'snapshot-read',
-	'snapshot-vote'
+	'voting-open',
+	'voting-read',
+	'voting-vote',
+	// Current substeps
+	'puckstack-signup',
+	'discord-connect',
+	'discord-introduce',
+	'profile-setup'
 ] as const;

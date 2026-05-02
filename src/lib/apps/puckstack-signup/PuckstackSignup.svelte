@@ -2,18 +2,34 @@
 	import { os } from '$lib/os.svelte';
 	import { markSubStepCompletedById } from '$lib/onboarding/stepManager';
 	import Icon from '@iconify/svelte';
+	import { onMount } from 'svelte';
 
-	let status = $state<'idle' | 'loading' | 'error'>('idle');
+	type Status = 'idle' | 'loading' | 'error' | 'pending-return';
+
+	let status = $state<Status>('idle');
+	let verifying = $state(false);
 	let errorMessage = $state('');
 	let joinUrl = $state<string | null>(null);
 	let alreadyMember = $state(false);
 	let workspaceUrl = $state<string | null>(null);
+	let puckstackUserId = $state<string | null>(null);
+
+	function markCompleteAndClose() {
+		markSubStepCompletedById('puckstack-signup');
+		// `puckstack-copy-id` is retired but historical onboarding flows
+		// still reference it — mark it complete too so existing in-progress
+		// users don't get stuck on it.
+		markSubStepCompletedById('puckstack-copy-id');
+		os.closeApp();
+	}
 
 	async function handleJoin() {
 		status = 'loading';
 		errorMessage = '';
 
 		try {
+			// The server reads the user's stored invite token from the DB,
+			// so the client doesn't need to track or pass it.
 			const response = await fetch('/api/puckstack/invitation', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' }
@@ -28,19 +44,76 @@
 			if (data.alreadyMember) {
 				alreadyMember = true;
 				workspaceUrl = data.workspaceUrl;
-				// Mark the onboarding step as completed
-				markSubStepCompletedById('puckstack-signup');
+				puckstackUserId = data.puckstackUserId ?? null;
+				status = 'idle';
+				if (puckstackUserId) {
+					markSubStepCompletedById('puckstack-signup');
+					markSubStepCompletedById('puckstack-copy-id');
+				}
 			} else if (data.joinUrl) {
 				joinUrl = data.joinUrl;
-				// Open the join URL in a new tab
 				window.open(data.joinUrl, '_blank', 'noopener,noreferrer');
-				status = 'idle';
+				status = 'pending-return';
 			} else {
 				throw new Error('No join URL returned');
 			}
-		} catch (error) {
+		} catch (err) {
 			status = 'error';
-			errorMessage = error instanceof Error ? error.message : 'Something went wrong';
+			errorMessage = err instanceof Error ? err.message : 'Something went wrong';
+		}
+	}
+
+	/**
+	 * Called after the user reports they've completed Puckstack signup.
+	 * Re-hits the proxy — Puckstack should now report alreadyMember=true
+	 * and we capture the User ID + auto-complete both substeps.
+	 */
+	async function verifyMembership() {
+		verifying = true;
+		errorMessage = '';
+		try {
+			const response = await fetch('/api/puckstack/invitation', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const data = await response.json();
+
+			if (!response.ok || !data.success) {
+				throw new Error(data.error || 'Verification failed');
+			}
+
+			if (data.alreadyMember && data.puckstackUserId) {
+				puckstackUserId = data.puckstackUserId;
+				alreadyMember = true;
+				workspaceUrl = data.workspaceUrl;
+				markSubStepCompletedById('puckstack-signup');
+				markSubStepCompletedById('puckstack-copy-id');
+				status = 'idle';
+			} else if (data.alreadyMember) {
+				// User is on Puckstack but we couldn't extract their ID — fall
+				// back gracefully: at least mark signup done.
+				alreadyMember = true;
+				workspaceUrl = data.workspaceUrl;
+				markSubStepCompletedById('puckstack-signup');
+				status = 'idle';
+				errorMessage =
+					"You're a member but we couldn't auto-detect your Puckstack User ID. Please copy it manually from your Puckstack profile.";
+			} else if (data.joinUrl) {
+				// Invitation was re-issued (e.g. previous one expired). Server
+				// has already persisted the new token; we just update the
+				// joinUrl so the "Reopen invitation link" button is fresh.
+				joinUrl = data.joinUrl;
+				status = 'pending-return';
+				errorMessage =
+					"Your previous invitation link expired — we issued a fresh one. Please open it and accept the invitation.";
+			} else {
+				errorMessage =
+					"We couldn't find your Puckstack account yet. Please complete signup in the other tab and try again.";
+			}
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'Verification failed';
+		} finally {
+			verifying = false;
 		}
 	}
 
@@ -48,15 +121,56 @@
 		window.open('https://puckstack.xyz/join', '_blank', 'noopener,noreferrer');
 	}
 
+	// On mount: probe the server. If the user is already linked, we
+	// short-circuit to the "you're a member" view; if a stored invitation
+	// is still pending, we land directly in pending-return so the user
+	// sees the explainer + Verify button instead of the initial Join CTA.
+	async function bootstrap() {
+		try {
+			const response = await fetch('/api/puckstack/invitation', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const data = await response.json();
+			if (!response.ok || !data.success) return; // stay on idle, fall through to manual
+			if (data.alreadyMember) {
+				alreadyMember = true;
+				workspaceUrl = data.workspaceUrl;
+				puckstackUserId = data.puckstackUserId ?? null;
+				if (puckstackUserId) {
+					markSubStepCompletedById('puckstack-signup');
+					markSubStepCompletedById('puckstack-copy-id');
+				}
+			} else if (data.joinUrl) {
+				// Stored invitation is still pending — surface the verify view
+				// without re-opening the join tab automatically.
+				joinUrl = data.joinUrl;
+				status = 'pending-return';
+			}
+		} catch {
+			// Network blip on bootstrap — leave the user on the idle CTA.
+		}
+	}
+
+	// While we're waiting for the user to come back from the Puckstack tab,
+	// auto-verify on window focus. This collapses the happy path to a single
+	// ecohubsOS click — the user accepts the invite on Puckstack, switches
+	// back, and verification runs silently.
+	onMount(() => {
+		bootstrap();
+		const onFocus = () => {
+			if (status === 'pending-return' && !verifying && !alreadyMember) {
+				verifyMembership();
+			}
+		};
+		window.addEventListener('focus', onFocus);
+		return () => window.removeEventListener('focus', onFocus);
+	});
+
 	function openWorkspace() {
 		if (workspaceUrl) {
 			window.open(workspaceUrl, '_blank', 'noopener,noreferrer');
 		}
-	}
-
-	function markComplete() {
-		markSubStepCompletedById('puckstack-signup');
-		os.closeApp();
 	}
 </script>
 
@@ -69,18 +183,25 @@
 		</div>
 		<h2 class="text-xl font-bold text-white">Join ecohubs on Puckstack</h2>
 		<p class="text-solar-300 mt-2 text-sm">
-			Puckstack is where ecohubs members collaborate on tasks, earn ECO tokens, and level up through
-			contributions.
+			Puckstack is the task &amp; rewards platform we use to organise contributions.
 		</p>
 	</div>
 
 	{#if alreadyMember}
 		<div class="flex flex-1 flex-col items-center justify-center">
 			<Icon icon="tabler:check-circle" class="mb-4 h-16 w-16 text-green-400" />
-			<h3 class="text-lg font-bold text-white">Already a Member!</h3>
+			<h3 class="text-lg font-bold text-white">You're a Member!</h3>
 			<p class="text-solar-300 mt-2 text-center text-sm">
-				You're already part of the ecohubs workspace on Puckstack.
+				You're part of the ecohubs workspace on Puckstack.
 			</p>
+			{#if puckstackUserId}
+				<p class="mt-1 text-center text-xs text-emerald-300">
+					Puckstack User ID linked automatically.
+				</p>
+			{/if}
+			{#if errorMessage}
+				<p class="mt-3 max-w-xs text-center text-xs text-amber-300">{errorMessage}</p>
+			{/if}
 			<button
 				onclick={openWorkspace}
 				class="mt-6 flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
@@ -88,30 +209,72 @@
 				<Icon icon="tabler:external-link" class="h-4 w-4" />
 				Open ecohubs Workspace
 			</button>
-			<button onclick={markComplete} class="text-solar-300 mt-4 text-sm underline hover:text-white">
+			<button onclick={markCompleteAndClose} class="text-solar-300 mt-4 text-sm underline hover:text-white">
 				Continue to next step
 			</button>
 		</div>
-	{:else if joinUrl}
+	{:else if status === 'pending-return' && joinUrl}
 		<div class="flex flex-1 flex-col items-center justify-center">
 			<Icon icon="tabler:external-link" class="mb-4 h-16 w-16 text-emerald-400" />
-			<h3 class="text-lg font-bold text-white">Join Link Ready</h3>
-			<p class="text-solar-300 mt-2 text-center text-sm">
-				A new tab should have opened. Complete your sign-up there, then come back here.
+			<h3 class="text-lg font-bold text-white">Finish setup on Puckstack</h3>
+			<p class="text-solar-300 mt-2 max-w-sm text-center text-sm">
+				A new tab opened with your invitation. On Puckstack:
 			</p>
+
+			<ol class="text-solar-300 mt-3 max-w-sm space-y-1.5 text-left text-sm">
+				<li class="flex items-start gap-2">
+					<span class="text-solar-400 mt-0.5 shrink-0 font-mono text-xs">1.</span>
+					<span>Sign in with your Google or GitHub account (or sign up if needed)</span>
+				</li>
+				<li class="flex items-start gap-2">
+					<span class="text-solar-400 mt-0.5 shrink-0 font-mono text-xs">2.</span>
+					<span>Click <strong>Accept invitation</strong> on the invitation page</span>
+				</li>
+				<li class="flex items-start gap-2">
+					<span class="text-solar-400 mt-0.5 shrink-0 font-mono text-xs">3.</span>
+					<span>Switch back to this tab — we'll link your account automatically</span>
+				</li>
+			</ol>
+
+			{#if errorMessage}
+				<div
+					class="mt-4 flex max-w-sm items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+				>
+					<Icon icon="tabler:alert-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+					<span>{errorMessage}</span>
+				</div>
+			{/if}
+
+			<button
+				onclick={verifyMembership}
+				disabled={verifying}
+				class="mt-6 flex h-12 items-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-medium text-white hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				{#if verifying}
+					<Icon icon="tabler:loader" class="h-5 w-5 animate-spin" />
+					Verifying…
+				{:else}
+					<Icon icon="tabler:refresh" class="h-5 w-5" />
+					Verify my membership
+				{/if}
+			</button>
+
 			<button
 				onclick={() => window.open(joinUrl!, '_blank', 'noopener,noreferrer')}
-				class="mt-6 flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+				class="text-solar-400 mt-3 text-xs hover:text-white"
 			>
-				<Icon icon="tabler:external-link" class="h-4 w-4" />
-				Open Link Again
-			</button>
-			<button onclick={markComplete} class="text-solar-300 mt-4 text-sm underline hover:text-white">
-				I've joined, continue
+				Reopen invitation link
 			</button>
 		</div>
 	{:else}
 		<div class="flex-1 space-y-4">
+			<div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+				<p class="text-solar-400 mt-3 text-xs leading-relaxed">
+					You'll create a free Puckstack account in the next step (sign in with Google or
+					GitHub — no separate password). It only takes a moment.
+				</p>
+			</div>
+
 			<div class="rounded-xl bg-white/5 p-4">
 				<h4 class="text-solar-200 mb-3 text-sm font-medium">What you'll get:</h4>
 				<ul class="text-solar-300 space-y-2 text-sm">
@@ -171,6 +334,18 @@
 			class="text-solar-400 mt-3 text-center text-xs hover:text-white"
 		>
 			Already have an account? Sign in to Puckstack
+		</button>
+
+		<button
+			onclick={verifyMembership}
+			disabled={verifying}
+			class="text-solar-400 mt-2 text-center text-xs hover:text-white disabled:opacity-50"
+		>
+			{#if verifying}
+				Verifying…
+			{:else}
+				Already joined the workspace? Verify manually
+			{/if}
 		</button>
 	{/if}
 </div>

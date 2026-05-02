@@ -20,11 +20,37 @@ export interface SubStep {
 	title: string;
 	actions: SubStepAction[];
 	completed?: boolean;
+	/**
+	 * When true, the substep can be skipped (a "Skip" button appears
+	 * alongside the action button). Skipping marks the substep as
+	 * complete without performing the action, so the parent step can
+	 * roll up to completed and the wizard can advance.
+	 */
+	optional?: boolean;
 }
 
 export interface Step {
 	id: string;
 	title: string;
+	/**
+	 * Short label used in the mobile horizontal stepper. Falls back to
+	 * the first word of `title` if absent — but the auto-fallback
+	 * usually produces useless results ("Set", "Create", "Connect"),
+	 * so set this explicitly for any user-facing step.
+	 */
+	shortTitle?: string;
+	/**
+	 * Plain-language explainer rendered under the step title. Aimed at
+	 * a new member who has never heard of the tool/concept the step
+	 * introduces. Keep to 2-3 sentences.
+	 */
+	description?: string;
+	/**
+	 * Iconify name used in the wizard sidebar + step title pill.
+	 * Couples the icon to the step semantic rather than its index in
+	 * the default list, which moves around as the flow evolves.
+	 */
+	icon?: string;
 	subSteps?: SubStep[];
 	url?: string;
 	email?: SubStepAction['email'];
@@ -35,52 +61,65 @@ const STORAGE_KEY = 'onboarding-steps';
 
 export function createDefaultSteps(): Step[] {
 	return [
-		// Wallet & Safe Setup (new first step after SSO login)
+		// Wallet & Safe membership are now optional — users opt in via the
+		// "Safe Membership" system app from the dock. Voting happens inside
+		// ecohubsOS and no longer requires a Snapshot account, so the old
+		// Snapshot onboarding step has also been dropped.
+		// The profile step is rendered inline by OnboardingWizard
+		// (special-cased on step.id === 'profile'). We keep a single
+		// substep so the existing step.completed roll-up logic (which
+		// powers canGoNext / frontier) keeps working — but its `actions`
+		// is empty because the form is right there in the step body.
 		{
-			id: 'wallet-safe',
-			title: 'Setup Wallet & Safe Membership',
+			id: 'profile',
+			title: 'Set up your profile',
+			shortTitle: 'Profile',
+			icon: 'tabler:user-circle',
+			description:
+				`Tell other members a bit about you. We've pre-filled some fields from your application —
+				 feel free to edit them, or skip and finish later. Add a photo, bio, where you are, 
+				 and how you want to contribute. Other members see this when you vote, comment, or claim tasks. 
+				 Optional — you can skip and finish later from the My Profile app.`,
 			subSteps: [
 				{
-					id: 'wallet-setup',
-					title: 'Create or verify MetaMask wallet',
-					actions: [{ type: 'app', appId: 'wallet-setup' }]
-				},
-				{
-					id: 'wallet-connect',
-					title: 'Connect wallet to your account',
-					actions: [{ type: 'app', appId: 'wallet-connect' }]
-				},
-				{
-					id: 'safe-proposal',
-					title: 'Request Safe owner membership',
-					actions: [{ type: 'app', appId: 'safe-proposal' }]
+					id: 'profile-setup',
+					title: 'Profile details',
+					actions: [],
+					optional: true
 				}
 			]
 		},
 		{
 			id: 'puckstack',
-			title: 'Create Puckstack Account & Connect Offcoin',
+			title: 'Create Puckstack Account',
+			shortTitle: 'Puckstack',
+			icon: 'tabler:checklist',
+			description:
+				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (e.g. writing an article, helping with infrastructure, etc.) are tracked there and earn you XP and ECO tokens, which determine your member level over time and unlocks permissions in puckstack as well as in ecohubsOS. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
 			subSteps: [
 				{
 					id: 'puckstack-signup',
 					title: 'Sign up for Puckstack',
 					actions: [{ type: 'app', appId: 'puckstack-signup' }]
-				},
-				{
-					id: 'puckstack-copy-id',
-					title: 'Copy your Puckstack User ID from settings',
-					actions: [{ type: 'url', url: 'https://puckstack.xyz/ecohubs/profile' }]
-				},
-				{
-					id: 'offcoin-connect',
-					title: 'Link your wallet to Puckstack (Offcoin)',
-					actions: [{ type: 'app', appId: 'offcoin-connect' }]
 				}
+				// `puckstack-copy-id` retired — the PuckstackSignup app now
+				// captures the Puckstack User ID server-side via the
+				// /invitations/auto-generate response and persists it to
+				// `users.puckstackUserId` automatically.
+				//
+				// `offcoin-connect` retired — at this point in onboarding the
+				// user has no wallet connected, so linking a wallet to
+				// Offcoin can't succeed. Wallet/Offcoin linking is handled
+				// later via the opt-in Wallet & Safe system apps.
 			]
 		},
 		{
 			id: 'discord',
 			title: 'Connect Discord & Join Community',
+			shortTitle: 'Discord',
+			icon: 'tabler:brand-discord',
+			description:
+				"Discord is a free chat app the ecohubs community uses for day-to-day conversation, announcements, and quick questions. Connecting it links your ecohubsOS account to the Discord server so you get the member-only channels and can chat with people directly. If you don't have Discord yet, you'll create a free account when you connect.",
 			subSteps: [
 				{
 					id: 'discord-connect',
@@ -94,71 +133,36 @@ export function createDefaultSteps(): Step[] {
 				}
 			]
 		},
-		{
-			id: 'discussions',
-			title: 'Discover Discussions Forum',
-			subSteps: [
-				// {
-				// 	id: 'forum-request',
-				// 	title: 'Create Forum Account',
-				// 	actions: [{ type: 'app', appId: 'flarum-connect' }]
-				// },
-				{
-					id: 'forum-login',
-					title: 'Login to Discussions Forum',
-					actions: [{ type: 'url', url: 'https://discussions.ecohubs.community/' }]
-				},
-				{
-					id: 'forum-read-latest',
-					title: 'Introduce yourself in the forum',
-					actions: [{ type: 'none' }]
-				},
-				{
-					id: 'forum-howto-create',
-					title: 'Find out how to create new discussions',
-					actions: [{ type: 'none' }]
-				}
-			]
-		},
-		{
-			id: 'snapshot',
-			title: 'Snapshot Voting',
-			subSteps: [
-				// TODO: re-enable when voting rights need to be requested
-				// {
-				// 	id: 'snapshot-request-rights',
-				// 	title: 'Request Snapshot Voting rights',
-				// 	actions: [
-				// 		{
-				// 			type: 'email',
-				// 			email: {
-				// 				to: 'admin@ecohubs.community',
-				// 				subject: 'Snapshot Voting Rights Request',
-				// 				text: 'Please add my wallet ID to multisig and grant voting rights in Snapshot.',
-				// 				html: '<p>Please add my wallet ID to multisig and grant voting rights in Snapshot.</p>'
-				// 			}
-				// 		}
-				// 	]
-				// },
-				{
-					id: 'snapshot-open',
-					title: 'Open snapshot space',
-					actions: [{ type: 'url', url: 'https://snapshot.org/#/s:ecohubs.eth' }]
-				},
-				{
-					id: 'snapshot-read',
-					title: 'Read current proposals',
-					actions: [{ type: 'none' }]
-				},
-				{
-					id: 'snapshot-vote',
-					title: 'Vote for a proposal',
-					actions: [{ type: 'none' }]
-				}
-			]
-		}
+		// Removed steps:
+		//  - `discussions` (forum-login / forum-read-latest /
+		//    forum-howto-create): the discussions forum isn't in active
+		//    use yet.
+		//  - `voting` (voting-open / voting-read / voting-vote): the
+		//    voting app is one entry in the dock — members discover it
+		//    naturally without an onboarding nudge.
 	];
 }
+
+// Substep ids that the onboarding step manager used to ship and that
+// existing users may still have stored in their progress record. Used
+// during migration so removing them doesn't visibly regress completion %.
+export const RETIRED_SUBSTEP_IDS = [
+	'wallet-setup',
+	'wallet-connect',
+	'safe-proposal',
+	'snapshot-open',
+	'snapshot-read',
+	'snapshot-vote',
+	'snapshot-request-rights',
+	'offcoin-connect',
+	'puckstack-copy-id',
+	'forum-login',
+	'forum-read-latest',
+	'forum-howto-create',
+	'voting-open',
+	'voting-read',
+	'voting-vote'
+] as const;
 
 export function loadSteps(): Step[] {
 	try {

@@ -10,6 +10,7 @@ import BlogManagerFavicon from './apps/blog-manager/favicon.svg';
 import WalletSetup from './apps/wallet-setup/WalletSetup.svelte';
 import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
+import Voting from './apps/voting/Voting.svelte';
 import Members from './apps/members/Members.svelte';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
@@ -31,7 +32,19 @@ export interface AppDefinition {
 	isInternalApp?: boolean;
 	component?: Component;
 	description: string;
-	hidden?: boolean; // Hidden apps don't appear in the dock
+	/**
+	 * Hidden from the **dock** only. Still shows up in All Apps (so users
+	 * can discover and open it via the grid). Use this for apps that are
+	 * opt-in or context-launched (e.g. system/onboarding apps).
+	 */
+	hidden?: boolean;
+	/**
+	 * Also hidden from the **All Apps** grid. Use this for apps that are
+	 * registered but not actively in use yet (e.g. forum, newsletter)
+	 * and shouldn't surface for new members. Apps with this flag are
+	 * still openable programmatically via os.openApp(id).
+	 */
+	hiddenFromAllApps?: boolean;
 	helpItems?: string[]; // List of help items for external apps
 	groups?: string[]; // List of required user groups to see/access the app
 }
@@ -41,17 +54,18 @@ export { MOCK_NOTIFICATIONS, type Notification } from './notifications';
 
 export const APPS: AppDefinition[] = [
 	{
-		id: 'snapshot',
+		id: 'voting',
 		name: 'Voting',
 		icon: VotingFavicon,
 		category: 'governance',
-		url: 'https://snapshot.org/#/s:ecohubs.eth',
+		isInternalApp: true,
+		component: Voting,
 		description: 'Vote on active proposals and shape the future.',
 		helpItems: [
 			'View and vote on active governance proposals',
-			'Create new proposals for community decisions',
+			'Create new proposals (requires Offcoin Level 3 or higher)',
 			'Track voting results and proposal history',
-			'Participate in shaping ecohubs governance'
+			'Read voter reasons and outcomes for past decisions'
 		]
 	},
 	{
@@ -76,6 +90,11 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://discussions.ecohubs.community',
 		description: 'Deep discussions and sense-making.',
+		// Not actively in use yet — registered for programmatic open via
+		// os.openApp() but hidden from both the dock and All Apps so new
+		// members don't get sent into a dead end.
+		hidden: true,
+		hiddenFromAllApps: true,
 		helpItems: [
 			'Start and join discussions on community topics',
 			'Share ideas and get feedback from members',
@@ -104,7 +123,9 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.',
-		hidden: true, // Only shown in All Apps, not in dock
+		// Not actively in use yet — same treatment as the forum app.
+		hidden: true,
+		hiddenFromAllApps: true,
 		helpItems: [
 			'Browse past newsletter editions',
 			'Subscribe to receive community updates',
@@ -130,7 +151,9 @@ export const APPS: AppDefinition[] = [
 		component: BlogManager,
 		description: 'Manage blog drafts and create publication proposals.'
 	},
-	// Wallet & Safe onboarding apps (hidden, accessed via onboarding)
+	// Wallet & Safe — kept as registered apps so existing flows that open
+	// them via os.openApp() (and any deep links) continue to work, but
+	// hidden from the dock. Surfacing them is a separate UX decision.
 	{
 		id: 'wallet-setup',
 		name: 'Wallet Setup',
@@ -158,7 +181,7 @@ export const APPS: AppDefinition[] = [
 		category: 'system',
 		isInternalApp: true,
 		component: SafeProposal,
-		description: 'Request to become a Safe owner for governance.',
+		description: 'Request to become a Safe owner for treasury governance.',
 		hidden: true
 	},
 	{
@@ -195,7 +218,7 @@ export const APPS: AppDefinition[] = [
 		id: 'my-profile',
 		name: 'My Profile',
 		icon: MyProfileFavicon,
-		category: 'system',
+		category: 'ops',
 		isInternalApp: true,
 		component: MyProfile,
 		description: 'View and edit your profile information.'

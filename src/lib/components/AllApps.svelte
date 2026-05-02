@@ -35,31 +35,17 @@
 	let filteredApps = $derived(
 		APPS.filter(
 			(app) =>
+				// `hidden` only filters the dock — apps still surface in All
+				// Apps so users can discover opt-in / context-launched apps.
+				// `hiddenFromAllApps` is the stronger flag that also excludes
+				// from this grid (forum, newsletter while they're inactive).
+				!app.hiddenFromAllApps &&
 				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
 				activeCategories.has(app.category) &&
 				(!app.groups ||
 					(page.data.user?.groups &&
 						app.groups.some((g: string) => page.data.user.groups.includes(g))))
 		)
-	);
-
-	let groupedApps = $derived.by(() => {
-		const groups: Record<Category, typeof APPS> = {
-			governance: [],
-			social: [],
-			ops: [],
-			system: []
-		};
-
-		for (const app of filteredApps) {
-			groups[app.category].push(app);
-		}
-
-		return groups;
-	});
-
-	let visibleCategories = $derived(
-		ALL_CATEGORIES.filter((cat) => activeCategories.has(cat) && groupedApps[cat].length > 0)
 	);
 
 	function openApp(appId: string) {
@@ -150,49 +136,43 @@
 		{/each}
 	</div>
 
-	<!-- Apps grid grouped by category -->
+	<!-- Apps grid — flat layout, no per-category headings. Filtering by
+	     category still happens via the pills above. -->
 	<div
-		class="mt-8 flex max-h-[65vh] w-full max-w-4xl flex-col gap-4 overflow-y-auto px-6 pb-6 md:max-h-[55vh] md:gap-8"
+		class="mt-8 flex max-h-[65vh] w-full max-w-4xl flex-col gap-4 overflow-y-auto px-6 pb-6 md:max-h-[55vh]"
 		transition:scale={{ duration: 200, delay: 100 }}
 	>
-		{#each visibleCategories as category (category)}
-			<div class="flex flex-col gap-4">
-				<h2 class="text-sm font-semibold tracking-wider text-white/50 uppercase">
-					{CATEGORY_LABELS[category]}
-				</h2>
-				<div class="flex flex-wrap gap-3 md:gap-6">
-					{#each groupedApps[category] as app (app.id)}
-						<button
-							class="group flex w-20 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10 md:w-24"
-							onclick={() => openApp(app.id)}
-						>
-							<div
-								class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110 md:h-16 md:w-16 {app.groups &&
-								app.groups.includes('EcoHubs Admin')
-									? 'border-2 border-blue-500/50 bg-blue-500/10'
-									: ''}"
-							>
-								<img
-									src={getAppIcon(app)}
-									alt={app.name}
-									class="h-10 w-10"
-									onerror={imgError}
-									data-app-id={app.id}
-								/>
-							</div>
-							<span class="line-clamp-2 text-center text-xs text-white/80 group-hover:text-white">
-								{app.name}
-							</span>
-						</button>
-					{/each}
-				</div>
-			</div>
-		{/each}
-
 		{#if filteredApps.length === 0}
 			<div class="flex flex-col items-center gap-2 py-12 text-white/50">
 				<Icon icon="tabler:search-off" class="h-12 w-12" />
 				<p>No apps found</p>
+			</div>
+		{:else}
+			<div class="flex flex-wrap gap-3 md:gap-6">
+				{#each filteredApps as app (app.id)}
+					<button
+						class="group flex w-20 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10 md:w-24"
+						onclick={() => openApp(app.id)}
+					>
+						<div
+							class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110 md:h-16 md:w-16 {app.groups &&
+							app.groups.includes('EcoHubs Admin')
+								? 'border-2 border-blue-500/50 bg-blue-500/10'
+								: ''}"
+						>
+							<img
+								src={getAppIcon(app)}
+								alt={app.name}
+								class="h-10 w-10"
+								onerror={imgError}
+								data-app-id={app.id}
+							/>
+						</div>
+						<span class="line-clamp-2 text-center text-xs text-white/80 group-hover:text-white">
+							{app.name}
+						</span>
+					</button>
+				{/each}
 			</div>
 		{/if}
 	</div>

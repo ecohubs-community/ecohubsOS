@@ -18,22 +18,21 @@
 	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 	import OnboardingAppFrame from './OnboardingAppFrame.svelte';
 	import OnboardingComplete from './OnboardingComplete.svelte';
-
-	// App component imports for inline rendering
-	import WalletSetup from '$lib/apps/wallet-setup/WalletSetup.svelte';
-	import WalletConnect from '$lib/apps/wallet-connect/WalletConnect.svelte';
-	import SafeProposal from '$lib/apps/safe-proposal/SafeProposal.svelte';
-	import PuckstackSignup from '$lib/apps/puckstack-signup/PuckstackSignup.svelte';
-	import OffcoinConnect from '$lib/apps/offcoin-connect/OffcoinConnect.svelte';
+	import OnboardingProfileFields from './OnboardingProfileFields.svelte';
+	import PuckstackIllustration from './onboarding-illustrations/PuckstackIllustration.svelte';
+	import DiscordIllustration from './onboarding-illustrations/DiscordIllustration.svelte';
+	import { APPS } from '$lib/data';
+	import { auth } from '$lib/auth.svelte';
 	import type { Component } from 'svelte';
 
-	const APP_COMPONENTS: Record<string, { component: Component; title: string }> = {
-		'wallet-setup': { component: WalletSetup, title: 'Wallet Setup' },
-		'wallet-connect': { component: WalletConnect, title: 'Connect Wallet' },
-		'safe-proposal': { component: SafeProposal, title: 'Safe Proposal' },
-		'puckstack-signup': { component: PuckstackSignup, title: 'Puckstack Signup' },
-		'offcoin-connect': { component: OffcoinConnect, title: 'Offcoin Connect' }
-	};
+	// Looks up an internal app component by id from the single APPS
+	// registry in $lib/data. Avoids the previous dual-registry split
+	// (a local APP_COMPONENTS map + the dock's APPS list) that silently
+	// no-op'd when one was updated and the other forgotten.
+	function getAppDef(appId: string): { component: Component; title: string } | null {
+		const app = APPS.find((a) => a.id === appId && a.isInternalApp && a.component);
+		return app && app.component ? { component: app.component, title: app.name } : null;
+	}
 
 	let {
 		serverProgress = {},
@@ -43,18 +42,48 @@
 		userName?: string;
 	} = $props();
 
+	// Welcome screen name: prefer the displayName the user entered in
+	// the profile step (live in the auth store after profile save),
+	// then the prop value (their Authentik name), then a safe default.
+	let welcomeName = $derived(
+		auth.user?.displayName?.trim() || userName || 'Member'
+	);
+
 	// State
 	let steps = $state<Step[]>(createDefaultSteps());
 	let currentStepIndex = $state(0);
 	let activeApp = $state<{ component: Component; title: string } | null>(null);
 	let showCompletion = $state(false);
 
+	// Reference to the inline profile fields component, so the wizard
+	// can drive its save() from the Next button.
+	let profileFields = $state<{ save: () => Promise<void>; isBusy: () => boolean } | null>(null);
+	let isSavingProfile = $state(false);
+
+	// Per-step accordion state for the description block. Set of step ids
+	// that are currently expanded. Default = collapsed; user opens it on
+	// demand. Persists per session (not across reloads).
+	let expandedDescriptions = $state(new Set<string>());
+
+	function toggleDescription(stepId: string) {
+		const next = new Set(expandedDescriptions);
+		if (next.has(stepId)) next.delete(stepId);
+		else next.add(stepId);
+		expandedDescriptions = next;
+	}
+
 	// Derived
 	let currentStep = $derived(steps[currentStepIndex]);
 	let completedStepCount = $derived(steps.filter((s) => s.completed).length);
 	let progressPercent = $derived(Math.round((completedStepCount / steps.length) * 100));
 	let allDone = $derived(steps.every((s) => s.completed));
-	let canGoNext = $derived(currentStep?.completed && currentStepIndex < steps.length - 1);
+	// Profile step lets the user advance unconditionally — the Next click
+	// itself saves the form. All other steps still gate on completion.
+	let canGoNext = $derived(
+		currentStepIndex < steps.length - 1 &&
+			(currentStep?.completed || currentStep?.id === 'profile') &&
+			!isSavingProfile
+	);
 	let canGoBack = $derived(currentStepIndex > 0);
 
 	// Find the first incomplete step index (the "frontier")
@@ -70,10 +99,24 @@
 		}
 	}
 
-	function goNext() {
-		if (canGoNext) {
-			currentStepIndex++;
+	async function goNext() {
+		if (!canGoNext) return;
+		// Profile step: trigger the inline form's save before advancing.
+		// On success the form fires onSaved (which marks the substep done
+		// and advances frontier). On failure the form surfaces the error
+		// inline and we stay on the step.
+		if (currentStep?.id === 'profile' && profileFields) {
+			isSavingProfile = true;
+			try {
+				await profileFields.save();
+			} catch {
+				// Error already shown inline by the component.
+				return;
+			} finally {
+				isSavingProfile = false;
+			}
 		}
+		currentStepIndex++;
 	}
 
 	function goBack() {
@@ -87,7 +130,7 @@
 		const result = await performAction(sub);
 
 		if (result === 'app' && btn?.appId) {
-			const appDef = APP_COMPONENTS[btn.appId];
+			const appDef = getAppDef(btn.appId);
 			if (appDef) {
 				activeApp = appDef;
 			}
@@ -98,6 +141,24 @@
 			steps = markSubStepCompleted(steps, stepId, sub.id);
 			refreshFromLocalStorage();
 		}
+	}
+
+	function handleSubSkip(stepId: string, sub: SubStep) {
+		// Optional substep — mark complete and let the wizard advance.
+		// Uses markSubStepCompleted (not …ById) so we can refresh local
+		// state synchronously and recompute frontier/canGoNext immediately.
+		steps = markSubStepCompleted(steps, stepId, sub.id);
+		refreshFromLocalStorage();
+	}
+
+	function markProfileSubstepDone() {
+		// Just update local state — markSubStepCompleted already wrote to
+		// localStorage and queued the server sync. Calling
+		// refreshFromLocalStorage() here would re-trigger its auto-advance
+		// branch, which combined with goNext's own currentStepIndex++ would
+		// skip past intermediate already-completed steps (e.g. landing on
+		// Discord after profile when Puckstack is already complete).
+		steps = markSubStepCompleted(steps, 'profile', 'profile-setup');
 	}
 
 	function closeApp() {
@@ -193,15 +254,17 @@
 </script>
 
 {#if showCompletion}
-	<OnboardingComplete {userName} onEnter={handleComplete} />
+	<OnboardingComplete userName={welcomeName} onEnter={handleComplete} />
 {:else}
 	<div
-		class="flex min-h-full flex-col items-center justify-center px-4 py-8 md:px-6"
+		class="flex min-h-full flex-col items-center justify-center px-3 py-4 sm:px-4 sm:py-8 md:px-6"
 		transition:fade={{ duration: 200 }}
 	>
-		<!-- Wizard container -->
+		<!-- Wizard container — bounded to viewport height with internal
+		     scrolling so a long form (e.g. profile setup) never pushes
+		     the wizard footer (Back / Next) off-screen. -->
 		<div
-			class="w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl"
+			class="flex max-h-[calc(100dvh-2rem)] min-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl sm:max-h-[calc(80dvh-4rem)] sm:rounded-3xl"
 			in:fly={{ y: 20, duration: 600, delay: 200 }}
 		>
 			<!-- Progress bar -->
@@ -214,10 +277,10 @@
 
 			<!-- Header -->
 			<div
-				class="flex items-center justify-between border-b border-white/10 bg-white/5 px-6 py-4"
+				class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-white/5 px-4 py-3 sm:px-6 sm:py-4"
 			>
-				<div>
-					<h2 class="text-lg font-bold text-white">Setup Your Account</h2>
+				<div class="min-w-0 flex-1">
+					<h2 class="truncate text-base font-bold text-white sm:text-lg">Setup Your Account</h2>
 					<p class="text-sm text-solar-100/50">
 						Step {currentStepIndex + 1} of {steps.length}
 						{#if allDone}
@@ -225,15 +288,15 @@
 						{/if}
 					</p>
 				</div>
-				<span class="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white/70">
+				<span class="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white/70 sm:px-3 sm:text-sm">
 					{completedStepCount}/{steps.length}
 				</span>
 			</div>
 
-			<div class="flex flex-col md:flex-row">
-				<!-- Step sidebar (desktop) / stepper (mobile) -->
+			<div class="flex min-h-0 flex-1 flex-col md:flex-row">
+				<!-- Step sidebar (desktop) / horizontal stepper (mobile) -->
 				<nav
-					class="shrink-0 border-b border-white/10 bg-white/[0.03] md:w-64 md:border-b-0 md:border-r"
+					class="shrink-0 border-b border-white/10 bg-white/[0.03] md:w-64 md:overflow-y-auto md:border-b-0 md:border-r"
 				>
 					<!-- Mobile: horizontal stepper -->
 					<div class="flex overflow-x-auto px-4 py-3 md:hidden">
@@ -258,7 +321,9 @@
 										{i + 1}
 									</span>
 								{/if}
-								<span class="whitespace-nowrap text-xs">{step.title.split(' ')[0]}</span>
+								<span class="whitespace-nowrap text-xs">
+									{step.shortTitle ?? step.title.split(' ')[0]}
+								</span>
 							</button>
 						{/each}
 					</div>
@@ -290,7 +355,7 @@
 									{#if step.completed}
 										<Icon icon="tabler:check" class="h-4 w-4" />
 									{:else}
-										<Icon icon={STEP_ICONS[i] || 'tabler:circle'} class="h-4 w-4" />
+										<Icon icon={step.icon ?? STEP_ICONS[i] ?? 'tabler:circle'} class="h-4 w-4" />
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
@@ -306,37 +371,77 @@
 					</div>
 				</nav>
 
-				<!-- Main content area -->
-				<div class="flex min-h-[400px] flex-1 flex-col md:min-h-[500px]">
+				<!-- Main content area — internal scrolling so the wizard
+				     footer (Back/Next) stays anchored on long forms. -->
+				<div class="flex min-h-0 flex-1 flex-col">
 					{#if currentStep}
 						{#key currentStep.id}
-							<div class="flex-1 p-6" transition:fade={{ duration: 150 }}>
+							<div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" transition:fade={{ duration: 150 }}>
+								<!-- Inner column: lets per-step illustration blocks
+								     anchor to the bottom via `mt-auto`. -->
+								<div class="flex min-h-full flex-col">
 								<!-- Step title -->
-								<div class="mb-6">
+								<div class="mb-4 sm:mb-6">
 									<div class="mb-1 flex items-center gap-2">
 										<div
-											class="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20"
+											class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/20"
 										>
 											<Icon
-												icon={STEP_ICONS[currentStepIndex] || 'tabler:circle'}
+												icon={currentStep.icon ?? STEP_ICONS[currentStepIndex] ?? 'tabler:circle'}
 												class="h-4 w-4 text-amber-400"
 											/>
 										</div>
-										<h3 class="text-xl font-bold text-white">{currentStep.title}</h3>
+										<h3 class="text-lg font-bold text-white sm:text-xl">{currentStep.title}</h3>
 									</div>
-									<p class="ml-9 text-sm text-solar-100/50">
-										Complete all tasks below to proceed to the next step.
+									<p class="ml-9 text-xs text-solar-100/50 sm:text-sm">
+										{currentStep.id === 'profile'
+											? 'Optional — fill it in now or skip and finish later.'
+											: 'Complete all tasks below to proceed to the next step.'}
 									</p>
+									{#if currentStep.description}
+										{@const isOpen = expandedDescriptions.has(currentStep.id)}
+										<div class="ml-9 mt-3">
+											<button
+												type="button"
+												onclick={() => toggleDescription(currentStep.id)}
+												aria-expanded={isOpen}
+												class="inline-flex items-center gap-1.5 text-xs font-medium text-white/55 transition-colors hover:text-white/80 sm:text-sm"
+											>
+												<Icon
+													icon="tabler:chevron-right"
+													class="h-3.5 w-3.5 transition-transform {isOpen ? 'rotate-90' : ''}"
+												/>
+												{isOpen ? 'Hide details' : 'What is this step about?'}
+											</button>
+											{#if isOpen}
+												<p
+													class="mt-2 text-xs leading-relaxed text-white/70 sm:text-sm"
+													transition:slide={{ duration: 150 }}
+												>
+													{currentStep.description}
+												</p>
+											{/if}
+										</div>
+									{/if}
 								</div>
 
-								<!-- Substeps -->
-								{#if currentStep.subSteps}
+								<!--
+									Profile step renders its form inline rather than
+									opening a modal app — simpler UX (no "open this"
+									indirection) for what is really just a small form.
+								-->
+								{#if currentStep.id === 'profile'}
+									<OnboardingProfileFields
+										bind:this={profileFields}
+										onSaved={() => markProfileSubstepDone()}
+									/>
+								{:else if currentStep.subSteps}
 									<div class="space-y-3">
 										{#each currentStep.subSteps as sub, i (sub.id)}
 											{@const enabled = isSubStepEnabled(currentStep, i)}
 											{@const btn = getActionButton(sub)}
 											<div
-												class="flex items-center gap-4 rounded-xl border px-4 py-3 transition-all
+												class="flex flex-wrap items-center gap-3 rounded-xl border px-3 py-3 transition-all sm:flex-nowrap sm:gap-4 sm:px-4
 													{sub.completed
 													? 'border-emerald-500/20 bg-emerald-500/5'
 													: enabled
@@ -379,16 +484,28 @@
 													</p>
 												</div>
 
-												<!-- Action button -->
+												<!-- Action button (+ optional Skip) -->
 												{#if !sub.completed && btn && enabled}
-													<button
-														type="button"
-														onclick={() =>
-															handleSubAction(currentStep.id, sub)}
-														class="shrink-0 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
-													>
-														{btn.label}
-													</button>
+													<div class="flex shrink-0 items-center gap-2">
+														<button
+															type="button"
+															onclick={() =>
+																handleSubAction(currentStep.id, sub)}
+															class="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
+														>
+															{btn.label}
+														</button>
+														{#if sub.optional}
+															<button
+																type="button"
+																onclick={() =>
+																	handleSubSkip(currentStep.id, sub)}
+																class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white/80"
+															>
+																Skip
+															</button>
+														{/if}
+													</div>
 												{:else if sub.completed && btn?.type === 'url'}
 													<!-- Allow re-opening external URLs even if completed -->
 													<button
@@ -404,13 +521,27 @@
 										{/each}
 									</div>
 								{/if}
+
+								<!-- Per-step illustration (anchored to the bottom of
+								     the step body via mt-auto). Aimed at giving the
+								     user a visual sense of what the step is about. -->
+								{#if currentStep.id === 'puckstack'}
+									<div class="mt-auto pt-6">
+										<PuckstackIllustration />
+									</div>
+								{:else if currentStep.id === 'discord'}
+									<div class="mt-auto pt-6">
+										<DiscordIllustration />
+									</div>
+								{/if}
+								</div>
 							</div>
 						{/key}
 					{/if}
 
 					<!-- Navigation -->
 					<div
-						class="flex items-center justify-between border-t border-white/10 bg-white/[0.03] px-6 py-4"
+						class="flex shrink-0 items-center justify-between border-t border-white/10 bg-white/[0.03] px-4 py-3 sm:px-6 sm:py-4"
 					>
 						<button
 							type="button"
@@ -440,10 +571,15 @@
 										disabled={!canGoNext}
 										class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/10"
 									>
-										Next
-										<Icon icon="tabler:arrow-right" class="h-4 w-4" />
+										{#if isSavingProfile}
+											<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+											Saving…
+										{:else}
+											Next
+											<Icon icon="tabler:arrow-right" class="h-4 w-4" />
+										{/if}
 									</button>
-									{#if !canGoNext && !currentStep?.completed}
+									{#if !canGoNext && !currentStep?.completed && currentStep?.id !== 'profile' && !isSavingProfile}
 										<span
 											class="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded border border-white/10 bg-solar-900 px-2 py-1 text-xs text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
 										>

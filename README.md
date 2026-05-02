@@ -49,10 +49,10 @@ Configure the default behavior with:
 - `SAFE_ONBOARDING_ROLE=owner|proposer`
 - `SAFE_DELEGATOR_PRIVATE_KEY` (recommended): an EOA that can sign delegate registrations
 
-## Snapshot voting strategies
+## Voting
 
-Snapshot voting power is determined by the space configuration (strategies + voting validation) and the address that signs the vote.
-
-If you want users who are Safe proposers (not owners) to still vote, ensure your Snapshot space voting power is based on the member wallet (token/NFT/whitelist/etc.), not Safe ownership or “vote as the Safe”.
-
-This repo uses `SNAPSHOT_SPACE` (default `ecohubs.eth`) for proposal creation and result reads.
+Voting now happens inside ecohubsOS via the internal "Voting" app. There is no
+external Snapshot dependency: proposals, votes, and results are stored in the
+local SQLite database (see `proposals` / `proposal_votes` tables). Voting is
+open to any authenticated user; authoring a new proposal requires Offcoin
+Level 3 or higher.

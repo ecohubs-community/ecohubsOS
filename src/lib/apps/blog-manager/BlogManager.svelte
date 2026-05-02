@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { auth } from '$lib/auth.svelte';
 	import HelpSection from '$lib/components/HelpSection.svelte';
 	import Icon from '@iconify/svelte';
 	import { fade, slide } from 'svelte/transition';
+	import { os } from '$lib/os.svelte';
 
 	interface DraftWithProposal {
 		id: string;
@@ -18,18 +18,12 @@
 		proposalEnd?: number;
 	}
 
-	interface SnapshotConfig {
-		snapshotSpace: string;
-		votingDuration: number;
-	}
-
 	let drafts = $state<DraftWithProposal[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let statusMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 	let creating = $state<string | null>(null);
 	let publishing = $state<string | null>(null);
-	let snapshotConfig = $state<SnapshotConfig | null>(null);
 
 	async function loadDrafts() {
 		isLoading = true;
@@ -41,15 +35,15 @@
 			}
 			const data = await response.json();
 			drafts = data.drafts;
-			snapshotConfig = {
-				snapshotSpace: data.snapshotSpace,
-				votingDuration: data.votingDuration
-			};
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load blog drafts';
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function openProposal(proposalId: string) {
+		os.openApp('voting', { proposalId });
 	}
 
 	function formatDate(dateString: string): string {
@@ -82,11 +76,6 @@
 		return `${hours} hour${hours > 1 ? 's' : ''} remaining`;
 	}
 
-	function getProposalUrl(proposalId: string): string {
-		const space = snapshotConfig?.snapshotSpace || 'ecohubs.eth';
-		return `https://snapshot.org/#/${space}/proposal/${proposalId}`;
-	}
-
 	function getGhostEditUrl(draftId: string): string {
 		return `https://blog.ecohubs.community/ghost/#/editor/post/${draftId}`;
 	}
@@ -113,150 +102,29 @@
 	}
 
 	async function createProposal(draft: DraftWithProposal) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const ethereum = (window as any)?.ethereum;
-		if (typeof window === 'undefined' || !ethereum) {
-			statusMessage = { type: 'error', text: 'Please install MetaMask to continue' };
-			return;
-		}
-
-		// Ensure the wallet is connected and matches the authenticated address
-		try {
-			const accounts = (await ethereum.request({
-				method: 'eth_requestAccounts'
-			})) as string[];
-
-			if (!accounts || accounts.length === 0) {
-				statusMessage = { type: 'error', text: 'No accounts found. Please connect your wallet.' };
-				return;
-			}
-
-			const connectedAddress = accounts[0].toLowerCase();
-			if (connectedAddress !== auth.walletAddress?.toLowerCase()) {
-				statusMessage = {
-					type: 'error',
-					text: `Please connect the wallet ${auth.shortAddress}`
-				};
-				return;
-			}
-		} catch (err) {
-			statusMessage = {
-				type: 'error',
-				text: `Failed to connect wallet: ${err instanceof Error ? err.message : 'Unknown error'}`
-			};
-			return;
-		}
-
-		if (!snapshotConfig) {
-			statusMessage = { type: 'error', text: 'Snapshot configuration not loaded' };
-			return;
-		}
-
 		creating = draft.id;
 		statusMessage = null;
-
 		try {
-			// Import ethers to create a provider and signer
-			const { BrowserProvider } = await import('ethers');
-
-			// Dynamically import Snapshot SDK
-			const snapshotModule = await import('@snapshot-labs/snapshot.js');
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const snapshot = (snapshotModule as any).default;
-			const Client712 = snapshot?.Client712 || snapshot?.Client;
-
-			if (!Client712 || typeof Client712 !== 'function') {
-				throw new Error('Failed to import Snapshot SDK');
-			}
-
-			const client = new Client712('https://hub.snapshot.org');
-
-			// Create ethers provider and signer
-			const provider = new BrowserProvider(ethereum);
-			const signer = await provider.getSigner();
-
-			// Create compatibility wrapper for ethers v6 -> v5 API
-			const compatibleSigner = {
-				...signer,
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				_signTypedData: async (domain: any, types: any, value: any) => {
-					return await signer.signTypedData(domain, types, value);
-				},
-				getSigner: () => compatibleSigner
-			};
-
-			// Get current block number
-			const currentBlock = await provider.getBlockNumber();
-
-			// Format draft for Snapshot proposal
-			const formatDraftForSnapshot = (draftData: DraftWithProposal) => {
-				const siteUrl = 'https://ecohubs.community';
-				const previewUrl = `${siteUrl}/blog/${draftData.slug}`;
-
-				return `## Blog Article Publication Proposal
-
-**Title:** ${draftData.title}
-
-**Author:** ${draftData.author}
-
-**Excerpt:**
-${draftData.excerpt || 'No excerpt provided.'}
-
-**Tags:** ${draftData.tags?.join(', ') || 'None'}
-
-**Preview:** [View Draft](${previewUrl})
-
----
-
-**Note:** This proposal is for publishing a blog article draft. Vote "Publish" to approve, "Reject" to decline, or "Needs Revision" if changes are required before publication.
-
-*Created: ${new Date(draftData.updated_at).toLocaleString()}*
-`;
-			};
-
-			// Prepare proposal data
-			const proposal = {
-				space: snapshotConfig.snapshotSpace,
-				type: 'single-choice',
-				title: `Publish Blog Article: ${draft.title}`,
-				body: formatDraftForSnapshot(draft),
-				choices: ['Publish', 'Reject', 'Needs Revision'],
-				start: Math.floor(Date.now() / 1000),
-				end: Math.floor(Date.now() / 1000) + snapshotConfig.votingDuration,
-				snapshot: currentBlock,
-				plugins: JSON.stringify({}),
-				app: 'ecohubs-os'
-			};
-
-			// Sign and submit
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const receipt = (await client.proposal(
-				compatibleSigner,
-				auth.walletAddress,
-				proposal
-			)) as { id: string };
-
-			// Update Ghost custom fields with proposal ID
-			await fetch(`/api/blog/drafts/${draft.id}/update-proposal`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ proposalId: receipt.id })
+			const response = await fetch(`/api/blog/drafts/${draft.id}/proposal`, {
+				method: 'POST'
 			});
-
-			// Update local state
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.message || `Failed (${response.status})`);
+			}
+			const data = await response.json();
 			drafts = drafts.map((d) =>
 				d.id === draft.id
-					? { ...d, proposalId: receipt.id, proposalStatus: 'active' as const }
+					? { ...d, proposalId: data.proposal.id, proposalStatus: 'active' as const }
 					: d
 			);
-
-			statusMessage = { type: 'success', text: `Proposal created successfully!` };
-			creating = null;
+			statusMessage = { type: 'success', text: 'Proposal created successfully!' };
 		} catch (err) {
 			statusMessage = {
 				type: 'error',
 				text: `Failed to create proposal: ${err instanceof Error ? err.message : 'Unknown error'}`
 			};
+		} finally {
 			creating = null;
 		}
 	}
@@ -306,12 +174,12 @@ ${draftData.excerpt || 'No excerpt provided.'}
 			<p class="mb-2">The Blog Manager allows you to:</p>
 			<ul class="mb-2 list-inside list-disc space-y-1">
 				<li>View all pending blog drafts from Ghost CMS</li>
-				<li>Create Snapshot proposals for community voting on publication</li>
+				<li>Create proposals for community voting on publication</li>
 				<li>Track voting status and results</li>
 				<li>Publish approved drafts to the blog</li>
 			</ul>
 			<p class="text-solar-300/60">
-				Requires MetaMask for signing proposals. Only authenticated users can manage drafts.
+				Only authenticated users can manage drafts.
 			</p>
 		</HelpSection>
 		<a
@@ -447,15 +315,14 @@ ${draftData.excerpt || 'No excerpt provided.'}
 								{/if}
 							</button>
 						{:else if draft.proposalId}
-							<a
-								href={getProposalUrl(draft.proposalId)}
-								target="_blank"
-								rel="noopener noreferrer"
+							<button
+								type="button"
+								onclick={() => draft.proposalId && openProposal(draft.proposalId)}
 								class="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
 							>
 								<Icon icon="tabler:external-link" class="h-4 w-4" />
 								View Proposal
-							</a>
+							</button>
 						{/if}
 
 						{#if draft.isApproved && draft.proposalStatus === 'closed'}

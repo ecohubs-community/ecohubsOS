@@ -59,7 +59,7 @@
 		</div>
 		<h2 class="text-xl font-bold text-white">Connect Your Wallet</h2>
 		<p class="text-solar-300 mt-2 text-sm">
-			MetaMask provides you with an Ethereum address — no funds are required. It's needed for transparent voting on snapshot.org.
+			MetaMask provides you with an Ethereum address — no funds are required. It's used for treasury and on-chain governance features.
 		</p>
 	</div>
 
@@ -117,7 +117,7 @@
 				<ul class="space-y-1 text-xs text-white/70">
 					<li>1. MetaMask will ask you to connect</li>
 					<li>2. Your Ethereum address will be linked to your account</li>
-					<li>3. You can participate in transparent voting on snapshot.org</li>
+					<li>3. You can participate in treasury and on-chain governance</li>
 					<li class="text-solar-400 font-medium">No funds are required!</li>
 				</ul>
 			</div>

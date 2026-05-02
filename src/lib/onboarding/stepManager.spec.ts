@@ -26,18 +26,21 @@ describe('stepManager', () => {
   });
 
   it('enables only the first sub-step initially', () => {
+    // Pick a step that has 2+ substeps so the "next is disabled" assertion
+    // is meaningful — the puckstack step is now a single substep.
     const steps = createDefaultSteps();
-    const step = steps[0];
+    const step = steps.find((s) => (s.subSteps?.length ?? 0) >= 2)!;
     expect(isSubStepEnabled(step, 0)).toBe(true);
     expect(isSubStepEnabled(step, 1)).toBe(false);
   });
 
   it('enables next sub-step after completion', () => {
     let steps = createDefaultSteps();
-    const stepId = steps[0].id;
-    const subId = steps[0].subSteps![0].id;
+    const target = steps.find((s) => (s.subSteps?.length ?? 0) >= 2)!;
+    const stepId = target.id;
+    const subId = target.subSteps![0].id;
     steps = markSubStepCompleted(steps, stepId, subId);
-    const updated = steps.find(s => s.id === stepId)!;
+    const updated = steps.find((s) => s.id === stepId)!;
     expect(updated.subSteps![0].completed).toBe(true);
     expect(isSubStepEnabled(updated, 1)).toBe(true);
   });

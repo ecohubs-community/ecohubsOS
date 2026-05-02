@@ -3,12 +3,14 @@
 interface BadgeCounts {
 	'membership-manager': number;
 	'blog-manager': number;
+	voting: number;
 }
 
 function createBadgesStore() {
 	let counts = $state<BadgeCounts>({
 		'membership-manager': 0,
-		'blog-manager': 0
+		'blog-manager': 0,
+		voting: 0
 	});
 
 	let isLoading = $state(false);
@@ -17,7 +19,7 @@ function createBadgesStore() {
 		isLoading = true;
 
 		try {
-			// Fetch membership applications (enriched with Snapshot voting data)
+			// Fetch membership applications (enriched with voting data)
 			const applicationsResponse = await fetch('/api/applications');
 			if (applicationsResponse.ok) {
 				const data = await applicationsResponse.json();
@@ -55,16 +57,24 @@ function createBadgesStore() {
 			console.error('Failed to fetch blog drafts:', err);
 		}
 
+		try {
+			// Active proposals the user hasn't voted on yet
+			const votingResponse = await fetch('/api/proposals?status=active&unvoted=1');
+			if (votingResponse.ok) {
+				const data = await votingResponse.json();
+				counts.voting = Array.isArray(data.proposals) ? data.proposals.length : 0;
+			}
+		} catch (err) {
+			console.error('Failed to fetch active proposals:', err);
+		}
+
 		isLoading = false;
 	}
 
 	function getCount(appId: string): number {
-		if (appId === 'membership-manager') {
-			return counts['membership-manager'];
-		}
-		if (appId === 'blog-manager') {
-			return counts['blog-manager'];
-		}
+		if (appId === 'membership-manager') return counts['membership-manager'];
+		if (appId === 'blog-manager') return counts['blog-manager'];
+		if (appId === 'voting') return counts.voting;
 		return 0;
 	}
 

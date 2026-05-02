@@ -77,7 +77,9 @@
 	): Promise<{ dataUrl: string; blob: Blob }> {
 		return new Promise((resolve, reject) => {
 			const img = new Image();
+			const objectUrl = URL.createObjectURL(file);
 			img.onload = () => {
+				URL.revokeObjectURL(objectUrl);
 				let { width, height } = img;
 
 				if (width > maxSize || height > maxSize) {
@@ -108,8 +110,11 @@
 					0.85
 				);
 			};
-			img.onerror = () => reject(new Error('Failed to load image'));
-			img.src = URL.createObjectURL(file);
+			img.onerror = () => {
+				URL.revokeObjectURL(objectUrl);
+				reject(new Error('Failed to load image'));
+			};
+			img.src = objectUrl;
 		});
 	}
 
@@ -353,7 +358,7 @@
 					placeholder="Tell us about yourself..."
 					maxlength={2000}
 					rows={4}
-					class="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+					class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
 				></textarea>
 			</div>
 
@@ -404,7 +409,7 @@
 					placeholder="How would you like to contribute..."
 					maxlength={2000}
 					rows={3}
-					class="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+					class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
 				></textarea>
 			</div>
 
