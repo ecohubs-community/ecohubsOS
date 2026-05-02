@@ -5,6 +5,7 @@ import { proposals, proposalVotes } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { materialiseProposal } from '$lib/server/voting/materialise';
 import { votingLogger } from '$lib/server/logger';
+import { checkRateLimit, PROPOSAL_VOTE_RATE_LIMIT } from '$lib/server/rateLimit';
 
 const REASON_MAX = 1_000;
 
@@ -22,6 +23,10 @@ function parseChoices(raw: string): string[] {
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) error(401, 'Not authenticated');
 	if (!params.id) error(400, 'Proposal ID required');
+
+	if (!checkRateLimit(PROPOSAL_VOTE_RATE_LIMIT, locals.user.id)) {
+		error(429, 'Too many vote attempts — please slow down');
+	}
 
 	let body: unknown;
 	try {

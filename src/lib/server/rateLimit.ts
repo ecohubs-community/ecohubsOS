@@ -85,3 +85,20 @@ export const STRICT_RATE_LIMIT: RateLimitConfig = {
 	windowMs: 60 * 60 * 1000, // 1 hour
 	maxRequests: 5 // 5 requests per hour
 };
+
+// Voting: prevent flooding the proposal table with junk submissions.
+// Authoring requires Offcoin Level >= 3 already, this is the secondary gate.
+export const PROPOSAL_CREATE_RATE_LIMIT: RateLimitConfig = {
+	name: 'proposal-create',
+	windowMs: 60 * 60 * 1000, // 1 hour
+	maxRequests: 10 // 10 new proposals per user per hour
+};
+
+// Voting: protect the vote endpoint from rapid retry storms (e.g. failed
+// requests). Generous because legitimate one-vote-per-proposal traffic is
+// always small per user.
+export const PROPOSAL_VOTE_RATE_LIMIT: RateLimitConfig = {
+	name: 'proposal-vote',
+	windowMs: 60 * 1000, // 1 minute
+	maxRequests: 30
+};

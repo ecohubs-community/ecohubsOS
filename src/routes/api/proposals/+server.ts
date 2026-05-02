@@ -10,6 +10,7 @@ import { computePeriods, isValidProposalType, TYPE_CONFIG } from '$lib/server/vo
 import { getChoices } from '$lib/server/voting/choice-sets';
 import { canAuthorProposal } from '$lib/server/voting/eligibility';
 import { materialiseAllStale } from '$lib/server/voting/materialise';
+import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
 
 const TITLE_MAX = 140;
 const BODY_MAX = 10_000;
@@ -151,6 +152,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 // POST /api/proposals — create a member-authored proposal.
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) error(401, 'Not authenticated');
+
+	if (!checkRateLimit(PROPOSAL_CREATE_RATE_LIMIT, locals.user.id)) {
+		error(429, 'Too many proposals — please wait before creating another');
+	}
 
 	const eligible = await canAuthorProposal({
 		id: locals.user.id,
