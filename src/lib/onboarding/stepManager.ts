@@ -41,23 +41,22 @@ export function createDefaultSteps(): Step[] {
 		// Snapshot onboarding step has also been dropped.
 		{
 			id: 'puckstack',
-			title: 'Create Puckstack Account & Connect Offcoin',
+			title: 'Create Puckstack Account',
 			subSteps: [
 				{
 					id: 'puckstack-signup',
 					title: 'Sign up for Puckstack',
 					actions: [{ type: 'app', appId: 'puckstack-signup' }]
-				},
-				{
-					id: 'puckstack-copy-id',
-					title: 'Copy your Puckstack User ID from settings',
-					actions: [{ type: 'url', url: 'https://puckstack.xyz/ecohubs/profile' }]
-				},
-				{
-					id: 'offcoin-connect',
-					title: 'Link your wallet to Puckstack (Offcoin)',
-					actions: [{ type: 'app', appId: 'offcoin-connect' }]
 				}
+				// `puckstack-copy-id` retired — the PuckstackSignup app now
+				// captures the Puckstack User ID server-side via the
+				// /invitations/auto-generate response and persists it to
+				// `users.puckstackUserId` automatically.
+				//
+				// `offcoin-connect` retired — at this point in onboarding the
+				// user has no wallet connected, so linking a wallet to
+				// Offcoin can't succeed. Wallet/Offcoin linking is handled
+				// later via the opt-in Wallet & Safe system apps.
 			]
 		},
 		{
@@ -136,7 +135,9 @@ export const RETIRED_SUBSTEP_IDS = [
 	'snapshot-open',
 	'snapshot-read',
 	'snapshot-vote',
-	'snapshot-request-rights'
+	'snapshot-request-rights',
+	'offcoin-connect',
+	'puckstack-copy-id'
 ] as const;
 
 export function loadSteps(): Step[] {
