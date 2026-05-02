@@ -6,12 +6,6 @@ interface NewApplicationData {
 	fullName: string;
 }
 
-interface ProposalCreatedData {
-	fullName: string;
-	location: string;
-	snapshotLink: string;
-}
-
 interface ProposalTitleData {
 	title: string;
 }
@@ -34,11 +28,6 @@ interface RejectionSentData {
 export function newApplicationMessage(data: NewApplicationData): string {
 	const firstName = getFirstName(data.fullName);
 	return `📋🗳️ A new membership application from **${firstName}** arrived. A voting proposal has been opened — head to os.ecohubs.community to vote.`;
-}
-
-export function proposalCreatedMessage(data: ProposalCreatedData): string {
-	const firstName = getFirstName(data.fullName);
-	return `🗳️ New membership proposal was created. [Click here](${data.snapshotLink}) to vote for/against **${firstName}** from **${data.location}**. In case you have technical voting issues or questions please let me know here. You can read the full application on https://os.ecohubs.community/`;
 }
 
 export function confirmationSentMessage(data: ConfirmationSentData): string {
