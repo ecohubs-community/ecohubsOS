@@ -18,6 +18,10 @@ interface AutoGenerateInvitationResponse {
 	invitation: { token: string; joinUrl: string; expiresAt: string; role: string };
 }
 
+interface InvitationRequestBody {
+	inviteToken?: string;
+}
+
 type AutoGenerateResponse =
 	| AutoGenerateAlreadyMemberResponse
 	| AutoGenerateInvitationResponse
@@ -52,6 +56,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: false, error: 'Puckstack integration not configured' }, { status: 500 });
 	}
 
+	// Optional inviteToken from a previous response. When the user signs
+	// up to Puckstack with an email different from their ecohubs email,
+	// the email-based lookup on Puckstack can't find them — token-based
+	// lookup works regardless.
+	let body: InvitationRequestBody = {};
+	try {
+		body = (await request.json()) as InvitationRequestBody;
+	} catch {
+		// No body / malformed body — treat as no token, fall back to email path.
+	}
+	const inviteToken = typeof body.inviteToken === 'string' ? body.inviteToken : undefined;
+
 	try {
 		const response = await fetch(`${puckstackApiUrl}/invitations/auto-generate`, {
 			method: 'POST',
@@ -61,7 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			},
 			body: JSON.stringify({
 				workspaceSlug: 'ecohubs',
-				email: session.user.email
+				email: session.user.email,
+				...(inviteToken ? { inviteToken } : {})
 			})
 		});
 
@@ -104,6 +121,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({
 				success: true,
 				joinUrl: data.invitation.joinUrl,
+				inviteToken: data.invitation.token,
 				expiresAt: data.invitation.expiresAt
 			});
 		}
