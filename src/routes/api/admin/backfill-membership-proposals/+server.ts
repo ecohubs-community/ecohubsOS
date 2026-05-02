@@ -52,7 +52,8 @@ async function createClosedProposal(app: Application, outcome: InferredOutcome) 
 	const choices = getChoices('membership');
 	const config = TYPE_CONFIG.operational;
 	// Anchor the period to the original submission so the timeline
-	// looks correct in the proposal detail view.
+	// looks correct in the proposal detail view AND so the list orders
+	// chronologically by application date (most recent first).
 	const submittedAt = app.submittedAt ? new Date(app.submittedAt) : new Date();
 	const voteClosesAt = new Date(
 		submittedAt.getTime() + config.voteDays * 24 * 60 * 60 * 1000
@@ -70,6 +71,9 @@ async function createClosedProposal(app: Application, outcome: InferredOutcome) 
 		choiceSetKey: 'membership',
 		choices: JSON.stringify(choices),
 		threshold: config.threshold,
+		// createdAt = submittedAt so list ordering by createdAt DESC
+		// reflects natural application chronology, not the backfill instant.
+		createdAt: submittedAt,
 		voteOpensAt: submittedAt,
 		voteClosesAt: past,
 		ratificationEndsAt: null,
@@ -84,6 +88,7 @@ async function createClosedProposal(app: Application, outcome: InferredOutcome) 
 
 async function repairProposal(
 	existing: Proposal,
+	app: Application,
 	outcome: InferredOutcome
 ): Promise<'repaired' | 'skipped-has-votes' | 'skipped-already-closed'> {
 	if (existing.status !== 'active') return 'skipped-already-closed';
@@ -98,6 +103,7 @@ async function repairProposal(
 		.where(eq(proposalVotes.proposalId, existing.id));
 	if (Number(voteRow?.n ?? 0) > 0) return 'skipped-has-votes';
 
+	const submittedAt = app.submittedAt ? new Date(app.submittedAt) : new Date();
 	const close = existing.voteClosesAt.getTime() > Date.now()
 		? new Date(Date.now() - 1)
 		: existing.voteClosesAt;
@@ -107,7 +113,17 @@ async function repairProposal(
 		.set({
 			status: 'closed',
 			result: outcome.result,
+			// Re-anchor createdAt + voteOpensAt to the application's actual
+			// submission so the list orders chronologically. The original
+			// values were both ≈ backfill instant, which collapsed every
+			// historical row to roughly the same timestamp.
+			createdAt: submittedAt,
+			voteOpensAt: submittedAt,
 			voteClosesAt: close,
+			// Re-render the body so emails / surnames are obscured for
+			// historical proposals that were backfilled before the
+			// privacy formatter shipped.
+			body: formatApplicationBody(app),
 			discordNotifiedTransitions: JSON.stringify([`closed:${outcome.result}`])
 		})
 		.where(eq(proposals.id, existing.id));
@@ -165,7 +181,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 				await createClosedProposal(app, outcome);
 				createdClosed++;
 			} else {
-				await createSystemProposal({
+				const created = await createSystemProposal({
 					type: 'operational',
 					choiceSetKey: 'membership',
 					tags: ['membership', 'system', 'backfill'],
@@ -173,6 +189,16 @@ export const POST: RequestHandler = async ({ locals }) => {
 					body: formatApplicationBody(app),
 					linkedApplicationId: app.id
 				});
+				// For genuinely-pending applications: the vote is fresh
+				// (closes 3 days from now), but the proposal's `createdAt`
+				// is re-anchored to the application's submittedAt so the
+				// list still orders chronologically.
+				if (app.submittedAt) {
+					await db
+						.update(proposals)
+						.set({ createdAt: new Date(app.submittedAt) })
+						.where(eq(proposals.id, created.id));
+				}
 				createdActive++;
 			}
 			if (app.status === 'pending') {
@@ -204,7 +230,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	for (const { proposal, app } of stragglers) {
 		try {
 			const outcome = inferOutcome(app);
-			const result = await repairProposal(proposal, outcome);
+			const result = await repairProposal(proposal, app, outcome);
 			if (result === 'repaired') repaired++;
 			else if (result === 'skipped-has-votes') skippedHasVotes++;
 		} catch (err) {
