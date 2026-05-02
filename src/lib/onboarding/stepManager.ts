@@ -32,6 +32,25 @@ export interface SubStep {
 export interface Step {
 	id: string;
 	title: string;
+	/**
+	 * Short label used in the mobile horizontal stepper. Falls back to
+	 * the first word of `title` if absent — but the auto-fallback
+	 * usually produces useless results ("Set", "Create", "Connect"),
+	 * so set this explicitly for any user-facing step.
+	 */
+	shortTitle?: string;
+	/**
+	 * Plain-language explainer rendered under the step title. Aimed at
+	 * a new member who has never heard of the tool/concept the step
+	 * introduces. Keep to 2-3 sentences.
+	 */
+	description?: string;
+	/**
+	 * Iconify name used in the wizard sidebar + step title pill.
+	 * Couples the icon to the step semantic rather than its index in
+	 * the default list, which moves around as the flow evolves.
+	 */
+	icon?: string;
 	subSteps?: SubStep[];
 	url?: string;
 	email?: SubStepAction['email'];
@@ -54,6 +73,10 @@ export function createDefaultSteps(): Step[] {
 		{
 			id: 'profile',
 			title: 'Set up your profile',
+			shortTitle: 'Profile',
+			icon: 'tabler:user-circle',
+			description:
+				'Add a photo, bio, where you are, and how you want to contribute. Other members see this when you vote, comment, or claim tasks. Optional — you can skip and finish later from the My Profile app.',
 			subSteps: [
 				{
 					id: 'profile-setup',
@@ -66,6 +89,10 @@ export function createDefaultSteps(): Step[] {
 		{
 			id: 'puckstack',
 			title: 'Create Puckstack Account',
+			shortTitle: 'Puckstack',
+			icon: 'tabler:checklist',
+			description:
+				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (running an event, writing an article, helping with infrastructure) are tracked there and earn you XP and ECO tokens, which determine your member level over time. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
 			subSteps: [
 				{
 					id: 'puckstack-signup',
@@ -86,6 +113,10 @@ export function createDefaultSteps(): Step[] {
 		{
 			id: 'discord',
 			title: 'Connect Discord & Join Community',
+			shortTitle: 'Discord',
+			icon: 'tabler:brand-discord',
+			description:
+				"Discord is a free chat app the ecohubs community uses for day-to-day conversation, announcements, and quick questions. Connecting it links your ecohubsOS account to the Discord server so you get the member-only channels and can chat with people directly. If you don't have Discord yet, you'll create a free account when you connect.",
 			subSteps: [
 				{
 					id: 'discord-connect',

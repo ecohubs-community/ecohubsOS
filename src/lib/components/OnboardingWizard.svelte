@@ -237,7 +237,7 @@
 		     scrolling so a long form (e.g. profile setup) never pushes
 		     the wizard footer (Back / Next) off-screen. -->
 		<div
-			class="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl sm:max-h-[calc(100dvh-4rem)] sm:rounded-3xl"
+			class="flex max-h-[calc(100dvh-2rem)] min-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl sm:max-h-[calc(80dvh-4rem)] sm:rounded-3xl"
 			in:fly={{ y: 20, duration: 600, delay: 200 }}
 		>
 			<!-- Progress bar -->
@@ -294,7 +294,9 @@
 										{i + 1}
 									</span>
 								{/if}
-								<span class="whitespace-nowrap text-xs">{step.title.split(' ')[0]}</span>
+								<span class="whitespace-nowrap text-xs">
+									{step.shortTitle ?? step.title.split(' ')[0]}
+								</span>
 							</button>
 						{/each}
 					</div>
@@ -326,7 +328,7 @@
 									{#if step.completed}
 										<Icon icon="tabler:check" class="h-4 w-4" />
 									{:else}
-										<Icon icon={STEP_ICONS[i] || 'tabler:circle'} class="h-4 w-4" />
+										<Icon icon={step.icon ?? STEP_ICONS[i] ?? 'tabler:circle'} class="h-4 w-4" />
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
@@ -355,7 +357,7 @@
 											class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/20"
 										>
 											<Icon
-												icon={STEP_ICONS[currentStepIndex] || 'tabler:circle'}
+												icon={currentStep.icon ?? STEP_ICONS[currentStepIndex] ?? 'tabler:circle'}
 												class="h-4 w-4 text-amber-400"
 											/>
 										</div>
@@ -366,6 +368,13 @@
 											? 'Optional — fill it in now or skip and finish later.'
 											: 'Complete all tasks below to proceed to the next step.'}
 									</p>
+									{#if currentStep.description}
+										<div
+											class="ml-9 mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 sm:text-sm"
+										>
+											{currentStep.description}
+										</div>
+									{/if}
 								</div>
 
 								<!--
