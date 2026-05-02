@@ -35,28 +35,10 @@ const STORAGE_KEY = 'onboarding-steps';
 
 export function createDefaultSteps(): Step[] {
 	return [
-		// Wallet & Safe Setup (new first step after SSO login)
-		{
-			id: 'wallet-safe',
-			title: 'Setup Wallet & Safe Membership',
-			subSteps: [
-				{
-					id: 'wallet-setup',
-					title: 'Create or verify MetaMask wallet',
-					actions: [{ type: 'app', appId: 'wallet-setup' }]
-				},
-				{
-					id: 'wallet-connect',
-					title: 'Connect wallet to your account',
-					actions: [{ type: 'app', appId: 'wallet-connect' }]
-				},
-				{
-					id: 'safe-proposal',
-					title: 'Request Safe owner membership',
-					actions: [{ type: 'app', appId: 'safe-proposal' }]
-				}
-			]
-		},
+		// Wallet & Safe membership are now optional — users opt in via the
+		// "Safe Membership" system app from the dock. Voting happens inside
+		// ecohubsOS and no longer requires a Snapshot account, so the old
+		// Snapshot onboarding step has also been dropped.
 		{
 			id: 'puckstack',
 			title: 'Create Puckstack Account & Connect Offcoin',
@@ -121,44 +103,41 @@ export function createDefaultSteps(): Step[] {
 			]
 		},
 		{
-			id: 'snapshot',
-			title: 'Snapshot Voting',
+			id: 'voting',
+			title: 'Voting & Governance',
 			subSteps: [
-				// TODO: re-enable when voting rights need to be requested
-				// {
-				// 	id: 'snapshot-request-rights',
-				// 	title: 'Request Snapshot Voting rights',
-				// 	actions: [
-				// 		{
-				// 			type: 'email',
-				// 			email: {
-				// 				to: 'admin@ecohubs.community',
-				// 				subject: 'Snapshot Voting Rights Request',
-				// 				text: 'Please add my wallet ID to multisig and grant voting rights in Snapshot.',
-				// 				html: '<p>Please add my wallet ID to multisig and grant voting rights in Snapshot.</p>'
-				// 			}
-				// 		}
-				// 	]
-				// },
 				{
-					id: 'snapshot-open',
-					title: 'Open snapshot space',
-					actions: [{ type: 'url', url: 'https://snapshot.org/#/s:ecohubs.eth' }]
+					id: 'voting-open',
+					title: 'Open the Voting app',
+					actions: [{ type: 'app', appId: 'voting' }]
 				},
 				{
-					id: 'snapshot-read',
+					id: 'voting-read',
 					title: 'Read current proposals',
 					actions: [{ type: 'none' }]
 				},
 				{
-					id: 'snapshot-vote',
-					title: 'Vote for a proposal',
+					id: 'voting-vote',
+					title: 'Vote on a proposal',
 					actions: [{ type: 'none' }]
 				}
 			]
 		}
 	];
 }
+
+// Substep ids that the onboarding step manager used to ship and that
+// existing users may still have stored in their progress record. Used
+// during migration so removing them doesn't visibly regress completion %.
+export const RETIRED_SUBSTEP_IDS = [
+	'wallet-setup',
+	'wallet-connect',
+	'safe-proposal',
+	'snapshot-open',
+	'snapshot-read',
+	'snapshot-vote',
+	'snapshot-request-rights'
+] as const;
 
 export function loadSteps(): Step[] {
 	try {
