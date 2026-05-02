@@ -102,6 +102,14 @@
 		}
 	}
 
+	function handleSubSkip(stepId: string, sub: SubStep) {
+		// Optional substep — mark complete and let the wizard advance.
+		// Uses markSubStepCompleted (not …ById) so we can refresh local
+		// state synchronously and recompute frontier/canGoNext immediately.
+		steps = markSubStepCompleted(steps, stepId, sub.id);
+		refreshFromLocalStorage();
+	}
+
 	function closeApp() {
 		activeApp = null;
 	}
@@ -381,16 +389,28 @@
 													</p>
 												</div>
 
-												<!-- Action button -->
+												<!-- Action button (+ optional Skip) -->
 												{#if !sub.completed && btn && enabled}
-													<button
-														type="button"
-														onclick={() =>
-															handleSubAction(currentStep.id, sub)}
-														class="shrink-0 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
-													>
-														{btn.label}
-													</button>
+													<div class="flex shrink-0 items-center gap-2">
+														<button
+															type="button"
+															onclick={() =>
+																handleSubAction(currentStep.id, sub)}
+															class="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
+														>
+															{btn.label}
+														</button>
+														{#if sub.optional}
+															<button
+																type="button"
+																onclick={() =>
+																	handleSubSkip(currentStep.id, sub)}
+																class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white/80"
+															>
+																Skip
+															</button>
+														{/if}
+													</div>
 												{:else if sub.completed && btn?.type === 'url'}
 													<!-- Allow re-opening external URLs even if completed -->
 													<button

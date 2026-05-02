@@ -20,6 +20,13 @@ export interface SubStep {
 	title: string;
 	actions: SubStepAction[];
 	completed?: boolean;
+	/**
+	 * When true, the substep can be skipped (a "Skip" button appears
+	 * alongside the action button). Skipping marks the substep as
+	 * complete without performing the action, so the parent step can
+	 * roll up to completed and the wizard can advance.
+	 */
+	optional?: boolean;
 }
 
 export interface Step {
@@ -39,6 +46,18 @@ export function createDefaultSteps(): Step[] {
 		// "Safe Membership" system app from the dock. Voting happens inside
 		// ecohubsOS and no longer requires a Snapshot account, so the old
 		// Snapshot onboarding step has also been dropped.
+		{
+			id: 'profile',
+			title: 'Set up your profile',
+			subSteps: [
+				{
+					id: 'profile-setup',
+					title: 'Add a photo, bio, location & contribution',
+					actions: [{ type: 'app', appId: 'onboarding-profile' }],
+					optional: true
+				}
+			]
+		},
 		{
 			id: 'puckstack',
 			title: 'Create Puckstack Account',
@@ -72,17 +91,6 @@ export function createDefaultSteps(): Step[] {
 					id: 'discord-introduce',
 					title: 'Introduce yourself in the community',
 					actions: [{ type: 'none' }]
-				}
-			]
-		},
-		{
-			id: 'profile',
-			title: 'Set up your profile',
-			subSteps: [
-				{
-					id: 'profile-setup',
-					title: 'Add a photo, bio, location & contribution',
-					actions: [{ type: 'app', appId: 'onboarding-profile' }]
 				}
 			]
 		},
