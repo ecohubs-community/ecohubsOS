@@ -218,7 +218,7 @@ export const APPS: AppDefinition[] = [
 		id: 'my-profile',
 		name: 'My Profile',
 		icon: MyProfileFavicon,
-		category: 'system',
+		category: 'ops',
 		isInternalApp: true,
 		component: MyProfile,
 		description: 'View and edit your profile information.'
