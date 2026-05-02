@@ -19,6 +19,7 @@
 	import OnboardingAppFrame from './OnboardingAppFrame.svelte';
 	import OnboardingComplete from './OnboardingComplete.svelte';
 	import OnboardingProfileFields from './OnboardingProfileFields.svelte';
+	import PuckstackIllustration from './onboarding-illustrations/PuckstackIllustration.svelte';
 	import { APPS } from '$lib/data';
 	import type { Component } from 'svelte';
 
@@ -362,6 +363,9 @@
 					{#if currentStep}
 						{#key currentStep.id}
 							<div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" transition:fade={{ duration: 150 }}>
+								<!-- Inner column: lets per-step illustration blocks
+								     anchor to the bottom via `mt-auto`. -->
+								<div class="flex min-h-full flex-col">
 								<!-- Step title -->
 								<div class="mb-4 sm:mb-6">
 									<div class="mb-1 flex items-center gap-2">
@@ -503,6 +507,16 @@
 										{/each}
 									</div>
 								{/if}
+
+								<!-- Per-step illustration (anchored to the bottom of
+								     the step body via mt-auto). Aimed at giving the
+								     user a visual sense of what the step is about. -->
+								{#if currentStep.id === 'puckstack'}
+									<div class="mt-auto pt-6">
+										<PuckstackIllustration />
+									</div>
+								{/if}
+								</div>
 							</div>
 						{/key}
 					{/if}

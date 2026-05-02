@@ -76,7 +76,10 @@ export function createDefaultSteps(): Step[] {
 			shortTitle: 'Profile',
 			icon: 'tabler:user-circle',
 			description:
-				'Add a photo, bio, where you are, and how you want to contribute. Other members see this when you vote, comment, or claim tasks. Optional — you can skip and finish later from the My Profile app.',
+				`Tell other members a bit about you. We've pre-filled some fields from your application —
+				 feel free to edit them, or skip and finish later. Add a photo, bio, where you are, 
+				 and how you want to contribute. Other members see this when you vote, comment, or claim tasks. 
+				 Optional — you can skip and finish later from the My Profile app.`,
 			subSteps: [
 				{
 					id: 'profile-setup',
@@ -92,7 +95,7 @@ export function createDefaultSteps(): Step[] {
 			shortTitle: 'Puckstack',
 			icon: 'tabler:checklist',
 			description:
-				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (e.g. writing an article, helping with infrastructure, etc.) are tracked there and earn you XP and ECO tokens, which determine your member level over time and unlocks permissions in the system. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
+				"Puckstack is a separate platform that ecohubs uses to organise community work. Tasks you take on (e.g. writing an article, helping with infrastructure, etc.) are tracked there and earn you XP and ECO tokens, which determine your member level over time and unlocks permissions in puckstack as well as in ecohubsOS. You'll create a free Puckstack account in the next step — sign in with Google or GitHub, no separate password.",
 			subSteps: [
 				{
 					id: 'puckstack-signup',
