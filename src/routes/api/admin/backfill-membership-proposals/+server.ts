@@ -1,18 +1,131 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { applications, proposals } from '$lib/server/db/schema';
-import { eq, notExists, sql } from 'drizzle-orm';
+import { applications, proposals, proposalVotes } from '$lib/server/db/schema';
+import { and, eq, notExists, sql } from 'drizzle-orm';
 import { createSystemProposal } from '$lib/server/voting/system-proposal';
 import { formatApplicationBody } from '$lib/server/voting/format-application';
+import { getChoices } from '$lib/server/voting/choice-sets';
+import { TYPE_CONFIG } from '$lib/server/voting/periods';
 import { votingLogger } from '$lib/server/logger';
 
+type Application = typeof applications.$inferSelect;
+type Proposal = typeof proposals.$inferSelect;
+
+interface InferredOutcome {
+	status: 'active' | 'closed';
+	result: 'approved' | 'rejected' | null;
+}
+
 /**
- * One-shot backfill: create a local voting proposal for any application
- * submitted before the auto-creation flow shipped. Idempotent because
- * createSystemProposal short-circuits on a matching linkedApplicationId.
+ * Reads the application's existing state to decide whether the
+ * corresponding voting proposal should be active (genuinely pending) or
+ * already-closed (a decision was made historically). Used both when
+ * creating new backfill proposals and when repairing the ones that an
+ * earlier run of this endpoint created with the wrong state.
  *
- * Admin-gated. Safe to call repeatedly.
+ * Priority (most authoritative first):
+ *  - confirmationEmailSentAt set ⇒ welcome email shipped ⇒ approved
+ *  - rejectionEmailSentAt set    ⇒ rejection email shipped ⇒ rejected
+ *  - application.status explicit ⇒ use that
+ *  - else ⇒ genuinely pending; the proposal opens active for voting
+ */
+function inferOutcome(app: Application): InferredOutcome {
+	if (app.confirmationEmailSentAt || app.status === 'approved') {
+		return { status: 'closed', result: 'approved' };
+	}
+	if (app.rejectionEmailSentAt || app.status === 'rejected') {
+		return { status: 'closed', result: 'rejected' };
+	}
+	return { status: 'active', result: null };
+}
+
+/**
+ * Inserts a closed-state proposal directly (bypassing
+ * createSystemProposal which always uses current timestamps + active
+ * status). Pre-marks discordNotifiedTransitions so the materialiser
+ * doesn't fire a "proposal closed" ping for historical decisions.
+ */
+async function createClosedProposal(app: Application, outcome: InferredOutcome) {
+	if (outcome.status !== 'closed' || !outcome.result) return;
+
+	const choices = getChoices('membership');
+	const config = TYPE_CONFIG.operational;
+	// Anchor the period to the original submission so the timeline
+	// looks correct in the proposal detail view.
+	const submittedAt = app.submittedAt ? new Date(app.submittedAt) : new Date();
+	const voteClosesAt = new Date(
+		submittedAt.getTime() + config.voteDays * 24 * 60 * 60 * 1000
+	);
+	// If the natural close date is in the future (recent application),
+	// pull it back to the submission moment so it's unambiguously closed.
+	const past = voteClosesAt.getTime() > Date.now() ? new Date(submittedAt.getTime() + 1) : voteClosesAt;
+
+	await db.insert(proposals).values({
+		type: 'operational',
+		title: `Membership Application: ${app.fullName}`,
+		body: formatApplicationBody(app),
+		authorUserId: null,
+		tags: JSON.stringify(['membership', 'system', 'backfill']),
+		choiceSetKey: 'membership',
+		choices: JSON.stringify(choices),
+		threshold: config.threshold,
+		voteOpensAt: submittedAt,
+		voteClosesAt: past,
+		ratificationEndsAt: null,
+		status: 'closed',
+		result: outcome.result,
+		// Mark Discord as already notified so the materialiser doesn't
+		// fire pings retroactively for historical decisions.
+		discordNotifiedTransitions: JSON.stringify([`closed:${outcome.result}`]),
+		linkedApplicationId: app.id
+	});
+}
+
+async function repairProposal(
+	existing: Proposal,
+	outcome: InferredOutcome
+): Promise<'repaired' | 'skipped-has-votes' | 'skipped-already-closed'> {
+	if (existing.status !== 'active') return 'skipped-already-closed';
+	if (outcome.status !== 'closed' || !outcome.result) return 'skipped-already-closed';
+
+	// Don't overwrite if any votes have been cast on this proposal —
+	// respect the live vote in flight. (Unlikely on a freshly-backfilled
+	// proposal but guarded for safety.)
+	const [voteRow] = await db
+		.select({ n: sql<number>`count(*)` })
+		.from(proposalVotes)
+		.where(eq(proposalVotes.proposalId, existing.id));
+	if (Number(voteRow?.n ?? 0) > 0) return 'skipped-has-votes';
+
+	const close = existing.voteClosesAt.getTime() > Date.now()
+		? new Date(Date.now() - 1)
+		: existing.voteClosesAt;
+
+	await db
+		.update(proposals)
+		.set({
+			status: 'closed',
+			result: outcome.result,
+			voteClosesAt: close,
+			discordNotifiedTransitions: JSON.stringify([`closed:${outcome.result}`])
+		})
+		.where(eq(proposals.id, existing.id));
+
+	return 'repaired';
+}
+
+/**
+ * One-shot backfill / repair endpoint for membership proposals.
+ *
+ * - Creates a local proposal for any application that doesn't have one
+ *   yet, with the proposal already in its correct historical state
+ *   (closed/approved, closed/rejected, or active for genuinely pending).
+ * - Repairs any backfill-tagged proposals that an earlier run created
+ *   in `active` state when the application was already decided. Repair
+ *   skips proposals that have received votes since.
+ *
+ * Admin-gated, idempotent, safe to re-run.
  */
 export const POST: RequestHandler = async ({ locals }) => {
 	if (!locals.user) error(401, 'Not authenticated');
@@ -26,6 +139,13 @@ export const POST: RequestHandler = async ({ locals }) => {
 	})();
 	if (!groups.includes('EcoHubs Admin')) error(403, 'Admin access required');
 
+	let createdActive = 0;
+	let createdClosed = 0;
+	let repaired = 0;
+	let skippedHasVotes = 0;
+	let failed = 0;
+
+	// 1) Create proposals for orphaned applications.
 	const orphans = await db
 		.select()
 		.from(applications)
@@ -38,35 +158,72 @@ export const POST: RequestHandler = async ({ locals }) => {
 			)
 		);
 
-	let created = 0;
-	let failed = 0;
 	for (const app of orphans) {
 		try {
-			await createSystemProposal({
-				type: 'operational',
-				choiceSetKey: 'membership',
-				tags: ['membership', 'system', 'backfill'],
-				title: `Membership Application: ${app.fullName}`,
-				body: formatApplicationBody(app),
-				linkedApplicationId: app.id
-			});
+			const outcome = inferOutcome(app);
+			if (outcome.status === 'closed') {
+				await createClosedProposal(app, outcome);
+				createdClosed++;
+			} else {
+				await createSystemProposal({
+					type: 'operational',
+					choiceSetKey: 'membership',
+					tags: ['membership', 'system', 'backfill'],
+					title: `Membership Application: ${app.fullName}`,
+					body: formatApplicationBody(app),
+					linkedApplicationId: app.id
+				});
+				createdActive++;
+			}
 			if (app.status === 'pending') {
 				await db
 					.update(applications)
 					.set({ status: 'proposal_created' })
 					.where(eq(applications.id, app.id));
 			}
-			created++;
 		} catch (err) {
 			failed++;
-			votingLogger.error({ err, applicationId: app.id }, 'backfill: failed to create proposal');
+			votingLogger.error({ err, applicationId: app.id }, 'backfill: create failed');
 		}
 	}
 
+	// 2) Repair existing backfill-tagged proposals that are still active
+	//    when the application's state says they should be closed.
+	const stragglers = await db
+		.select({ proposal: proposals, app: applications })
+		.from(proposals)
+		.innerJoin(applications, eq(applications.id, proposals.linkedApplicationId))
+		.where(
+			and(
+				eq(proposals.status, 'active'),
+				// json_each scan to match only backfill-tagged rows
+				sql`exists (select 1 from json_each(${proposals.tags}) where json_each.value = 'backfill')`
+			)
+		);
+
+	for (const { proposal, app } of stragglers) {
+		try {
+			const outcome = inferOutcome(app);
+			const result = await repairProposal(proposal, outcome);
+			if (result === 'repaired') repaired++;
+			else if (result === 'skipped-has-votes') skippedHasVotes++;
+		} catch (err) {
+			failed++;
+			votingLogger.error({ err, proposalId: proposal.id }, 'backfill: repair failed');
+		}
+	}
+
+	votingLogger.info(
+		{ createdActive, createdClosed, repaired, skippedHasVotes, failed },
+		'backfill complete'
+	);
+
 	return json({
 		success: true,
-		scanned: orphans.length,
-		created,
+		createdActive,
+		createdClosed,
+		repaired,
+		skippedHasVotes,
 		failed
 	});
 };
