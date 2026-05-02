@@ -20,6 +20,7 @@
 	import OnboardingComplete from './OnboardingComplete.svelte';
 	import OnboardingProfileFields from './OnboardingProfileFields.svelte';
 	import PuckstackIllustration from './onboarding-illustrations/PuckstackIllustration.svelte';
+	import DiscordIllustration from './onboarding-illustrations/DiscordIllustration.svelte';
 	import { APPS } from '$lib/data';
 	import type { Component } from 'svelte';
 
@@ -514,6 +515,10 @@
 								{#if currentStep.id === 'puckstack'}
 									<div class="mt-auto pt-6">
 										<PuckstackIllustration />
+									</div>
+								{:else if currentStep.id === 'discord'}
+									<div class="mt-auto pt-6">
+										<DiscordIllustration />
 									</div>
 								{/if}
 								</div>
