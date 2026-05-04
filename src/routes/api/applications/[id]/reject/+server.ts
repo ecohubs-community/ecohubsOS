@@ -69,7 +69,8 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
 	// Step 2: Build and send the rejection email
 	const discordInviteUrl = env.DISCORD_INVITE_URL || 'https://discord.gg/ecohubs';
-	const emailHtml = buildRejectionEmail(application.fullName, discordInviteUrl);
+	const appUrl = env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community';
+	const emailHtml = buildRejectionEmail(application.fullName, discordInviteUrl, appUrl);
 	const emailText = buildRejectionEmailText(application.fullName, discordInviteUrl);
 
 	try {
@@ -119,120 +120,196 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	}
 };
 
-function buildRejectionEmail(name: string, discordUrl: string): string {
+const FONT_INTER = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+const FONT_PRIDI = `'Pridi', Georgia, 'Times New Roman', serif`;
+const FONT_FRAUNCES = `'Fraunces', Georgia, 'Times New Roman', serif`;
+
+function buildRejectionEmail(name: string, discordUrl: string, appUrl: string): string {
+	const logoUrl = `${appUrl}/logo-symbol.png`;
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EcoHubs Community — Application Update</title>
+<title>An update on your EcoHubs application</title>
+<link href="https://fonts.googleapis.com/css2?family=Pridi:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+	body { margin:0; padding:0; background:#fbfbf9; }
+	a { color:#064e3b; }
+	@media (max-width: 640px) {
+		.container { width:100% !important; border-radius:0 !important; }
+		.px { padding-left:24px !important; padding-right:24px !important; }
+		.hero-h1 { font-size:34px !important; line-height:1.08 !important; }
+	}
+</style>
 </head>
-<body style="margin:0;padding:0;background-color:#0f1729;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f1729;">
-<tr><td align="center" style="padding:40px 20px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<body style="margin:0;padding:0;background:#fbfbf9;font-family:${FONT_INTER};color:#1c1917;-webkit-font-smoothing:antialiased;">
 
-<!-- Header -->
-<tr><td style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px 16px 0 0;padding:32px 40px;text-align:center;">
-<h1 style="margin:0;color:#0f1729;font-size:28px;font-weight:700;">EcoHubs Community</h1>
-<p style="margin:8px 0 0;color:#0f1729;font-size:14px;opacity:0.8;">Regenerative Community Operating System</p>
-</td></tr>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">A note about your EcoHubs application — and a door that stays open.</div>
 
-<!-- Body -->
-<tr><td style="background-color:#1a2332;padding:40px;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1);">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fbfbf9;">
+	<tr><td align="center" style="padding:32px 16px;">
 
-<h2 style="margin:0 0 16px;color:#f5f5f5;font-size:22px;">Dear ${name},</h2>
-<p style="margin:0 0 20px;color:#c4c9d4;font-size:15px;line-height:1.6;">
-Thank you for your interest in joining the EcoHubs Community and for taking the time to submit your membership application. We truly appreciate it.
-</p>
-<p style="margin:0 0 20px;color:#c4c9d4;font-size:15px;line-height:1.6;">
-After careful consideration by our community members, we are not able to offer you membership at this time.
-</p>
-<p style="margin:0 0 24px;color:#c4c9d4;font-size:15px;line-height:1.6;">
-Please know that this is not a final decision — <strong style="color:#f5f5f5;">you are welcome to reapply after 6 months</strong>. Communities evolve, and we encourage you to try again in the future.
-</p>
+		<table role="presentation" class="container" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#fbfbf9;border:1px solid #e7e2d4;border-radius:18px;overflow:hidden;">
 
-<!-- Discord CTA -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:rgba(255,255,255,0.05);border-radius:12px;margin-bottom:24px;">
-<tr><td style="padding:24px;">
-<h3 style="margin:0 0 12px;color:#f5f5f5;font-size:16px;">Stay Connected</h3>
-<p style="margin:0 0 16px;color:#c4c9d4;font-size:14px;line-height:1.6;">
-In the meantime, we'd love for you to join our public Discord community. It's a great way to get to know us, participate in conversations, and stay up to date with what we're building.
-</p>
-<table role="presentation" cellpadding="0" cellspacing="0">
-<tr><td>
-<a href="${discordUrl}" style="display:inline-block;background:linear-gradient(135deg,#5865F2,#4752C4);color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:10px;">
-Join Our Discord
-</a>
-</td></tr>
+			<!-- Masthead -->
+			<tr><td style="background:#0b2e24;padding:22px 36px;" class="px">
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+					<tr>
+						<td align="left" style="font-family:${FONT_PRIDI};font-size:17px;color:#f5f2ea;font-weight:500;letter-spacing:0.01em;">
+							<img src="${logoUrl}" alt="" width="24" height="24" style="display:inline-block;width:24px;height:24px;margin-right:10px;vertical-align:middle;border:0;outline:none;text-decoration:none;" />
+							<span style="vertical-align:middle;">EcoHubs</span>
+						</td>
+						<td align="right" style="font-family:${FONT_INTER};font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;color:#a7f3d0;font-weight:600;">
+							A note from us
+						</td>
+					</tr>
+				</table>
+			</td></tr>
+
+			<!-- Hero -->
+			<tr><td style="background:#f5f2ea;padding:56px 40px 48px 40px;" class="px">
+				<div style="font-family:${FONT_INTER};font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;color:#059669;margin:0 0 22px 0;">
+					An honest update
+				</div>
+				<div class="hero-h1" style="font-family:${FONT_PRIDI};font-size:42px;line-height:1.06;color:#0b2e24;font-weight:500;letter-spacing:-0.01em;margin:0 0 22px 0;">
+					Thank you for writing, ${name}.<br>
+					<em style="font-family:${FONT_FRAUNCES};font-style:italic;font-weight:400;color:#6b7265;">— and for the trust it took.</em>
+				</div>
+				<div style="font-family:${FONT_PRIDI};font-size:18px;line-height:1.6;color:#1c1917;max-width:480px;">
+					Your application was read with care by members of the community. After honest discussion, we're not able to offer you membership at this time.
+				</div>
+			</td></tr>
+
+			<!-- Body -->
+			<tr><td style="background:#fbfbf9;padding:40px 40px 16px 40px;" class="px">
+
+				<div style="font-family:${FONT_PRIDI};font-size:17px;line-height:1.7;color:#1c1917;margin-bottom:20px;">
+					Membership decisions are not a measure of your worth or your work. They reflect what this particular community needs <em style="font-family:${FONT_FRAUNCES};font-style:italic;">at this particular moment</em> — and a community is a small, slow, fragile thing. We try to choose carefully, knowing we'll sometimes get it wrong.
+				</div>
+
+				<!-- Reapply note -->
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f2ea;border-radius:14px;margin:8px 0 28px 0;">
+					<tr><td style="padding:22px 24px;">
+						<div style="font-family:${FONT_INTER};font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;color:#059669;margin-bottom:8px;">This isn't final</div>
+						<div style="font-family:${FONT_PRIDI};font-size:18px;color:#0b2e24;font-weight:500;line-height:1.4;margin-bottom:6px;">
+							You're welcome to <em style="font-family:${FONT_FRAUNCES};font-style:italic;font-weight:400;">reapply after 6 months.</em>
+						</div>
+						<div style="font-family:${FONT_PRIDI};font-size:15px;line-height:1.6;color:#1c1917;">
+							People change. Communities change. We'd genuinely be glad to read a new application from you when the season feels right.
+						</div>
+					</td></tr>
+				</table>
+
+				<!-- Stay connected -->
+				<div style="font-family:${FONT_INTER};font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;color:#059669;margin-bottom:12px;">
+					Stay close, if you'd like
+				</div>
+				<div style="font-family:${FONT_PRIDI};font-size:24px;line-height:1.22;color:#0b2e24;font-weight:500;margin-bottom:22px;">
+					The Blueprint and the public space <em style="font-family:${FONT_FRAUNCES};font-style:italic;font-weight:400;color:#6b7265;">are still yours.</em>
+				</div>
+
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+					<tr>
+						<td valign="top" width="50%" style="padding:6px 8px 6px 0;">
+							<a href="${discordUrl}" style="display:block;background:#f5f2ea;border:1px solid #e7e2d4;border-radius:14px;padding:18px 20px;text-decoration:none;">
+								<div style="font-family:${FONT_INTER};font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#6b7265;font-weight:600;margin-bottom:6px;">Discord</div>
+								<div style="font-family:${FONT_PRIDI};font-size:17px;color:#0b2e24;font-weight:500;line-height:1.3;">Join the public conversation <span style="color:#059669;">→</span></div>
+							</a>
+						</td>
+						<td valign="top" width="50%" style="padding:6px 0 6px 8px;">
+							<a href="https://blueprint.ecohubs.community" style="display:block;background:#f5f2ea;border:1px solid #e7e2d4;border-radius:14px;padding:18px 20px;text-decoration:none;">
+								<div style="font-family:${FONT_INTER};font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#6b7265;font-weight:600;margin-bottom:6px;">The Blueprint</div>
+								<div style="font-family:${FONT_PRIDI};font-size:17px;color:#0b2e24;font-weight:500;line-height:1.3;">Read & comment on the open work <span style="color:#059669;">→</span></div>
+							</a>
+						</td>
+					</tr>
+				</table>
+
+				<!-- Follow + contact -->
+				<div style="font-family:${FONT_INTER};font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;color:#059669;margin:32px 0 12px 0;">
+					Follow us for updates
+				</div>
+				<div style="font-family:${FONT_INTER};font-size:14px;color:#1c1917;line-height:2;">
+					<a href="https://mastodon.social/@ecohubs" style="color:#064e3b;text-decoration:none;margin-right:14px;border-bottom:1px solid #064e3b40;">Mastodon</a>
+					<a href="https://farcaster.xyz/ecohubs" style="color:#064e3b;text-decoration:none;margin-right:14px;border-bottom:1px solid #064e3b40;">Farcaster</a>
+					<a href="https://x.com/eco_hubs" style="color:#064e3b;text-decoration:none;margin-right:14px;border-bottom:1px solid #064e3b40;">X</a>
+					<a href="https://www.instagram.com/ecohubs_community" style="color:#064e3b;text-decoration:none;border-bottom:1px solid #064e3b40;">Instagram</a>
+				</div>
+
+				<div style="font-family:${FONT_PRIDI};font-size:15px;line-height:1.6;color:#1c1917;margin-top:24px;">
+					If you'd like to ask anything — about the decision, the Blueprint, or membership in the future — write to us at <a href="mailto:info@ecohubs.community" style="color:#064e3b;text-decoration:none;border-bottom:1px solid #064e3b40;">info@ecohubs.community</a>. A person reads every message.
+				</div>
+
+			</td></tr>
+
+			<!-- Closing -->
+			<tr><td style="padding:24px 40px 40px 40px;" class="px">
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0b2e24;border-radius:18px;">
+					<tr><td style="padding:40px 36px;text-align:center;">
+						<div style="font-family:${FONT_FRAUNCES};font-style:italic;font-size:22px;line-height:1.3;color:#a7f3d0;font-weight:500;margin-bottom:18px;">
+							We wish you well — really.
+						</div>
+						<div style="width:48px;height:1px;background:#05966980;margin:0 auto 22px auto;line-height:1px;font-size:0;">&nbsp;</div>
+						<div style="font-family:${FONT_PRIDI};font-size:15px;line-height:1.65;color:#d4cfb8;max-width:420px;margin:0 auto;">
+							Thank you for caring enough to apply. The world needs more people who do.
+						</div>
+						<div style="font-family:${FONT_FRAUNCES};font-style:italic;font-size:15px;color:#a7f3d0;margin-top:18px;">
+							— The EcoHubs community
+						</div>
+					</td></tr>
+				</table>
+			</td></tr>
+
+			<!-- Footer -->
+			<tr><td style="background:#f5f2ea;padding:24px 40px;border-top:1px solid #e7e2d4;text-align:center;" class="px">
+				<div style="font-family:${FONT_FRAUNCES};font-style:italic;font-size:13px;color:#6b7265;line-height:1.6;">
+					EcoHubs · Co-creating a regenerative way of life, one hub at a time.
+				</div>
+			</td></tr>
+
+		</table>
+
+	</td></tr>
 </table>
-</td></tr>
-</table>
 
-<p style="margin:0;color:#c4c9d4;font-size:15px;line-height:1.6;">
-We wish you all the best and hope to see you again soon.
-</p>
-<p style="margin:16px 0 0;color:#c4c9d4;font-size:15px;line-height:1.6;">
-Warm regards,<br>
-<strong style="color:#f5f5f5;">The EcoHubs Community</strong>
-</p>
-
-</td></tr>
-
-<!-- Social Links Footer -->
-<tr><td style="background-color:#151d2d;padding:24px 40px;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1);">
-<p style="margin:0 0 12px;color:#8892a4;font-size:13px;text-align:center;">Connect with us</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr><td align="center">
-<a href="https://mastodon.social/@ecohubs" style="color:#f59e0b;text-decoration:none;font-size:13px;margin:0 8px;">Mastodon</a>
-<span style="color:#3a4556;">&middot;</span>
-<a href="https://farcaster.xyz/ecohubs" style="color:#f59e0b;text-decoration:none;font-size:13px;margin:0 8px;">Farcaster</a>
-<span style="color:#3a4556;">&middot;</span>
-<a href="https://x.com/eco_hubs" style="color:#f59e0b;text-decoration:none;font-size:13px;margin:0 8px;">X</a>
-<span style="color:#3a4556;">&middot;</span>
-<a href="https://www.instagram.com/ecohubs_community" style="color:#f59e0b;text-decoration:none;font-size:13px;margin:0 8px;">Instagram</a>
-</td></tr>
-</table>
-</td></tr>
-
-<!-- Footer -->
-<tr><td style="background-color:#111827;padding:20px 40px;border-radius:0 0 16px 16px;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1);border-bottom:1px solid rgba(255,255,255,0.1);">
-<p style="margin:0;color:#5a6478;font-size:12px;text-align:center;line-height:1.5;">
-&copy; EcoHubs Community
-</p>
-</td></tr>
-
-</table>
-</td></tr>
-</table>
 </body>
 </html>`;
 }
 
 function buildRejectionEmailText(name: string, discordUrl: string): string {
-	return `Dear ${name},
+	return `An honest update — for ${name}.
 
-Thank you for your interest in joining the EcoHubs Community and for taking the time to submit your membership application. We truly appreciate it.
+Thank you for writing — and for the trust it took.
 
-After careful consideration by our community members, we are not able to offer you membership at this time.
+Your application was read with care by members of the community. After honest discussion, we're not able to offer you membership at this time.
 
-Please know that this is not a final decision — you are welcome to reapply after 6 months. Communities evolve, and we encourage you to try again in the future.
+Membership decisions are not a measure of your worth or your work. They reflect what this particular community needs at this particular moment — and a community is a small, slow, fragile thing. We try to choose carefully, knowing we'll sometimes get it wrong.
 
-STAY CONNECTED
-In the meantime, we'd love for you to join our public Discord community. It's a great way to get to know us, participate in conversations, and stay up to date with what we're building.
+THIS ISN'T FINAL — You're welcome to reapply after 6 months.
+People change. Communities change. We'd genuinely be glad to read a new application from you when the season feels right.
 
-Join our Discord: ${discordUrl}
+STAY CLOSE, IF YOU'D LIKE — The Blueprint and the public space are still yours.
 
-We wish you all the best and hope to see you again soon.
+· Discord — join the public conversation: ${discordUrl}
+· The Blueprint — read & comment on the open work: https://blueprint.ecohubs.community
 
-Warm regards,
-The EcoHubs Community
+FOLLOW US FOR UPDATES
+  Mastodon:  https://mastodon.social/@ecohubs
+  Farcaster: https://farcaster.xyz/ecohubs
+  X:         https://x.com/eco_hubs
+  Instagram: https://www.instagram.com/ecohubs_community
 
-CONNECT WITH US
-- Mastodon: https://mastodon.social/@ecohubs
-- Farcaster: https://farcaster.xyz/ecohubs
-- X: https://x.com/eco_hubs
-- Instagram: https://www.instagram.com/ecohubs_community
+If you'd like to ask anything — about the decision, the Blueprint, or membership in the future — write to us at info@ecohubs.community. A person reads every message.
 
-EcoHubs Community`;
+----------------------------------------------------------------
+
+We wish you well — really.
+
+Thank you for caring enough to apply. The world needs more people who do.
+
+— The EcoHubs community
+
+EcoHubs · Co-creating a regenerative way of life, one hub at a time.
+`;
 }
