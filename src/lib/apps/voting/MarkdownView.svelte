@@ -74,13 +74,41 @@
 		margin: 0.7em 0;
 		line-height: 1.55;
 	}
+	/* Tailwind's preflight strips list-style from ul/ol globally, so
+	   markdown-rendered lists render as un-bulleted indented blocks
+	   unless we restore the markers here. */
 	.markdown-view :global(ul),
 	.markdown-view :global(ol) {
 		padding-left: 1.4em;
 		margin: 0.6em 0;
+		list-style-position: outside;
+	}
+	.markdown-view :global(ul) {
+		list-style-type: disc;
+	}
+	.markdown-view :global(ol) {
+		list-style-type: decimal;
+	}
+	/* Nested lists step the marker down for readability. */
+	.markdown-view :global(ul ul) {
+		list-style-type: circle;
+	}
+	.markdown-view :global(ul ul ul) {
+		list-style-type: square;
+	}
+	.markdown-view :global(ol ol) {
+		list-style-type: lower-alpha;
+	}
+	.markdown-view :global(ol ol ol) {
+		list-style-type: lower-roman;
 	}
 	.markdown-view :global(li) {
 		margin: 0.2em 0;
+	}
+	/* "Loose" markdown lists wrap each item in <p>; without this its
+	   default margin opens a gap inside every list item. */
+	.markdown-view :global(li > p) {
+		margin: 0;
 	}
 	.markdown-view :global(a) {
 		color: #a5b4fc;
