@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import MarkdownEditor from './MarkdownEditor.svelte';
 	import type { TagOption } from './types';
+	import { os } from '$lib/os.svelte';
 
 	interface Props {
 		availableTags: TagOption[];
@@ -21,10 +22,55 @@
 	let tagInput = $state('');
 	let tags = $state<string[]>([]);
 	let submitting = $state(false);
+	let submittedSuccessfully = $state(false);
 	let error = $state<string | null>(null);
 
 	const titleOver = $derived(title.length > TITLE_MAX);
 	const bodyOver = $derived(body.length > BODY_MAX);
+
+	// Form has unsaved changes whenever the user has typed anything OR
+	// added a tag. Once submission succeeds, dirty resets to false so
+	// the unmount cleanup doesn't trip the discard prompt.
+	const dirty = $derived(
+		!submittedSuccessfully &&
+			(title.trim().length > 0 ||
+				body.trim().length > 0 ||
+				tags.length > 0 ||
+				tagInput.trim().length > 0)
+	);
+
+	const DISCARD_PROMPT = 'You have an unsaved proposal draft. Discard it?';
+
+	function confirmDiscard(): boolean {
+		if (!dirty) return true;
+		return window.confirm(DISCARD_PROMPT);
+	}
+
+	function handleCancel() {
+		if (confirmDiscard()) onCancel();
+	}
+
+	// Guard the OS-level close (X button + backdrop click). Returns
+	// false to block the close when the user declines the prompt.
+	$effect(() => {
+		os.setCloseGuard(() => confirmDiscard());
+		return () => os.setCloseGuard(null);
+	});
+
+	// Browser-level navigation / tab close. The browser displays a
+	// generic "Leave site?" prompt — text isn't customisable in
+	// modern browsers. Only attached while dirty so non-edited
+	// sessions don't get the prompt.
+	$effect(() => {
+		if (!dirty) return;
+		const handler = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+			// Required by some legacy browsers to actually surface the prompt.
+			e.returnValue = '';
+		};
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
+	});
 
 	function normaliseTag(raw: string): string | null {
 		const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '-');
@@ -95,6 +141,7 @@
 				throw new Error(err.message || `Failed (${res.status})`);
 			}
 			const data = await res.json();
+			submittedSuccessfully = true;
 			onCreated(data.proposal.id);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to create proposal';
@@ -105,7 +152,7 @@
 </script>
 
 <div class="form-root">
-	<button class="back-btn" onclick={onCancel}>
+	<button class="back-btn" onclick={handleCancel}>
 		<Icon icon="tabler:chevron-left" class="h-4 w-4" />
 		Cancel
 	</button>
@@ -153,7 +200,7 @@
 			Tags <span class="hint-inline">({tags.length} / {TAG_MAX}, optional)</span>
 		</label>
 		<div class="tag-row">
-			{#each tags as t}
+			{#each tags as t (t)}
 				<span class="tag-chip">
 					#{t}
 					<button type="button" class="tag-rm" onclick={() => removeTag(t)} aria-label="Remove tag">
@@ -173,7 +220,7 @@
 		</div>
 		{#if tagSuggestions.length > 0 && tags.length < TAG_MAX}
 			<div class="tag-suggestions">
-				{#each tagSuggestions as s}
+				{#each tagSuggestions as s (s)}
 					<button type="button" class="tag-suggestion" onclick={() => addTag(s)}>#{s}</button>
 				{/each}
 			</div>
@@ -181,7 +228,7 @@
 	</div>
 
 	<div class="actions">
-		<button type="button" class="btn-ghost" onclick={onCancel} disabled={submitting}>Cancel</button>
+		<button type="button" class="btn-ghost" onclick={handleCancel} disabled={submitting}>Cancel</button>
 		<button
 			type="button"
 			class="btn-primary"

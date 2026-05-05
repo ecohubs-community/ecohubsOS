@@ -82,6 +82,12 @@ class OSState {
 	// Cleared by the consuming app immediately after reading.
 	pendingDeepLink = $state<{ appId: string; payload: unknown } | null>(null);
 
+	// Apps with unsaved state can register a guard that's consulted on
+	// close (X button, backdrop click, programmatic closeApp). Return
+	// true to allow the close, false to block. Cleared automatically
+	// after a successful close.
+	private closeGuard: (() => boolean) | null = null;
+
 	// User State
 	xp = $state(1250);
 	notifications = $state([...MOCK_NOTIFICATIONS]);
@@ -132,7 +138,21 @@ class OSState {
 	}
 
 	closeApp() {
+		if (this.closeGuard && !this.closeGuard()) return;
+		this.closeGuard = null;
 		this.activeWindow = null;
+	}
+
+	/**
+	 * Register a guard that's called on every closeApp() attempt
+	 * (X button, backdrop click, programmatic). Return true to allow
+	 * the close, false to block. Pass null to clear.
+	 *
+	 * Use from inside a component's $effect with a cleanup so the guard
+	 * is removed when the component unmounts.
+	 */
+	setCloseGuard(fn: (() => boolean) | null) {
+		this.closeGuard = fn;
 	}
 
 	openAllApps() {
