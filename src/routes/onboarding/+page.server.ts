@@ -3,7 +3,11 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { getOnboardingProgress, VALID_SUBSTEP_IDS } from '$lib/server/onboarding';
+import {
+	getOnboardingProgress,
+	hasPendingRetroactiveSteps,
+	VALID_SUBSTEP_IDS
+} from '$lib/server/onboarding';
 import { onboardingLogger } from '$lib/server/logger';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -11,7 +15,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, '/login');
 	}
 
-	if (locals.user.onboardingCompletedAt) {
+	// Users with onboardingCompletedAt set normally bounce to "/", but
+	// when a retroactive substep (e.g. the manifesto) is missing we let
+	// them stay so the wizard can collect it. The hooks layer mirrors
+	// this so deep links to "/" also bounce them here.
+	const pendingRetroactive = hasPendingRetroactiveSteps(
+		locals.user.onboardingCompletedAt,
+		locals.user.onboardingProgress
+	);
+	if (locals.user.onboardingCompletedAt && !pendingRetroactive) {
 		redirect(303, '/');
 	}
 

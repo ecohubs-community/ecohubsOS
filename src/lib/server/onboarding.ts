@@ -56,6 +56,45 @@ export async function getOnboardingProgress(userId: string): Promise<OnboardingP
 	return progress;
 }
 
+/**
+ * Substeps that retroactively apply to users who completed onboarding
+ * before they were introduced. When a user has `onboardingCompletedAt`
+ * set but is missing one of these in their progress JSON, the auth hook
+ * sends them back to /onboarding so they can complete just the new step.
+ *
+ * Existing finished steps in their progress stay marked complete, so the
+ * wizard's Finish button is one click away once the new step is done.
+ */
+export const RETROACTIVE_SUBSTEP_IDS = ['manifesto-sign'] as const;
+
+/**
+ * Parse a user's stored onboardingProgress JSON without hitting the DB.
+ * Returns `{}` for null/empty/corrupt input — the caller is expected to
+ * treat missing keys as "not yet completed".
+ */
+export function parseOnboardingProgress(json: string | null | undefined): OnboardingProgress {
+	if (!json) return {};
+	try {
+		const parsed = JSON.parse(json);
+		return parsed && typeof parsed === 'object' ? (parsed as OnboardingProgress) : {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * True if the user has completed onboarding overall but is missing one
+ * or more retroactive substeps and should be sent back to the wizard.
+ */
+export function hasPendingRetroactiveSteps(
+	onboardingCompletedAt: Date | null,
+	onboardingProgress: string | null
+): boolean {
+	if (!onboardingCompletedAt) return false;
+	const progress = parseOnboardingProgress(onboardingProgress);
+	return RETROACTIVE_SUBSTEP_IDS.some((id) => !progress[id]);
+}
+
 /** Whitelist of valid substep IDs for validation */
 export const VALID_SUBSTEP_IDS = [
 	// Retired substeps still appear here so already-stored progress JSON
@@ -76,6 +115,7 @@ export const VALID_SUBSTEP_IDS = [
 	'voting-read',
 	'voting-vote',
 	// Current substeps
+	'manifesto-sign',
 	'puckstack-signup',
 	'discord-connect',
 	'discord-introduce',

@@ -18,6 +18,7 @@
 	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 	import OnboardingAppFrame from './OnboardingAppFrame.svelte';
 	import OnboardingComplete from './OnboardingComplete.svelte';
+	import OnboardingManifesto from './OnboardingManifesto.svelte';
 	import OnboardingProfileFields from './OnboardingProfileFields.svelte';
 	import PuckstackIllustration from './onboarding-illustrations/PuckstackIllustration.svelte';
 	import DiscordIllustration from './onboarding-illustrations/DiscordIllustration.svelte';
@@ -149,6 +150,10 @@
 		// state synchronously and recompute frontier/canGoNext immediately.
 		steps = markSubStepCompleted(steps, stepId, sub.id);
 		refreshFromLocalStorage();
+	}
+
+	function markManifestoSubstepDone() {
+		steps = markSubStepCompleted(steps, 'manifesto', 'manifesto-sign');
 	}
 
 	function markProfileSubstepDone() {
@@ -396,7 +401,9 @@
 									<p class="ml-9 text-xs text-solar-100/50 sm:text-sm">
 										{currentStep.id === 'profile'
 											? 'Optional — fill it in now or skip and finish later.'
-											: 'Complete all tasks below to proceed to the next step.'}
+											: currentStep.id === 'manifesto'
+												? 'Read the full manifesto, then press and hold the sign button.'
+												: 'Complete all tasks below to proceed to the next step.'}
 									</p>
 									{#if currentStep.description}
 										{@const isOpen = expandedDescriptions.has(currentStep.id)}
@@ -430,7 +437,13 @@
 									opening a modal app — simpler UX (no "open this"
 									indirection) for what is really just a small form.
 								-->
-								{#if currentStep.id === 'profile'}
+								{#if currentStep.id === 'manifesto'}
+									{@const signed = currentStep.subSteps?.[0]?.completed ?? false}
+									<OnboardingManifesto
+										{signed}
+										onSigned={() => markManifestoSubstepDone()}
+									/>
+								{:else if currentStep.id === 'profile'}
 									<OnboardingProfileFields
 										bind:this={profileFields}
 										onSaved={() => markProfileSubstepDone()}

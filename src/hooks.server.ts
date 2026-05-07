@@ -6,6 +6,7 @@ import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { dev } from '$app/environment';
+import { hasPendingRetroactiveSteps } from '$lib/server/onboarding';
 
 // Security headers middleware
 const securityHeaders: Handle = async ({ event, resolve }) => {
@@ -134,6 +135,17 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		if (!event.locals.user.onboardingCompletedAt) {
 			redirect(303, '/onboarding');
 		}
+		// Gate: existing users who finished onboarding before a new
+		// retroactive substep was introduced (e.g. the manifesto) get
+		// sent back to the wizard until they complete it.
+		if (
+			hasPendingRetroactiveSteps(
+				event.locals.user.onboardingCompletedAt,
+				event.locals.user.onboardingProgress
+			)
+		) {
+			redirect(303, '/onboarding');
+		}
 	}
 
 	// Protect onboarding route
@@ -141,8 +153,15 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		if (!event.locals.user) {
 			redirect(303, '/login');
 		}
-		// Already completed onboarding — go to desktop
-		if (event.locals.user.onboardingCompletedAt) {
+		// Already completed onboarding — only redirect away if no
+		// retroactive substeps are still pending.
+		if (
+			event.locals.user.onboardingCompletedAt &&
+			!hasPendingRetroactiveSteps(
+				event.locals.user.onboardingCompletedAt,
+				event.locals.user.onboardingProgress
+			)
+		) {
 			redirect(303, '/');
 		}
 	}

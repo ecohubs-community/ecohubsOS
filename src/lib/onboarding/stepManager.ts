@@ -61,6 +61,27 @@ const STORAGE_KEY = 'onboarding-steps';
 
 export function createDefaultSteps(): Step[] {
 	return [
+		// Manifesto step is rendered inline by OnboardingWizard
+		// (special-cased on step.id === 'manifesto'). Its substep has no
+		// actions because the sign UX (scroll-to-end + hold-to-sign) lives
+		// inside the inline component.
+		{
+			id: 'manifesto',
+			title: 'Sign the EcoHubs Manifesto',
+			shortTitle: 'Manifesto',
+			icon: 'tabler:writing-sign',
+			description:
+				`Read the EcoHubs Manifesto and sign it to confirm you share its values. The
+				 manifesto is the shared foundation every member commits to before joining
+				 the community.`,
+			subSteps: [
+				{
+					id: 'manifesto-sign',
+					title: 'Read & sign the manifesto',
+					actions: []
+				}
+			]
+		},
 		// Wallet & Safe membership are now optional — users opt in via the
 		// "Safe Membership" system app from the dock. Voting happens inside
 		// ecohubsOS and no longer requires a Snapshot account, so the old
