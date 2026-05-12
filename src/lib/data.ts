@@ -123,9 +123,9 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.',
-		// Not actively in use yet — same treatment as the forum app.
+		// Hidden from the dock by default (opt-in / context-launched),
+		// but visible in the All Apps grid so members can discover it.
 		hidden: true,
-		hiddenFromAllApps: true,
 		helpItems: [
 			'Browse past newsletter editions',
 			'Subscribe to receive community updates',
