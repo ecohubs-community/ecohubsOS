@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { proposals, proposalVotes } from '$lib/server/db/schema';
+import { applications, proposals, proposalVotes } from '$lib/server/db/schema';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { newProposalMessage } from '$lib/server/discord-templates';
@@ -116,9 +116,34 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		);
 	const votedSet = new Set(userVotes.map((v) => v.proposalId));
 
+	// For withdrawn proposals that link to an application, fetch the admin's
+	// cancellation reason so the proposal detail view can show *why* it was
+	// withdrawn. Single source of truth lives on the application row.
+	const withdrawnAppIds = rows
+		.filter((r) => r.status === 'withdrawn' && r.linkedApplicationId)
+		.map((r) => r.linkedApplicationId as string);
+	const withdrawalMap = new Map<string, { reason: string | null; at: string | null }>();
+	if (withdrawnAppIds.length) {
+		const appRows = await db
+			.select({
+				id: applications.id,
+				cancellationReason: applications.cancellationReason,
+				cancelledAt: applications.cancelledAt
+			})
+			.from(applications)
+			.where(inArray(applications.id, withdrawnAppIds));
+		for (const a of appRows) {
+			withdrawalMap.set(a.id, { reason: a.cancellationReason, at: a.cancelledAt });
+		}
+	}
+
 	let result = rows.map((row) => {
 		const tallies = tallyMap.get(row.id) ?? {};
 		const total = Object.values(tallies).reduce((a, b) => a + b, 0);
+		const withdrawal =
+			row.status === 'withdrawn' && row.linkedApplicationId
+				? withdrawalMap.get(row.linkedApplicationId)
+				: undefined;
 		return {
 			id: row.id,
 			type: row.type,
@@ -138,7 +163,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			linkedBlogDraftId: row.linkedBlogDraftId,
 			votesByChoice: tallies,
 			votesTotal: total,
-			userHasVoted: votedSet.has(row.id)
+			userHasVoted: votedSet.has(row.id),
+			withdrawalReason: withdrawal?.reason ?? null,
+			withdrawnAt: withdrawal?.at ?? null
 		};
 	});
 

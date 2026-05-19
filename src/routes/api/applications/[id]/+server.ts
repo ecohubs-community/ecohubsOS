@@ -63,7 +63,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 		// Validate status if provided
 		if (updates.status) {
-			const validStatuses = ['pending', 'proposal_created', 'approved', 'rejected'];
+			const validStatuses = ['pending', 'proposal_created', 'approved', 'rejected', 'cancelled'];
 			if (!validStatuses.includes(updates.status)) {
 				error(400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
 			}

@@ -62,6 +62,10 @@ class AuthState {
 	isSafeOwner = $derived(this.user?.safeOwnerStatus === 'executed');
 	safeStatus = $derived(this.user?.safeOwnerStatus ?? null);
 
+	// EcoHubs Admin group membership — gates destructive admin actions like
+	// cancelling applications + their linked proposals.
+	isAdmin = $derived(this.user?.groups?.includes('EcoHubs Admin') ?? false);
+
 	// Legacy compatibility (for components that still use shortAddress)
 	shortAddress = $derived(this.shortWalletAddress);
 }

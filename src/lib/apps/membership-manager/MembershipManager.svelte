@@ -28,6 +28,10 @@
 		votingResult: 'approved' | 'rejected' | 'needs_review' | null;
 		votingEnd: number | null;
 		votingScores: number[] | null;
+		// Admin cancellation (soft-delete)
+		cancelledAt: string | null;
+		cancellationReason: string | null;
+		cancelledBy: string | null;
 	}
 
 	// Parsed form data interface (flexible to support all 41+ fields)
@@ -64,6 +68,31 @@
 	let sendingEmailFor = $state<string | null>(null);
 	let sendingRejectionFor = $state<string | null>(null);
 	let viewingApplication = $state<Application | null>(null);
+
+	// Cancellation modal state
+	const CANCEL_REASON_MIN = 10;
+	const CANCEL_REASON_MAX = 2000;
+	let cancellingApp = $state<Application | null>(null);
+	let cancelReason = $state('');
+	let cancelSendEmail = $state(false);
+	let cancelIncludeReason = $state(false);
+	let cancelSubmitting = $state(false);
+	let cancelError = $state<string | null>(null);
+
+	function openCancelModal(app: Application) {
+		cancellingApp = app;
+		cancelReason = '';
+		cancelSendEmail = false;
+		cancelIncludeReason = false;
+		cancelSubmitting = false;
+		cancelError = null;
+	}
+
+	function closeCancelModal() {
+		if (cancelSubmitting) return;
+		cancellingApp = null;
+		cancelError = null;
+	}
 
 	function openProposal(proposalId: string) {
 		os.openApp('voting', { proposalId });
@@ -114,6 +143,7 @@
 	}
 
 	function getStatusColor(app: Application): string {
+		if (app.status === 'cancelled') return 'bg-zinc-500/20 text-zinc-300';
 		if (app.status === 'pending') return 'bg-amber-500/20 text-amber-300';
 		if (app.votingStatus === 'active') return 'bg-blue-500/20 text-blue-300';
 		if (app.votingStatus === 'closed') {
@@ -131,6 +161,7 @@
 	}
 
 	function getStatusLabel(app: Application): string {
+		if (app.status === 'cancelled') return 'Cancelled';
 		if (app.status === 'pending') return 'Pending Review';
 		if (app.votingStatus === 'active') return 'Active Voting';
 		if (app.votingStatus === 'closed') {
@@ -260,6 +291,68 @@
 		}
 	}
 
+	async function submitCancellation() {
+		if (!cancellingApp || cancelSubmitting) return;
+		if (!auth.isAdmin) {
+			cancelError = 'Only EcoHubs Admins can cancel applications';
+			return;
+		}
+		const reason = cancelReason.trim();
+		if (reason.length < CANCEL_REASON_MIN) {
+			cancelError = `Reason is required (min ${CANCEL_REASON_MIN} characters)`;
+			return;
+		}
+
+		cancelSubmitting = true;
+		cancelError = null;
+		const appId = cancellingApp.id;
+		const appEmail = cancellingApp.email;
+
+		try {
+			const response = await fetch(`/api/applications/${appId}/cancel`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					reason,
+					sendRejectionEmail: cancelSendEmail,
+					includeReasonInEmail: cancelSendEmail && cancelIncludeReason
+				})
+			});
+
+			if (!response.ok) {
+				const data = await response.json().catch(() => ({ message: 'Unknown error' }));
+				throw new Error(data.message || `Failed to cancel application (${response.status})`);
+			}
+
+			const data = (await response.json()) as {
+				application: Application;
+				proposalWithdrawn: boolean;
+				rejectionEmailSentAt: string | null;
+			};
+
+			const idx = applications.findIndex((a) => a.id === appId);
+			if (idx !== -1) {
+				applications[idx] = { ...applications[idx], ...data.application };
+			}
+			if (viewingApplication && viewingApplication.id === appId) {
+				viewingApplication = { ...viewingApplication, ...data.application };
+			}
+
+			cancellingApp = null;
+			statusMessage = {
+				type: 'success',
+				text: data.rejectionEmailSentAt
+					? `Application cancelled — rejection email sent to ${appEmail}`
+					: 'Application cancelled'
+			};
+			badges.refresh();
+		} catch (err) {
+			cancelError = err instanceof Error ? err.message : 'Failed to cancel application';
+		} finally {
+			cancelSubmitting = false;
+		}
+	}
+
 	function toggleExpanded(id: string) {
 		expandedId = expandedId === id ? null : id;
 	}
@@ -317,51 +410,79 @@
 			View on Snapshot (legacy)
 		</a>
 	{/if}
-	{#if app.votingResult === 'approved' && !app.confirmationEmailSentAt}
-		<button
-			type="button"
-			class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
-			onclick={() => sendConfirmationEmail(app)}
-			disabled={sendingEmailFor !== null || !auth.isSafeOwner}
-		>
-			{#if sendingEmailFor === app.id}
-				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
-				Sending...
-			{:else}
-				<Icon icon="tabler:mail-forward" class="h-4 w-4" />
-				Send Confirmation Email
-			{/if}
-		</button>
-	{:else if app.confirmationEmailSentAt}
-		<span
-			class="flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-300"
-		>
-			<Icon icon="tabler:mail-check" class="h-4 w-4" />
-			Email Sent {formatDate(app.confirmationEmailSentAt)}
-		</span>
+	{#if app.status !== 'cancelled'}
+		{#if app.votingResult === 'approved' && !app.confirmationEmailSentAt}
+			<button
+				type="button"
+				class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+				onclick={() => sendConfirmationEmail(app)}
+				disabled={sendingEmailFor !== null || !auth.isSafeOwner}
+			>
+				{#if sendingEmailFor === app.id}
+					<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+					Sending...
+				{:else}
+					<Icon icon="tabler:mail-forward" class="h-4 w-4" />
+					Send Confirmation Email
+				{/if}
+			</button>
+		{:else if app.confirmationEmailSentAt}
+			<span
+				class="flex items-center gap-2 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-300"
+			>
+				<Icon icon="tabler:mail-check" class="h-4 w-4" />
+				Email Sent {formatDate(app.confirmationEmailSentAt)}
+			</span>
+		{/if}
+		{#if app.votingResult === 'rejected' && !app.rejectionEmailSentAt}
+			<button
+				type="button"
+				class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+				onclick={() => sendRejectionEmail(app)}
+				disabled={sendingRejectionFor !== null || !auth.isSafeOwner}
+			>
+				{#if sendingRejectionFor === app.id}
+					<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+					Sending...
+				{:else}
+					<Icon icon="tabler:mail-off" class="h-4 w-4" />
+					Send Rejection Email
+				{/if}
+			</button>
+		{:else if app.rejectionEmailSentAt}
+			<span
+				class="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300"
+			>
+				<Icon icon="tabler:mail-check" class="h-4 w-4" />
+				Rejection Email Sent {formatDate(app.rejectionEmailSentAt)}
+			</span>
+		{/if}
+		{#if auth.isAdmin}
+			<button
+				type="button"
+				class="flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-transparent px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10"
+				onclick={() => openCancelModal(app)}
+			>
+				<Icon icon="tabler:ban" class="h-4 w-4" />
+				Cancel Application
+			</button>
+		{/if}
 	{/if}
-	{#if app.votingResult === 'rejected' && !app.rejectionEmailSentAt}
-		<button
-			type="button"
-			class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-			onclick={() => sendRejectionEmail(app)}
-			disabled={sendingRejectionFor !== null || !auth.isSafeOwner}
+{/snippet}
+
+{#snippet cancellationDetails(app: Application)}
+	{#if app.status === 'cancelled' && app.cancellationReason}
+		<div
+			class="mb-4 rounded-lg border border-zinc-500/30 bg-zinc-500/10 p-3 text-sm text-zinc-200"
 		>
-			{#if sendingRejectionFor === app.id}
-				<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
-				Sending...
-			{:else}
-				<Icon icon="tabler:mail-off" class="h-4 w-4" />
-				Send Rejection Email
-			{/if}
-		</button>
-	{:else if app.rejectionEmailSentAt}
-		<span
-			class="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300"
-		>
-			<Icon icon="tabler:mail-check" class="h-4 w-4" />
-			Rejection Email Sent {formatDate(app.rejectionEmailSentAt)}
-		</span>
+			<div class="mb-1 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-zinc-300">
+				<Icon icon="tabler:ban" class="h-3.5 w-3.5" />
+				Cancelled by admin{app.cancelledAt
+					? ` · ${formatDate(app.cancelledAt)}`
+					: ''}
+			</div>
+			<div class="whitespace-pre-wrap text-zinc-100/90">{app.cancellationReason}</div>
+		</div>
 	{/if}
 {/snippet}
 
@@ -402,6 +523,7 @@
 
 			<!-- Application Content -->
 			<div class="flex-1 overflow-auto rounded-xl border border-white/10 bg-white/5 p-4 md:p-6">
+				{@render cancellationDetails(viewingApplication)}
 				<div class="space-y-6">
 					{#each Object.entries(formData) as [key, value] (key)}
 						{#if value && typeof value === 'string' && value.trim()}
@@ -500,7 +622,10 @@
 			{:else}
 				{#each applications as app (app.id)}
 					<div
-						class="rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/[0.07]"
+						class="rounded-xl border bg-white/5 transition-colors hover:bg-white/[0.07] {app.status ===
+						'cancelled'
+							? 'border-zinc-500/30 opacity-75'
+							: 'border-white/10'}"
 					>
 						<!-- Card Header -->
 						<button
@@ -534,6 +659,7 @@
 						{#if expandedId === app.id}
 							{@const formData = parseFormData(app)}
 							<div class="border-t border-white/10 p-4" transition:slide>
+								{@render cancellationDetails(app)}
 								<!-- Motivation Preview -->
 								{#if formData.motivation}
 									<div class="mb-4">
@@ -595,6 +721,133 @@
 					</div>
 				{/each}
 			{/if}
+		</div>
+	{/if}
+
+	{#if cancellingApp}
+		<div
+			class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 p-4"
+			onclick={(e) => {
+				if (e.target === e.currentTarget) closeCancelModal();
+			}}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') closeCancelModal();
+			}}
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+		>
+			<div
+				class="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1f]"
+			>
+				<div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+					<h2 class="text-base font-semibold text-white">
+						Cancel application — {cancellingApp.fullName}
+					</h2>
+					<button
+						type="button"
+						class="rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+						onclick={closeCancelModal}
+						disabled={cancelSubmitting}
+						aria-label="Close"
+					>
+						<Icon icon="tabler:x" class="h-4 w-4" />
+					</button>
+				</div>
+
+				<div class="space-y-4 overflow-y-auto px-5 py-4">
+					<p class="text-sm text-white/70">
+						This marks the application as cancelled and withdraws the linked proposal. The reason
+						you write here will be visible to all members on the withdrawn proposal in the "Past"
+						tab.
+					</p>
+
+					<div>
+						<label for="cancel-reason" class="mb-1.5 block text-sm font-medium text-white/90">
+							Reason <span class="text-red-400">*</span>
+						</label>
+						<textarea
+							id="cancel-reason"
+							rows="4"
+							maxlength={CANCEL_REASON_MAX}
+							bind:value={cancelReason}
+							placeholder="Why is this application being cancelled? Members will see this."
+							class="w-full resize-y rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+						></textarea>
+						<div class="mt-1 text-right text-xs text-white/40">
+							{cancelReason.length} / {CANCEL_REASON_MAX}
+						</div>
+					</div>
+
+					<label
+						class="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-white/5 p-3"
+					>
+						<input
+							type="checkbox"
+							bind:checked={cancelSendEmail}
+							class="mt-0.5 h-4 w-4 cursor-pointer"
+						/>
+						<span class="text-sm text-white/90">
+							<span class="font-medium">Send rejection email to applicant</span>
+							<span class="block text-xs text-white/55">
+								Off by default — useful for spam applications.
+							</span>
+						</span>
+					</label>
+
+					{#if cancelSendEmail}
+						<label
+							class="ml-7 flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-white/5 p-3"
+							transition:slide
+						>
+							<input
+								type="checkbox"
+								bind:checked={cancelIncludeReason}
+								class="mt-0.5 h-4 w-4 cursor-pointer"
+							/>
+							<span class="text-sm text-white/90">
+								<span class="font-medium">Include the reason in the email</span>
+								<span class="block text-xs text-white/55">
+									The text above will be added to the applicant's email.
+								</span>
+							</span>
+						</label>
+					{/if}
+
+					{#if cancelError}
+						<div
+							class="rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-2 text-sm text-red-300"
+						>
+							{cancelError}
+						</div>
+					{/if}
+				</div>
+
+				<div class="flex justify-end gap-2 border-t border-white/10 px-5 py-3">
+					<button
+						type="button"
+						class="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+						onclick={closeCancelModal}
+						disabled={cancelSubmitting}
+					>
+						Back
+					</button>
+					<button
+						type="button"
+						class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+						onclick={submitCancellation}
+						disabled={cancelSubmitting || cancelReason.trim().length < CANCEL_REASON_MIN}
+					>
+						{#if cancelSubmitting}
+							<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+							Cancelling…
+						{:else}
+							<Icon icon="tabler:ban" class="h-4 w-4" />
+							Cancel Application
+						{/if}
+					</button>
+				</div>
+			</div>
 		</div>
 	{/if}
 </div>

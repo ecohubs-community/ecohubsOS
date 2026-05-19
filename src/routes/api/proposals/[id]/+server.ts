@@ -1,7 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { proposals, proposalVotes, user as userTable } from '$lib/server/db/schema';
+import {
+	applications,
+	proposals,
+	proposalVotes,
+	user as userTable
+} from '$lib/server/db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { materialiseProposal } from '$lib/server/voting/materialise';
 
@@ -61,6 +66,23 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const userHasVoted = voters.some((v) => v.userId === locals.user!.id);
 
+	// Surface the admin's cancellation reason on withdrawn application proposals.
+	let withdrawalReason: string | null = null;
+	let withdrawnAt: string | null = null;
+	if (proposal.status === 'withdrawn' && proposal.linkedApplicationId) {
+		const [app] = await db
+			.select({
+				cancellationReason: applications.cancellationReason,
+				cancelledAt: applications.cancelledAt
+			})
+			.from(applications)
+			.where(eq(applications.id, proposal.linkedApplicationId));
+		if (app) {
+			withdrawalReason = app.cancellationReason;
+			withdrawnAt = app.cancelledAt;
+		}
+	}
+
 	return json({
 		proposal: {
 			id: proposal.id,
@@ -83,7 +105,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			votesByChoice: tallies,
 			votesTotal,
 			userHasVoted,
-			voters
+			voters,
+			withdrawalReason,
+			withdrawnAt
 		}
 	});
 };

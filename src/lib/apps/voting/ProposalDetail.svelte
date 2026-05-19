@@ -78,11 +78,27 @@
 				<span>· Voting closes {fmtAbsolute(proposal.voteClosesAt)} (in {fmtCountdown(proposal.voteClosesAt)})</span>
 			{:else if proposal.status === 'ratifying' && proposal.ratificationEndsAt}
 				<span>· Ratifies on {fmtAbsolute(proposal.ratificationEndsAt)}</span>
+			{:else if proposal.status === 'withdrawn' && proposal.withdrawnAt}
+				<span>· Withdrawn {fmtAbsolute(proposal.withdrawnAt)}</span>
 			{:else}
 				<span>· Closed {fmtAbsolute(proposal.voteClosesAt)}</span>
 			{/if}
 		</div>
 	</div>
+
+	{#if proposal.status === 'withdrawn'}
+		<div class="withdrawn-callout">
+			<div class="withdrawn-head">
+				<Icon icon="tabler:ban" class="h-4 w-4" />
+				<span>Proposal withdrawn by an admin</span>
+			</div>
+			{#if proposal.withdrawalReason}
+				<p class="withdrawn-reason">{proposal.withdrawalReason}</p>
+			{:else}
+				<p class="withdrawn-reason muted">No reason provided.</p>
+			{/if}
+		</div>
+	{/if}
 
 	<section class="body-section">
 		<MarkdownView source={proposal.body} />
@@ -94,6 +110,8 @@
 				Voting hasn't opened yet
 			{:else if proposal.status === 'active'}
 				Cast your vote
+			{:else if proposal.status === 'withdrawn'}
+				Withdrawn — voting was cancelled
 			{:else}
 				Outcome
 			{/if}
@@ -253,6 +271,36 @@
 	}
 	.result-review {
 		color: #fcd34d;
+	}
+	.withdrawn-callout {
+		background: rgba(113, 113, 122, 0.12);
+		border: 1px solid rgba(113, 113, 122, 0.35);
+		border-radius: 10px;
+		padding: 0.9rem 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.withdrawn-head {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #d4d4d8;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.withdrawn-reason {
+		margin: 0;
+		font-size: 0.95rem;
+		line-height: 1.55;
+		color: rgba(255, 255, 255, 0.85);
+		white-space: pre-wrap;
+	}
+	.withdrawn-reason.muted {
+		color: rgba(255, 255, 255, 0.5);
+		font-style: italic;
 	}
 	.tally {
 		display: flex;

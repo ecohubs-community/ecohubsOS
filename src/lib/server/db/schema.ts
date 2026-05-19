@@ -194,7 +194,7 @@ export const applications = sqliteTable('applications', {
 	// All form data stored as JSON (supports all 41+ fields)
 	formData: text('form_data').notNull(),
 	// Administrative fields
-	status: text('status').notNull().default('pending'), // pending, proposal_created, approved, rejected
+	status: text('status').notNull().default('pending'), // pending, proposal_created, approved, rejected, cancelled
 	submittedAt: text('submitted_at')
 		.notNull()
 		.$defaultFn(() => new Date().toISOString()),
@@ -202,5 +202,10 @@ export const applications = sqliteTable('applications', {
 	snapshotProposalLink: text('snapshot_proposal_link'),
 	aiRecommendation: text('ai_recommendation'),
 	confirmationEmailSentAt: text('confirmation_email_sent_at'),
-	rejectionEmailSentAt: text('rejection_email_sent_at')
+	rejectionEmailSentAt: text('rejection_email_sent_at'),
+	// Admin cancellation (soft-delete) — visible in MembershipManager and surfaced on the
+	// linked proposal's withdrawal callout for member transparency.
+	cancelledAt: text('cancelled_at'),
+	cancellationReason: text('cancellation_reason'),
+	cancelledBy: text('cancelled_by')
 });

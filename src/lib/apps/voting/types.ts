@@ -28,6 +28,10 @@ export interface ProposalListRow {
 	votesByChoice: Record<string, number>;
 	votesTotal: number;
 	userHasVoted: boolean;
+	// Populated only when status === 'withdrawn' and the proposal is linked
+	// to an application that was cancelled by an admin.
+	withdrawalReason?: string | null;
+	withdrawnAt?: string | null;
 }
 
 export interface VoterRow {
