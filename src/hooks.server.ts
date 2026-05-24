@@ -91,6 +91,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				safeRole: (dbUser.safeRole as 'owner' | 'proposer' | null) ?? null,
 				safeRoleStatus: dbUser.safeRoleStatus ?? null,
 				puckstackUserId: dbUser.puckstackUserId ?? null,
+				puckstackInviteToken: dbUser.puckstackInviteToken ?? null,
 				displayName: dbUser.displayName ?? null,
 				avatar: dbUser.avatar ?? null,
 				bio: dbUser.bio ?? null,
@@ -99,6 +100,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				contribution: dbUser.contribution ?? null,
 				showOnWebsite: dbUser.showOnWebsite ?? true,
 				onboardingProgress: dbUser.onboardingProgress ?? null,
+				contributionProgress: dbUser.contributionProgress ?? null,
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null
 			};

@@ -9,6 +9,7 @@
 	import Settings from '$lib/components/Settings.svelte';
 	import AllApps from '$lib/components/AllApps.svelte';
 	import UserCard from '$lib/components/UserCard.svelte';
+	import ContributionCard from '$lib/components/ContributionCard.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 	import Icon from '@iconify/svelte';
 	import { mobile } from '$lib/mobile.svelte';
@@ -90,7 +91,8 @@
 				class="relative grid grid-cols-1 content-start gap-4 p-4 md:grid-cols-12 md:gap-6 md:p-6"
 			>
 				<UserCard showWallet={true} delay={200} />
-				<div class="col-span-6 hidden md:block"></div>
+				<ContributionCard delay={350} />
+				<div class="col-span-12 hidden md:block"></div>
 			</div>
 		</div>
 

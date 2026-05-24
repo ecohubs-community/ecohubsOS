@@ -24,6 +24,7 @@ interface AuthUser {
 	safeRoleStatus: string | null;
 	// Offcoin / Puckstack connection
 	puckstackUserId: string | null;
+	puckstackInviteToken: string | null;
 	// Profile fields (user-editable)
 	displayName: string | null;
 	avatar: string | null;
@@ -34,6 +35,8 @@ interface AuthUser {
 	showOnWebsite: boolean;
 	// Onboarding progress (JSON string: Record<string, string>)
 	onboardingProgress: string | null;
+	// "Immediate Contributions" card completion (JSON string: Record<string, string>)
+	contributionProgress: string | null;
 	// Onboarding lifecycle timestamps
 	onboardingStartedAt: Date | null;
 	onboardingCompletedAt: Date | null;

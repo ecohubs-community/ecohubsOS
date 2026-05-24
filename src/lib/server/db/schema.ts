@@ -53,6 +53,10 @@ export const user = sqliteTable('user', {
 	// Onboarding progress (JSON: Record<string, string> mapping substepId -> ISO timestamp)
 	onboardingProgress: text('onboarding_progress'),
 
+	// "Immediate Contributions" card completion (JSON: Record<string, string>
+	// mapping contribution item id -> ISO timestamp). Separate from onboarding.
+	contributionProgress: text('contribution_progress'),
+
 	// Onboarding lifecycle timestamps
 	onboardingStartedAt: integer('onboarding_started_at', { mode: 'timestamp' }),
 	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' })
