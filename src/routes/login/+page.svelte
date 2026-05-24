@@ -57,7 +57,7 @@
 			>
 				ecohubsOS
 			</h1>
-			<p class="text-solar-100/60 text-sm">Regenerative Community Operating System</p>
+			<p class="text-solar-100/60 text-sm">Operating System for Regenerative Action</p>
 		</div>
 
 		<!-- Error message -->
