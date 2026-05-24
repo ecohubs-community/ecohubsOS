@@ -88,7 +88,7 @@
 		<!-- Scrollable content area -->
 		<div class="flex-1 overflow-y-auto md:overflow-visible">
 			<div
-				class="relative grid grid-cols-1 content-start gap-4 p-4 md:grid-cols-12 md:gap-6 md:p-6"
+				class="relative grid grid-cols-1 content-start items-start gap-4 p-4 md:grid-cols-12 md:gap-6 md:p-6"
 			>
 				<UserCard showWallet={true} delay={200} />
 				<ContributionCard delay={350} />
