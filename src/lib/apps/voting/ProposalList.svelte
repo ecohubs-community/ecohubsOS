@@ -160,9 +160,16 @@
 								{:else if p.status === 'ratifying' && p.ratificationEndsAt}
 									ratifies {formatRelative(p.ratificationEndsAt)}
 								{:else}
-									{p.votesTotal} {p.votesTotal === 1 ? 'vote' : 'votes'}
+									closed {formatRelative(p.voteClosesAt)}
 								{/if}
 							</span>
+							{#if p.status !== 'deliberating'}
+								<span class="row-votes">
+									<Icon icon="tabler:users" class="h-3 w-3" />
+									{p.votesTotal}
+									{p.votesTotal === 1 ? 'vote' : 'votes'}
+								</span>
+							{/if}
 						</div>
 					</button>
 				</li>
@@ -321,6 +328,14 @@
 	.row-time {
 		font-size: 0.75rem;
 		color: rgba(255, 255, 255, 0.45);
+	}
+	.row-votes {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.7);
 	}
 	.type-pill,
 	.tag-pill,

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { portal } from '$lib/actions/portal';
 
 	interface Props {
 		choice: string;
@@ -49,6 +50,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div
 		class="modal-backdrop"
+		use:portal
 		onclick={handleBackdrop}
 		onkeydown={handleKey}
 		role="dialog"
