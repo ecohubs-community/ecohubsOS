@@ -77,6 +77,7 @@ class OSState {
 	activeWindow = $state<string | null>(null); // App ID
 	dockOpen = $state(true);
 	showAllApps = $state(false); // All Apps modal visibility
+	feedbackOpen = $state(false); // Member feedback widget window visibility
 
 	// One-shot deep-link payload an app picks up when it opens.
 	// Cleared by the consuming app immediately after reading.
@@ -153,6 +154,14 @@ class OSState {
 	 */
 	setCloseGuard(fn: (() => boolean) | null) {
 		this.closeGuard = fn;
+	}
+
+	openFeedback() {
+		this.feedbackOpen = true;
+	}
+
+	closeFeedback() {
+		this.feedbackOpen = false;
 	}
 
 	openAllApps() {

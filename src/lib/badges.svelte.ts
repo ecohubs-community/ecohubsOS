@@ -4,13 +4,17 @@ interface BadgeCounts {
 	'membership-manager': number;
 	'blog-manager': number;
 	voting: number;
+	'feedback-admin': number;
+	'admin-logs': number;
 }
 
 function createBadgesStore() {
 	let counts = $state<BadgeCounts>({
 		'membership-manager': 0,
 		'blog-manager': 0,
-		voting: 0
+		voting: 0,
+		'feedback-admin': 0,
+		'admin-logs': 0
 	});
 
 	let isLoading = $state(false);
@@ -68,6 +72,36 @@ function createBadgesStore() {
 			console.error('Failed to fetch active proposals:', err);
 		}
 
+		try {
+			// Unacknowledged member feedback (admin-only; non-admins get 403 → 0)
+			const feedbackResponse = await fetch('/api/admin/feedback');
+			if (feedbackResponse.ok) {
+				const data = await feedbackResponse.json();
+				counts['feedback-admin'] = Array.isArray(data.feedback)
+					? data.feedback.filter((f: { acknowledgedAt: string | null }) => !f.acknowledgedAt).length
+					: 0;
+			} else {
+				counts['feedback-admin'] = 0;
+			}
+		} catch (err) {
+			console.error('Failed to fetch feedback:', err);
+		}
+
+		try {
+			// Error/fatal log entries (level >= 50; admin-only → non-admins get 403 → 0)
+			const logsResponse = await fetch('/api/admin/logs');
+			if (logsResponse.ok) {
+				const data = await logsResponse.json();
+				counts['admin-logs'] = Array.isArray(data.logs)
+					? data.logs.filter((log: { level: number }) => log.level >= 50).length
+					: 0;
+			} else {
+				counts['admin-logs'] = 0;
+			}
+		} catch (err) {
+			console.error('Failed to fetch logs:', err);
+		}
+
 		isLoading = false;
 	}
 
@@ -75,6 +109,8 @@ function createBadgesStore() {
 		if (appId === 'membership-manager') return counts['membership-manager'];
 		if (appId === 'blog-manager') return counts['blog-manager'];
 		if (appId === 'voting') return counts.voting;
+		if (appId === 'feedback-admin') return counts['feedback-admin'];
+		if (appId === 'admin-logs') return counts['admin-logs'];
 		return 0;
 	}
 

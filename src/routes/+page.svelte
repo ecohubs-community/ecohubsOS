@@ -10,6 +10,7 @@
 	import AllApps from '$lib/components/AllApps.svelte';
 	import UserCard from '$lib/components/UserCard.svelte';
 	import ContributionCard from '$lib/components/ContributionCard.svelte';
+	import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 	import Icon from '@iconify/svelte';
 	import { mobile } from '$lib/mobile.svelte';
@@ -176,21 +177,31 @@
 					class="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur-md"
 					transition:fly={{ y: 20, duration: 200 }}
 					onclick={() => {
-						os.openApp('settings');
-						fabOpen = false;
-					}}
-				>
-					Settings <Icon icon="tabler:settings" />
-				</button>
-				<button
-					class="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur-md"
-					transition:fly={{ y: 20, duration: 200, delay: 50 }}
-					onclick={() => {
 						os.openAllApps();
 						fabOpen = false;
 					}}
 				>
 					All Apps <Icon icon="tabler:layout-grid" />
+				</button>
+				<button
+					class="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur-md"
+					transition:fly={{ y: 20, duration: 200, delay: 25 }}
+					onclick={() => {
+						os.openFeedback();
+						fabOpen = false;
+					}}
+				>
+					Feedback <Icon icon="tabler:message-2" />
+				</button>
+				<button
+					class="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur-md"
+					transition:fly={{ y: 20, duration: 200, delay: 50 }}
+					onclick={() => {
+						os.openApp('settings');
+						fabOpen = false;
+					}}
+				>
+					Settings <Icon icon="tabler:settings" />
 				</button>
 			{/if}
 			<button
@@ -210,6 +221,10 @@
 
 		{#if os.showAllApps}
 			<AllApps />
+		{/if}
+
+		{#if data.user}
+			<FeedbackWidget />
 		{/if}
 	</div>
 </main>

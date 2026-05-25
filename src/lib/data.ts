@@ -13,6 +13,7 @@ import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Voting from './apps/voting/Voting.svelte';
 import Members from './apps/members/Members.svelte';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
+import FeedbackAdmin from './apps/feedback-admin/FeedbackAdmin.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
 import MyProfileFavicon from './apps/my-profile/favicon.svg';
 import VotingFavicon from './assets/icons/voting.svg';
@@ -22,6 +23,7 @@ import PuckstackFavicon from './assets/icons/puckstack.svg';
 import NewsletterFavicon from './assets/icons/newsletter.svg';
 import MembersFavicon from './assets/icons/members.svg';
 import AdminLogsFavicon from './assets/icons/admin-logs.svg';
+import FeedbackFavicon from './assets/icons/feedback.svg';
 
 export interface AppDefinition {
 	id: string;
@@ -241,6 +243,16 @@ export const APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: AdminLogs,
 		description: 'View system logs and server activity.',
+		groups: ['EcoHubs Admin']
+	},
+	{
+		id: 'feedback-admin',
+		name: 'Feedback',
+		category: 'ops',
+		icon: FeedbackFavicon,
+		isInternalApp: true,
+		component: FeedbackAdmin,
+		description: 'Review member feedback and technical reports.',
 		groups: ['EcoHubs Admin']
 	}
 ];

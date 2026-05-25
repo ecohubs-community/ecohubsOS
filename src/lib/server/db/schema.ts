@@ -213,3 +213,21 @@ export const applications = sqliteTable('applications', {
 	cancellationReason: text('cancellation_reason'),
 	cancelledBy: text('cancelled_by')
 });
+
+// Member feedback / technical reports. Members submit and see only their own;
+// admins review all and mark items acknowledged.
+export const feedback = sqliteTable('feedback', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	title: text('title').notNull(),
+	message: text('message').notNull(),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date()),
+	acknowledgedAt: integer('acknowledged_at', { mode: 'timestamp' }),
+	acknowledgedBy: text('acknowledged_by').references(() => user.id, { onDelete: 'set null' })
+});
