@@ -164,6 +164,40 @@ export function createDefaultSteps(): Step[] {
 	];
 }
 
+/**
+ * Substep ids the *current* default flow actually has the user complete.
+ * Derived from createDefaultSteps() so it stays in sync as the flow evolves.
+ * Single source of truth for "is onboarding done" checks — used by the
+ * completion gate (/api/onboarding/complete) and the admin members status.
+ */
+export function requiredSubstepIds(): string[] {
+	const ids: string[] = [];
+	for (const step of createDefaultSteps()) {
+		for (const sub of step.subSteps ?? []) {
+			ids.push(sub.id);
+		}
+	}
+	return ids;
+}
+
+/**
+ * Substeps that are part of the flow but do NOT block "onboarding complete"
+ * for admin-status / backfill purposes. The "Introduce yourself" step is a
+ * soft, self-attested action many members skip after connecting Discord, so
+ * it shouldn't keep an otherwise-finished member stuck on "In Progress".
+ * (The in-app wizard completion gate still uses the full requiredSubstepIds.)
+ */
+export const COMPLETION_OPTIONAL_SUBSTEP_IDS = ['discord-introduce'] as const;
+
+/**
+ * Substep ids that actually gate completion for admin status + backfill:
+ * requiredSubstepIds() minus the soft, non-blocking ones above.
+ */
+export function completionRequiredSubstepIds(): string[] {
+	const skip = new Set<string>(COMPLETION_OPTIONAL_SUBSTEP_IDS);
+	return requiredSubstepIds().filter((id) => !skip.has(id));
+}
+
 // Substep ids that the onboarding step manager used to ship and that
 // existing users may still have stored in their progress record. Used
 // during migration so removing them doesn't visibly regress completion %.

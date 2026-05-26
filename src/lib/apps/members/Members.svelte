@@ -238,11 +238,11 @@
 									>
 										{member.onboardingStatus}
 									</span>
-									{#if member.onboardingProgress}
+									{#if !member.pendingLogin}
 										<button
 											class="text-solar-400 transition-colors hover:text-white"
 											onclick={() => openOnboardingDetails(member)}
-											title="View Details"
+											title="View onboarding details"
 										>
 											<Icon icon="tabler:info-circle" class="h-4 w-4" />
 										</button>

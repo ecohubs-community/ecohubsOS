@@ -4,25 +4,8 @@ import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { getOnboardingProgress } from '$lib/server/onboarding';
-import { createDefaultSteps } from '$lib/onboarding/stepManager';
+import { requiredSubstepIds } from '$lib/onboarding/stepManager';
 import { onboardingLogger } from '$lib/server/logger';
-
-/**
- * Substep ids the *current* default flow actually has the user complete.
- * Derived from createDefaultSteps() so this stays in sync with the flow
- * — `VALID_SUBSTEP_IDS` from server/onboarding.ts is a wider whitelist
- * that also accepts retired substep ids for backwards-compat validation
- * of stored progress JSON, which is the wrong list for completion gate.
- */
-function requiredSubstepIds(): string[] {
-	const ids: string[] = [];
-	for (const step of createDefaultSteps()) {
-		for (const sub of step.subSteps ?? []) {
-			ids.push(sub.id);
-		}
-	}
-	return ids;
-}
 
 /**
  * POST /api/onboarding/complete

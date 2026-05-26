@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user, applications } from '$lib/server/db/schema';
 import { desc, isNotNull } from 'drizzle-orm';
+import { completionRequiredSubstepIds } from '$lib/onboarding/stepManager';
 
 export const GET: RequestHandler = async ({ locals }) => {
     // Authentication check
@@ -34,20 +35,27 @@ export const GET: RequestHandler = async ({ locals }) => {
                 if (typeof u.groups === 'string') groups = [u.groups];
             }
 
-            // Determine onboarding status from lifecycle timestamps
+            // Determine onboarding status by merging the member's completed
+            // substeps with the CURRENT required flow. Deriving from progress
+            // (rather than the onboardingCompletedAt timestamp alone) means a
+            // member who finished an older, longer flow — whose steps have
+            // since been removed — is correctly shown as Complete instead of
+            // being stuck on "In Progress".
+            let progress: Record<string, string> = {};
+            try {
+                progress = u.onboardingProgress ? JSON.parse(u.onboardingProgress) : {};
+            } catch {
+                progress = {};
+            }
+            const requiredIds = completionRequiredSubstepIds();
+            const pendingSteps = requiredIds.filter((id) => !progress[id]);
+            const hasAnyProgress = Object.keys(progress).length > 0;
+
             let onboardingStatus: 'Not Started' | 'In Progress' | 'Complete' = 'Not Started';
-            if (u.onboardingCompletedAt) {
+            if (u.onboardingCompletedAt || (requiredIds.length > 0 && pendingSteps.length === 0)) {
                 onboardingStatus = 'Complete';
-            } else if (u.onboardingStartedAt) {
+            } else if (hasAnyProgress || u.onboardingStartedAt) {
                 onboardingStatus = 'In Progress';
-            } else if (u.onboardingProgress) {
-                // Fallback: check progress JSON for users who started before timestamps were added
-                try {
-                    const progress = JSON.parse(u.onboardingProgress);
-                    if (Object.keys(progress).length > 0) onboardingStatus = 'In Progress';
-                } catch {
-                    // ignore
-                }
             }
 
             return {
@@ -57,6 +65,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                 groups: groups,
                 lastLogin: u.updatedAt?.toISOString() || null, // Best proxy for now
                 onboardingStatus,
+                onboardingPending: pendingSteps,
                 onboardingProgress: u.onboardingProgress,
                 onboardingStartedAt: u.onboardingStartedAt?.toISOString() || null,
                 onboardingCompletedAt: u.onboardingCompletedAt?.toISOString() || null,
@@ -84,6 +93,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                 groups: [],
                 lastLogin: null,
                 onboardingStatus: 'Pending Login' as const,
+                onboardingPending: [] as string[],
                 onboardingProgress: '',
                 onboardingStartedAt: null,
                 onboardingCompletedAt: null,
