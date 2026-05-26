@@ -9,6 +9,7 @@ import {
 } from '$env/static/private';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { emailLogger } from '$lib/server/logger';
 
 let transporter: Transporter | null = null;
 
@@ -66,20 +67,43 @@ export interface SendEmailOptions {
 	replyTo?: string;
 }
 
-export async function sendEmail(options: SendEmailOptions): Promise<void> {
+export interface SendEmailResult {
+	messageId: string;
+	accepted: string[];
+	rejected: string[];
+}
+
+export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
 	const transporter = getEmailTransporter();
 
 	const emailFrom = EMAIL_FROM || 'noreply@ecohubs.community';
 	const emailFromName = EMAIL_FROM_NAME || 'EcoHubs Community';
 
-	await transporter.sendMail({
+	const info = (await transporter.sendMail({
 		from: `"${emailFromName}" <${emailFrom}>`,
 		to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
 		subject: options.subject,
 		text: options.text,
 		html: options.html,
 		replyTo: options.replyTo
-	});
+	})) as {
+		messageId: string;
+		accepted?: Array<string | { address: string }>;
+		rejected?: Array<string | { address: string }>;
+	};
+
+	const toAddr = (r: string | { address: string }): string =>
+		typeof r === 'string' ? r : r.address;
+	const rejected = (info.rejected ?? []).map(toAddr);
+	if (rejected.length > 0) {
+		throw new Error(`SMTP rejected recipient(s): ${rejected.join(', ')}`);
+	}
+
+	return {
+		messageId: info.messageId,
+		accepted: (info.accepted ?? []).map(toAddr),
+		rejected
+	};
 }
 
 export async function verifyEmailConnection(): Promise<boolean> {
@@ -87,8 +111,8 @@ export async function verifyEmailConnection(): Promise<boolean> {
 		const transporter = getEmailTransporter();
 		await transporter.verify();
 		return true;
-	} catch (error) {
-		console.error('Email connection verification failed:', error);
+	} catch (err) {
+		emailLogger.error({ err }, 'Email connection verification failed');
 		return false;
 	}
 }

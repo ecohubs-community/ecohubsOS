@@ -135,7 +135,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			const appUrl = env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community';
 			const reasonForEmail = includeReasonInEmail ? reason : null;
 			try {
-				await sendEmail({
+				const emailResult = await sendEmail({
 					to: application.email,
 					subject: 'EcoHubs Community — Update on Your Membership Application',
 					html: buildCancellationEmail(
@@ -155,7 +155,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 					.update(applications)
 					.set({ rejectionEmailSentAt: emailSentAt })
 					.where(eq(applications.id, id));
-				apiLogger.info({ applicationId: id }, '[Step 3/3] Rejection email sent');
+				apiLogger.info(
+					{ applicationId: id, messageId: emailResult.messageId },
+					'[Step 3/3] Rejection email sent'
+				);
 			} catch (emailErr) {
 				emailLogger.error(
 					{ err: emailErr, applicationId: id, to: application.email },

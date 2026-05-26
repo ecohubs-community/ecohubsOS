@@ -211,7 +211,7 @@
 		return app.status;
 	}
 
-	async function sendConfirmationEmail(app: Application) {
+	async function sendConfirmationEmail(app: Application, resend = false) {
 		if (!auth.isSafeOwner) {
 			statusMessage = { type: 'error', text: 'Only Safe owners can send confirmation emails' };
 			return;
@@ -221,9 +221,10 @@
 		statusMessage = null;
 
 		try {
-			const response = await fetch(`/api/applications/${app.id}/confirm`, {
-				method: 'POST'
-			});
+			const response = await fetch(
+				`/api/applications/${app.id}/confirm${resend ? '?resend=true' : ''}`,
+				{ method: 'POST' }
+			);
 
 			if (!response.ok) {
 				const data = await response.json().catch(() => ({ message: 'Unknown error' }));
@@ -251,7 +252,7 @@
 
 			statusMessage = {
 				type: 'success',
-				text: `Confirmation email sent to ${app.email}`
+				text: `Confirmation email ${resend ? 'resent' : 'sent'} to ${app.email}`
 			};
 
 			// Refresh badge counts
@@ -561,6 +562,22 @@
 				<Icon icon="tabler:mail-check" class="h-4 w-4" />
 				Email Sent {formatDate(app.confirmationEmailSentAt)}
 			</span>
+			{#if auth.isSafeOwner}
+				<button
+					type="button"
+					class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+					onclick={() => sendConfirmationEmail(app, true)}
+					disabled={sendingEmailFor !== null}
+				>
+					{#if sendingEmailFor === app.id}
+						<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
+						Resending...
+					{:else}
+						<Icon icon="tabler:mail-forward" class="h-4 w-4" />
+						Resend
+					{/if}
+				</button>
+			{/if}
 		{/if}
 		{#if app.votingResult === 'rejected' && !app.rejectionEmailSentAt}
 			<button

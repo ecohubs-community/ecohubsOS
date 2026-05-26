@@ -73,8 +73,9 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	const emailHtml = buildRejectionEmail(application.fullName, discordInviteUrl, appUrl);
 	const emailText = buildRejectionEmailText(application.fullName, discordInviteUrl);
 
+	let emailResult;
 	try {
-		await sendEmail({
+		emailResult = await sendEmail({
 			to: application.email,
 			subject: 'EcoHubs Community — Update on Your Membership Application',
 			html: emailHtml,
@@ -88,7 +89,10 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(500, `Failed to send rejection email: ${emailErr instanceof Error ? emailErr.message : 'Unknown error'}`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 2/3] Rejection email sent');
+	apiLogger.info(
+		{ applicationId: id, messageId: emailResult.messageId },
+		'[Step 2/3] Rejection email sent'
+	);
 
 	// Discord notification (fire-and-forget)
 	sendDiscordMessage({

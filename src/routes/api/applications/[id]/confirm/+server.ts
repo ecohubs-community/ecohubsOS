@@ -13,7 +13,7 @@ import { confirmationSentMessage } from '$lib/server/discord-templates';
 import { subscribeToNewsletter } from '$lib/server/listmonk';
 
 // POST - Send confirmation email with Authentik enrollment invitation
-export const POST: RequestHandler = async ({ params, locals }) => {
+export const POST: RequestHandler = async ({ params, locals, url }) => {
 	if (!locals.user) {
 		error(401, 'Not authenticated');
 	}
@@ -23,6 +23,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	}
 
 	const { id } = params;
+	const isResend = url.searchParams.get('resend') === 'true';
 
 	// Load the application
 	let application;
@@ -38,12 +39,12 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(404, 'Application not found');
 	}
 
-	if (application.confirmationEmailSentAt) {
+	if (application.confirmationEmailSentAt && !isResend) {
 		error(400, 'Confirmation email has already been sent');
 	}
 
 	apiLogger.info(
-		{ applicationId: id, email: application.email, fullName: application.fullName },
+		{ applicationId: id, email: application.email, fullName: application.fullName, resend: isResend },
 		'Starting confirmation email flow'
 	);
 
@@ -96,8 +97,9 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	const emailHtml = buildWelcomeEmail(application.fullName, enrollmentUrl, appUrl);
 	const emailText = buildWelcomeEmailText(application.fullName, enrollmentUrl, appUrl);
 
+	let emailResult;
 	try {
-		await sendEmail({
+		emailResult = await sendEmail({
 			to: application.email,
 			subject: 'Welcome to EcoHubs Community — Your Membership is Approved!',
 			html: emailHtml,
@@ -111,21 +113,27 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(500, `Failed to send welcome email: ${emailErr instanceof Error ? emailErr.message : 'Unknown error'}`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 3/4] Welcome email sent');
+	apiLogger.info(
+		{ applicationId: id, messageId: emailResult.messageId },
+		'[Step 3/4] Welcome email sent'
+	);
 
-	// Newsletter subscription (fire-and-forget)
-	subscribeToNewsletter(application.fullName, application.email);
+	// One-time onboarding side-effects — skipped on resend to avoid duplicates.
+	if (!isResend) {
+		// Newsletter subscription (fire-and-forget)
+		subscribeToNewsletter(application.fullName, application.email);
 
-	// Discord notification (fire-and-forget)
-	let location = 'unknown location';
-	try {
-		const formData = JSON.parse(application.formData);
-		if (formData.location) location = formData.location;
-	} catch { /* formData parse failure is non-critical */ }
+		// Discord notification (fire-and-forget)
+		let location = 'unknown location';
+		try {
+			const formData = JSON.parse(application.formData);
+			if (formData.location) location = formData.location;
+		} catch { /* formData parse failure is non-critical */ }
 
-	sendDiscordMessage({
-		content: confirmationSentMessage({ fullName: application.fullName, location })
-	});
+		sendDiscordMessage({
+			content: confirmationSentMessage({ fullName: application.fullName, location })
+		});
+	}
 
 	// Step 4: Update application with confirmation timestamp
 	try {
