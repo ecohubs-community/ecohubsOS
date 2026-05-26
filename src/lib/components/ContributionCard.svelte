@@ -10,10 +10,43 @@
 	let { delay = 350 }: { delay?: number } = $props();
 
 	let socialExpanded = $state(false);
+	let refreshing = $state(false);
 
 	function openExternal(url: string) {
 		window.open(url, '_blank', 'noopener,noreferrer');
 	}
+
+	async function refresh() {
+		if (refreshing) return;
+		refreshing = true;
+		try {
+			await contributions.refresh();
+		} finally {
+			refreshing = false;
+		}
+	}
+
+	// Static, checkable items. Sorted so completed ("checked") items sink to
+	// the bottom, keeping the actionable ones on top.
+	type StaticItem =
+		| { kind: 'social'; id: string }
+		| { kind: 'link'; id: string; icon: string; title: string; url: string };
+
+	const staticItems = $derived.by<StaticItem[]>(() => {
+		const items: StaticItem[] = [
+			{ kind: 'social', id: 'social-follow' },
+			{
+				kind: 'link',
+				id: 'introduce-yourself',
+				icon: 'tabler:message-2',
+				title: 'Introduce yourself in Discord',
+				url: DISCORD_URL
+			}
+		];
+		return [...items].sort(
+			(a, b) => Number(contributions.isDone(a.id)) - Number(contributions.isDone(b.id))
+		);
+	});
 
 	// Profile is "incomplete" when none of the descriptive fields are filled.
 	const profileIncomplete = $derived(
@@ -97,78 +130,82 @@
 	<div class="mb-3 flex items-center gap-2">
 		<Icon icon="tabler:sparkles" class="h-4 w-4 text-emerald-300" />
 		<h3 class="text-sm font-semibold text-white">Immediate Contributions</h3>
+		<button
+			type="button"
+			class="contrib-refresh ml-auto"
+			onclick={refresh}
+			disabled={refreshing}
+			aria-label="Refresh contributions"
+			title="Refresh"
+		>
+			<Icon icon="tabler:refresh" class="h-3.5 w-3.5 {refreshing ? 'animate-spin' : ''}" />
+		</button>
 	</div>
 
+	{#snippet checkButton(id: string, label: string)}
+		<button
+			type="button"
+			class="contrib-check"
+			class:done={contributions.isDone(id)}
+			onclick={() => contributions.markDone(id)}
+			aria-label={`Mark ${label} done`}
+			title="Mark done"
+		>
+			<Icon
+				icon={contributions.isDone(id) ? 'tabler:circle-check-filled' : 'tabler:circle'}
+				class="h-4 w-4"
+			/>
+		</button>
+	{/snippet}
+
 	<div class="flex flex-col gap-1.5">
-		<!-- Follow us on social media (expandable, markable) -->
-		<div class="contrib-item">
-			<button
-				type="button"
-				class="contrib-row"
-				onclick={() => (socialExpanded = !socialExpanded)}
-				aria-expanded={socialExpanded}
-			>
-				<Icon icon="tabler:heart-handshake" class="contrib-icon" />
-				<span class="contrib-title">Follow us on social media</span>
-				<Icon
-					icon="tabler:chevron-right"
-					class="contrib-chevron {socialExpanded ? 'rotate-90' : ''}"
-				/>
-			</button>
-			<button
-				type="button"
-				class="contrib-check"
-				class:done={contributions.isDone('social-follow')}
-				onclick={() => contributions.markDone('social-follow')}
-				aria-label="Mark follow-us done"
-				title="Mark done"
-			>
-				<Icon icon={contributions.isDone('social-follow') ? 'tabler:circle-check-filled' : 'tabler:circle'} class="h-4 w-4" />
-			</button>
-		</div>
+		<!-- Static, checkable items — checked ones sorted to the bottom -->
+		{#each staticItems as item (item.id)}
+			{#if item.kind === 'social'}
+				<!-- Follow us on social media (expandable, markable) -->
+				<div class="contrib-item">
+					<button
+						type="button"
+						class="contrib-row"
+						onclick={() => (socialExpanded = !socialExpanded)}
+						aria-expanded={socialExpanded}
+					>
+						<Icon icon="tabler:heart-handshake" class="contrib-icon" />
+						<span class="contrib-title">Follow us on social media</span>
+						<Icon
+							icon="tabler:chevron-right"
+							class="contrib-chevron {socialExpanded ? 'rotate-90' : ''}"
+						/>
+					</button>
+					{@render checkButton('social-follow', 'follow-us')}
+				</div>
 
-		{#if socialExpanded}
-			<div class="social-sub" transition:slide={{ duration: 150 }}>
-				{#each SOCIAL_LINKS as link (link.id)}
-					<div class="contrib-item sub">
-						<button type="button" class="contrib-row" onclick={() => openExternal(link.url)}>
-							<Icon icon={link.icon} class="contrib-icon" />
-							<span class="contrib-title">{link.label}</span>
-							<Icon icon="tabler:external-link" class="contrib-ext" />
-						</button>
-						<button
-							type="button"
-							class="contrib-check"
-							class:done={contributions.isDone(link.id)}
-							onclick={() => contributions.markDone(link.id)}
-							aria-label={`Mark ${link.label} done`}
-							title="Mark done"
-						>
-							<Icon icon={contributions.isDone(link.id) ? 'tabler:circle-check-filled' : 'tabler:circle'} class="h-4 w-4" />
-						</button>
+				{#if socialExpanded}
+					<div class="social-sub" transition:slide={{ duration: 150 }}>
+						{#each SOCIAL_LINKS as link (link.id)}
+							<div class="contrib-item sub">
+								<button type="button" class="contrib-row" onclick={() => openExternal(link.url)}>
+									<Icon icon={link.icon} class="contrib-icon" />
+									<span class="contrib-title">{link.label}</span>
+									<Icon icon="tabler:external-link" class="contrib-ext" />
+								</button>
+								{@render checkButton(link.id, link.label)}
+							</div>
+						{/each}
 					</div>
-				{/each}
-			</div>
-		{/if}
-
-		<!-- Introduce yourself in Discord (static, markable) -->
-		<div class="contrib-item">
-			<button type="button" class="contrib-row" onclick={() => openExternal(DISCORD_URL)}>
-				<Icon icon="tabler:message-2" class="contrib-icon" />
-				<span class="contrib-title">Introduce yourself in Discord</span>
-				<Icon icon="tabler:external-link" class="contrib-ext" />
-			</button>
-			<button
-				type="button"
-				class="contrib-check"
-				class:done={contributions.isDone('introduce-yourself')}
-				onclick={() => contributions.markDone('introduce-yourself')}
-				aria-label="Mark introduce-yourself done"
-				title="Mark done"
-			>
-				<Icon icon={contributions.isDone('introduce-yourself') ? 'tabler:circle-check-filled' : 'tabler:circle'} class="h-4 w-4" />
-			</button>
-		</div>
+				{/if}
+			{:else}
+				<!-- Simple markable link item -->
+				<div class="contrib-item">
+					<button type="button" class="contrib-row" onclick={() => openExternal(item.url)}>
+						<Icon icon={item.icon} class="contrib-icon" />
+						<span class="contrib-title">{item.title}</span>
+						<Icon icon="tabler:external-link" class="contrib-ext" />
+					</button>
+					{@render checkButton(item.id, item.title)}
+				</div>
+			{/if}
+		{/each}
 
 		<!-- Dynamic, link-only items -->
 		{#each dynamicItems as item (item.id)}
@@ -266,6 +303,23 @@
 	}
 	.contrib-check.done {
 		color: #34d399;
+	}
+	.contrib-refresh {
+		flex-shrink: 0;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: 0.4rem;
+		color: rgba(255, 255, 255, 0.45);
+		transition: color 0.15s ease;
+	}
+	.contrib-refresh:hover {
+		color: rgba(255, 255, 255, 0.85);
+	}
+	.contrib-refresh:disabled {
+		cursor: default;
+		opacity: 0.6;
 	}
 	.social-sub {
 		display: flex;

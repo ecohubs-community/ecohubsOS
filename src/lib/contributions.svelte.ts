@@ -88,6 +88,16 @@ class ContributionsState {
 			// non-critical
 		}
 	}
+
+	/**
+	 * Force a re-fetch of all contribution data. Clears the one-time load
+	 * guards so loadProgress/loadCounts actually hit the network again.
+	 */
+	async refresh(): Promise<void> {
+		this.progressLoaded = false;
+		this.countsRequested = false;
+		await Promise.all([this.loadProgress(), this.loadCounts(), this.loadVotingCount()]);
+	}
 }
 
 export const contributions = new ContributionsState();

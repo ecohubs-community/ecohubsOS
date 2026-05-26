@@ -38,9 +38,12 @@ function createBadgesStore() {
 						votingResult: string | null;
 						confirmationEmailSentAt: string | null;
 					}) =>
-						app.status === 'pending' ||
-						app.votingStatus === 'active' ||
-						(app.votingResult === 'approved' && !app.confirmationEmailSentAt)
+						// Never count cancelled (soft-deleted) applications, regardless of
+						// any residual proposal state.
+						app.status !== 'cancelled' &&
+						(app.status === 'pending' ||
+							app.votingStatus === 'active' ||
+							(app.votingResult === 'approved' && !app.confirmationEmailSentAt))
 				).length;
 			}
 		} catch (err) {
