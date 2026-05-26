@@ -58,6 +58,31 @@ class ContributionsState {
 		});
 	}
 
+	/** Remove a completion mark. Server has no delete op, so we replace the
+	 * whole map via `reset: true`. */
+	markUndone(id: string): void {
+		if (!this.completed[id]) return;
+		const next = { ...this.completed };
+		delete next[id];
+		this.completed = next;
+		fetch('/api/contributions/progress', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ completedItems: next, reset: true })
+		}).catch(() => {
+			/* server is source of truth; retried on next toggle */
+		});
+	}
+
+	/** Toggle a contribution item's completion state. */
+	toggle(id: string): void {
+		if (this.completed[id]) {
+			this.markUndone(id);
+		} else {
+			this.markDone(id);
+		}
+	}
+
 	/** Puckstack-backed counts. Safe to call repeatedly; only fetches once. */
 	async loadCounts(): Promise<void> {
 		if (this.countsRequested) return;

@@ -26,27 +26,32 @@
 		}
 	}
 
-	// Static, checkable items. Sorted so completed ("checked") items sink to
-	// the bottom, keeping the actionable ones on top.
+	// Static, checkable items. Completed ("checked") items sink to the very
+	// bottom of the card (below the dynamic to-dos); unchecked stay on top.
 	type StaticItem =
 		| { kind: 'social'; id: string }
 		| { kind: 'link'; id: string; icon: string; title: string; url: string };
 
-	const staticItems = $derived.by<StaticItem[]>(() => {
-		const items: StaticItem[] = [
-			{ kind: 'social', id: 'social-follow' },
-			{
-				kind: 'link',
-				id: 'introduce-yourself',
-				icon: 'tabler:message-2',
-				title: 'Introduce yourself in Discord',
-				url: DISCORD_URL
-			}
-		];
-		return [...items].sort(
+	const staticItems: StaticItem[] = [
+		{ kind: 'social', id: 'social-follow' },
+		{
+			kind: 'link',
+			id: 'introduce-yourself',
+			icon: 'tabler:message-2',
+			title: 'Introduce yourself in Discord',
+			url: DISCORD_URL
+		}
+	];
+
+	const uncheckedStatic = $derived(staticItems.filter((i) => !contributions.isDone(i.id)));
+	const checkedStatic = $derived(staticItems.filter((i) => contributions.isDone(i.id)));
+
+	// Social sub-links, unchecked first / checked last.
+	const sortedSocialLinks = $derived(
+		[...SOCIAL_LINKS].sort(
 			(a, b) => Number(contributions.isDone(a.id)) - Number(contributions.isDone(b.id))
-		);
-	});
+		)
+	);
 
 	// Profile is "incomplete" when none of the descriptive fields are filled.
 	const profileIncomplete = $derived(
@@ -147,9 +152,10 @@
 			type="button"
 			class="contrib-check"
 			class:done={contributions.isDone(id)}
-			onclick={() => contributions.markDone(id)}
-			aria-label={`Mark ${label} done`}
-			title="Mark done"
+			onclick={() => contributions.toggle(id)}
+			aria-pressed={contributions.isDone(id)}
+			aria-label={`Toggle ${label} done`}
+			title={contributions.isDone(id) ? 'Mark not done' : 'Mark done'}
 		>
 			<Icon
 				icon={contributions.isDone(id) ? 'tabler:circle-check-filled' : 'tabler:circle'}
@@ -158,56 +164,60 @@
 		</button>
 	{/snippet}
 
-	<div class="flex flex-col gap-1.5">
-		<!-- Static, checkable items — checked ones sorted to the bottom -->
-		{#each staticItems as item (item.id)}
-			{#if item.kind === 'social'}
-				<!-- Follow us on social media (expandable, markable) -->
-				<div class="contrib-item">
-					<button
-						type="button"
-						class="contrib-row"
-						onclick={() => (socialExpanded = !socialExpanded)}
-						aria-expanded={socialExpanded}
-					>
-						<Icon icon="tabler:heart-handshake" class="contrib-icon" />
-						<span class="contrib-title">Follow us on social media</span>
-						<Icon
-							icon="tabler:chevron-right"
-							class="contrib-chevron {socialExpanded ? 'rotate-90' : ''}"
-						/>
-					</button>
-					{@render checkButton('social-follow', 'follow-us')}
-				</div>
+	{#snippet staticItem(item: StaticItem)}
+		{#if item.kind === 'social'}
+			<!-- Follow us on social media (expandable, markable) -->
+			<div class="contrib-item">
+				<button
+					type="button"
+					class="contrib-row"
+					onclick={() => (socialExpanded = !socialExpanded)}
+					aria-expanded={socialExpanded}
+				>
+					<Icon icon="tabler:heart-handshake" class="contrib-icon" />
+					<span class="contrib-title">Follow us on social media</span>
+					<Icon
+						icon="tabler:chevron-right"
+						class="contrib-chevron {socialExpanded ? 'rotate-90' : ''}"
+					/>
+				</button>
+				{@render checkButton('social-follow', 'follow-us')}
+			</div>
 
-				{#if socialExpanded}
-					<div class="social-sub" transition:slide={{ duration: 150 }}>
-						{#each SOCIAL_LINKS as link (link.id)}
-							<div class="contrib-item sub">
-								<button type="button" class="contrib-row" onclick={() => openExternal(link.url)}>
-									<Icon icon={link.icon} class="contrib-icon" />
-									<span class="contrib-title">{link.label}</span>
-									<Icon icon="tabler:external-link" class="contrib-ext" />
-								</button>
-								{@render checkButton(link.id, link.label)}
-							</div>
-						{/each}
-					</div>
-				{/if}
-			{:else}
-				<!-- Simple markable link item -->
-				<div class="contrib-item">
-					<button type="button" class="contrib-row" onclick={() => openExternal(item.url)}>
-						<Icon icon={item.icon} class="contrib-icon" />
-						<span class="contrib-title">{item.title}</span>
-						<Icon icon="tabler:external-link" class="contrib-ext" />
-					</button>
-					{@render checkButton(item.id, item.title)}
+			{#if socialExpanded}
+				<div class="social-sub" transition:slide={{ duration: 150 }}>
+					{#each sortedSocialLinks as link (link.id)}
+						<div class="contrib-item sub">
+							<button type="button" class="contrib-row" onclick={() => openExternal(link.url)}>
+								<Icon icon={link.icon} class="contrib-icon" />
+								<span class="contrib-title">{link.label}</span>
+								<Icon icon="tabler:external-link" class="contrib-ext" />
+							</button>
+							{@render checkButton(link.id, link.label)}
+						</div>
+					{/each}
 				</div>
 			{/if}
+		{:else}
+			<!-- Simple markable link item -->
+			<div class="contrib-item">
+				<button type="button" class="contrib-row" onclick={() => openExternal(item.url)}>
+					<Icon icon={item.icon} class="contrib-icon" />
+					<span class="contrib-title">{item.title}</span>
+					<Icon icon="tabler:external-link" class="contrib-ext" />
+				</button>
+				{@render checkButton(item.id, item.title)}
+			</div>
+		{/if}
+	{/snippet}
+
+	<div class="flex flex-col gap-1.5">
+		<!-- Unchecked static items first -->
+		{#each uncheckedStatic as item (item.id)}
+			{@render staticItem(item)}
 		{/each}
 
-		<!-- Dynamic, link-only items -->
+		<!-- Dynamic, link-only to-dos -->
 		{#each dynamicItems as item (item.id)}
 			<div class="contrib-item">
 				<button type="button" class="contrib-row" onclick={item.onOpen}>
@@ -219,6 +229,11 @@
 					<Icon icon="tabler:arrow-right" class="contrib-ext" />
 				</button>
 			</div>
+		{/each}
+
+		<!-- Checked (completed) static items sink to the bottom -->
+		{#each checkedStatic as item (item.id)}
+			{@render staticItem(item)}
 		{/each}
 	</div>
 </div>
