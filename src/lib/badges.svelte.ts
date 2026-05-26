@@ -88,12 +88,17 @@ function createBadgesStore() {
 		}
 
 		try {
-			// Error/fatal log entries (level >= 50; admin-only → non-admins get 403 → 0)
+			// Error/fatal log entries (level >= 50) from the past 7 days.
+			// Admin-only → non-admins get 403 → 0.
 			const logsResponse = await fetch('/api/admin/logs');
 			if (logsResponse.ok) {
 				const data = await logsResponse.json();
+				const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 				counts['admin-logs'] = Array.isArray(data.logs)
-					? data.logs.filter((log: { level: number }) => log.level >= 50).length
+					? data.logs.filter(
+							(log: { level: number; time: number }) =>
+								log.level >= 50 && log.time >= sevenDaysAgo
+						).length
 					: 0;
 			} else {
 				counts['admin-logs'] = 0;
