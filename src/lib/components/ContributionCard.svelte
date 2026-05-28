@@ -5,7 +5,12 @@
 	import { auth } from '$lib/auth.svelte';
 	import { os } from '$lib/os.svelte';
 	import { contributions } from '$lib/contributions.svelte';
-	import { SOCIAL_LINKS, DISCORD_URL, PUCKSTACK_LINKS } from '$lib/contributions/contributionData';
+	import {
+		SOCIAL_LINKS,
+		DISCORD_URL,
+		PUCKSTACK_LINKS,
+		ECOHUBS_CALENDAR_URL
+	} from '$lib/contributions/contributionData';
 
 	let { delay = 350 }: { delay?: number } = $props();
 
@@ -40,6 +45,13 @@
 			icon: 'tabler:message-2',
 			title: 'Introduce yourself in Discord',
 			url: DISCORD_URL
+		},
+		{
+			kind: 'link',
+			id: 'add-calendar',
+			icon: 'tabler:calendar-plus',
+			title: 'Add EcoHubs calendar',
+			url: ECOHUBS_CALENDAR_URL
 		}
 	];
 
@@ -70,8 +82,38 @@
 		onOpen: () => void;
 	}
 
+	// Next occurrence of the recurring Sunday 15:00 UTC community meeting,
+	// formatted in the viewer's local timezone (weekday + time). On SSR this
+	// will momentarily render in the server's tz before hydration corrects it.
+	const nextMeetingLocal = $derived.by(() => {
+		const now = new Date();
+		const daysToSunday = (7 - now.getUTCDay()) % 7;
+		const next = new Date(
+			Date.UTC(
+				now.getUTCFullYear(),
+				now.getUTCMonth(),
+				now.getUTCDate() + daysToSunday,
+				15,
+				0,
+				0
+			)
+		);
+		// If today is Sunday and 15:00 UTC has already passed, jump a week.
+		if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 7);
+		const weekday = next.toLocaleDateString(undefined, { weekday: 'short' });
+		const time = next.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+		return `${weekday} ${time}`;
+	});
+
 	const dynamicItems = $derived.by<DynamicItem[]>(() => {
 		const items: DynamicItem[] = [];
+		// Recurring weekly community meeting — always-on link nudge.
+		items.push({
+			id: 'weekly-meeting',
+			icon: 'tabler:calendar-event',
+			title: `Weekly meeting · ${nextMeetingLocal}`,
+			onOpen: () => openExternal(DISCORD_URL)
+		});
 		if (showPuckstack) {
 			if (contributions.counts.unreadNotifications > 0)
 				items.push({

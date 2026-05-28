@@ -21,7 +21,8 @@ export const VALID_CONTRIBUTION_IDS = [
 	'social-instagram',
 	'social-linkedin',
 	'social-github',
-	'introduce-yourself'
+	'introduce-yourself',
+	'add-calendar'
 ] as const;
 
 /** Parse the user's stored contribution progress JSON (best-effort). */
