@@ -20,6 +20,7 @@
 	let avatarPreview = $state<string | null>(null);
 	let avatarBlob = $state<Blob | null>(null);
 	let showOnWebsite = $state(true);
+	let meetingSchedulingUrl = $state('');
 
 	// Read-only derived from auth store
 	let userName = $derived(auth.user?.name ?? '');
@@ -27,6 +28,7 @@
 	let walletAddress = $derived(auth.user?.walletAddress ?? null);
 	let shortWallet = $derived(auth.shortWalletAddress);
 	let isAdmin = $derived(auth.userGroups.includes('EcoHubs Admin'));
+	let isStewardOrAdmin = $derived(auth.isStewardOrAdmin);
 
 	let fileInput = $state<HTMLInputElement>(undefined!);
 	let successTimeout: ReturnType<typeof setTimeout>;
@@ -43,6 +45,7 @@
 			contribution = data.contribution ?? '';
 			avatarUrl = data.avatar;
 			showOnWebsite = data.showOnWebsite ?? true;
+			meetingSchedulingUrl = data.meetingSchedulingUrl ?? '';
 		} catch (err) {
 			error = 'Failed to load profile data';
 		} finally {
@@ -163,7 +166,9 @@
 					languages,
 					location,
 					contribution,
-					showOnWebsite
+					showOnWebsite,
+					// Only persisted server-side for stewards/admins.
+					...(isStewardOrAdmin ? { meetingSchedulingUrl } : {})
 				})
 			});
 
@@ -181,7 +186,8 @@
 					languages: languages || null,
 					location: location || null,
 					contribution: contribution || null,
-					showOnWebsite
+					showOnWebsite,
+					...(isStewardOrAdmin ? { meetingSchedulingUrl: meetingSchedulingUrl || null } : {})
 				});
 			}
 
@@ -431,6 +437,32 @@
 				</div>
 			</label>
 		</div>
+
+			<!-- Buddy-call scheduling URL (stewards & admins only) -->
+			{#if isStewardOrAdmin}
+				<div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+					<label
+						for="meetingSchedulingUrl"
+						class="mb-2 block text-sm font-medium text-white/70"
+					>
+						<Icon icon="tabler:calendar-clock" class="mr-1 inline h-4 w-4" />
+						Buddy-call scheduling URL
+					</label>
+					<input
+						id="meetingSchedulingUrl"
+						type="url"
+						bind:value={meetingSchedulingUrl}
+						placeholder="https://cal.com/you/buddy-call"
+						maxlength={500}
+						class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+					/>
+					<p class="mt-1.5 text-xs text-white/30">
+						Your personal Cal.com / Calendly link. Used to pre-fill the buddy-call
+						invitation email in the Member Onboarding app. Leave empty to fall back to the
+						community calendar.
+					</p>
+				</div>
+			{/if}
 
 		<!-- Actions -->
 			<div class="flex flex-col gap-3 pb-4 sm:flex-row">

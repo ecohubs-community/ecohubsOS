@@ -11,6 +11,7 @@ import { apiLogger, authentikLogger, emailLogger } from '$lib/server/logger';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { confirmationSentMessage } from '$lib/server/discord-templates';
 import { subscribeToNewsletter } from '$lib/server/listmonk';
+import { ensureOnboardingRow } from '$lib/server/member-onboarding/service';
 
 // POST - Send confirmation email with Authentik enrollment invitation
 export const POST: RequestHandler = async ({ params, locals, url }) => {
@@ -142,6 +143,22 @@ export const POST: RequestHandler = async ({ params, locals, url }) => {
 			.update(applications)
 			.set({ confirmationEmailSentAt: sentAt })
 			.where(eq(applications.id, id));
+
+		// Open the member's onboarding journey (idempotent — safe on resend).
+		try {
+			await ensureOnboardingRow({
+				id: application.id,
+				fullName: application.fullName,
+				email: application.email,
+				confirmationEmailSentAt: sentAt
+			});
+		} catch (onboardingErr) {
+			// Non-critical: the confirmation email already went out.
+			apiLogger.error(
+				{ err: onboardingErr, applicationId: id },
+				'Failed to create member onboarding row (non-critical)'
+			);
+		}
 
 		apiLogger.info(
 			{ applicationId: id, email: application.email },

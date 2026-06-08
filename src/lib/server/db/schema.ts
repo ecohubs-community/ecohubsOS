@@ -59,7 +59,11 @@ export const user = sqliteTable('user', {
 
 	// Onboarding lifecycle timestamps
 	onboardingStartedAt: integer('onboarding_started_at', { mode: 'timestamp' }),
-	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' })
+	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' }),
+
+	// Personal buddy-call scheduling URL (e.g. Cal.com / Calendly). Surfaced and
+	// editable only for stewards/admins; used to pre-fill the buddy-call invite email.
+	meetingSchedulingUrl: text('meeting_scheduling_url')
 });
 
 // BetterAuth session table
@@ -230,4 +234,97 @@ export const feedback = sqliteTable('feedback', {
 		.$defaultFn(() => new Date()),
 	acknowledgedAt: integer('acknowledged_at', { mode: 'timestamp' }),
 	acknowledgedBy: text('acknowledged_by').references(() => user.id, { onDelete: 'set null' })
+});
+
+// Member onboarding journey tracking — steward/admin tooling powering the
+// "Member Onboarding" kanban app. One row per accepted member, bridging an
+// accepted application (pre-account) to a user (post-login) via email. The
+// kanban stage is DERIVED (never stored) from these timestamps + the linked
+// user, so the board can never drift out of sync with reality.
+export const memberOnboarding = sqliteTable(
+	'member_onboarding',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		// Source application (nullable; one onboarding row per application).
+		applicationId: text('application_id').references(() => applications.id, {
+			onDelete: 'set null'
+		}),
+		// Linked once an account with the same email appears (lazy, on board load).
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		// Stable join key between application and user.
+		email: text('email').notNull(),
+		// Denormalized — needed for display before a user row exists.
+		fullName: text('full_name').notNull(),
+		// Manual reminder email (sent to members who never logged in).
+		reminderSentAt: integer('reminder_sent_at', { mode: 'timestamp' }),
+		reminderSentBy: text('reminder_sent_by').references(() => user.id, { onDelete: 'set null' }),
+		// Buddy-call invitation email.
+		buddyCallInvitedAt: integer('buddy_call_invited_at', { mode: 'timestamp' }),
+		buddyCallInvitedBy: text('buddy_call_invited_by').references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		// Buddy call that actually happened (date + with whom).
+		buddyCallAt: integer('buddy_call_at', { mode: 'timestamp' }),
+		buddyCallWith: text('buddy_call_with'),
+		// Buddy call deliberately skipped ("not needed" — e.g. founder, or a member
+		// already in regular contact). Counts as satisfying the buddy-call step.
+		buddyCallSkippedAt: integer('buddy_call_skipped_at', { mode: 'timestamp' }),
+		buddyCallSkippedBy: text('buddy_call_skipped_by').references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		// Set aside as unresponsive ("No response" lane). Non-destructive parking for
+		// members who never engaged and likely never will. Reversible.
+		dormantAt: integer('dormant_at', { mode: 'timestamp' }),
+		dormantBy: text('dormant_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date()),
+		updatedAt: integer('updated_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		// Idempotency: at most one onboarding row per application (SQLite allows
+		// multiple NULLs, so manually-created rows without an application are fine).
+		uniqueApplication: uniqueIndex('member_onboarding_application_unique').on(table.applicationId)
+	})
+);
+
+// Dated, attributed notes attached to an onboarding journey.
+export const memberOnboardingNotes = sqliteTable('member_onboarding_notes', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	onboardingId: text('onboarding_id')
+		.notNull()
+		.references(() => memberOnboarding.id, { onDelete: 'cascade' }),
+	text: text('text').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date()),
+	updatedAt: integer('updated_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+// Timeline of things that happened during an onboarding journey. Appended
+// automatically by the relevant actions. `actorUserId` is null for system events.
+export const memberOnboardingEvents = sqliteTable('member_onboarding_events', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	onboardingId: text('onboarding_id')
+		.notNull()
+		.references(() => memberOnboarding.id, { onDelete: 'cascade' }),
+	// accepted | reminder_sent | logged_in | buddy_call_invited | buddy_call_held |
+	// note_added | note_edited | note_deleted | completed
+	type: text('type').notNull(),
+	detail: text('detail'),
+	actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
 });

@@ -95,6 +95,38 @@
 		}, 1500);
 	}
 
+	// Steward role assignment (Authentik group "EcoHubs Steward")
+	const STEWARD_GROUP = 'EcoHubs Steward';
+	let stewardBusyId = $state<string | null>(null);
+
+	function isSteward(member: Member): boolean {
+		return member.groups.includes(STEWARD_GROUP);
+	}
+
+	async function toggleSteward(member: Member) {
+		if (member.pendingLogin || stewardBusyId) return;
+		const action = isSteward(member) ? 'remove' : 'add';
+		stewardBusyId = member.id;
+		error = null;
+		try {
+			const res = await fetch('/api/admin/stewards', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId: member.id, action })
+			});
+			if (!res.ok) {
+				const d = await res.json().catch(() => ({}));
+				throw new Error(d.message || 'Failed to update steward role');
+			}
+			const data = await res.json();
+			member.groups = data.groups;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update steward role';
+		} finally {
+			stewardBusyId = null;
+		}
+	}
+
 	function openOnboardingDetails(member: Member) {
 		selectedMember = member;
 		showOnboardingModal = true;
@@ -159,6 +191,7 @@
 					<tr class="text-solar-400/80 border-b border-white/10">
 						<th class="px-4 py-3 font-medium">Member</th>
 						<th class="px-4 py-3 font-medium">Groups</th>
+						<th class="px-4 py-3 font-medium">Steward</th>
 						<th class="px-4 py-3 font-medium">Wallet</th>
 						<th class="px-4 py-3 font-medium">Onboarding</th>
 						<th class="px-4 py-3 font-medium">Last Login</th>
@@ -210,6 +243,32 @@
 										{/if}
 									{/each}
 								</div>
+							</td>
+							<td class="px-4 py-3">
+								{#if member.pendingLogin}
+									<span class="text-xs text-white/20">--</span>
+								{:else}
+									<button
+										type="button"
+										onclick={() => toggleSteward(member)}
+										disabled={stewardBusyId === member.id}
+										class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50
+											{isSteward(member)
+											? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
+											: 'border-white/10 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'}"
+										title={isSteward(member) ? 'Remove steward role' : 'Make steward'}
+									>
+										{#if stewardBusyId === member.id}
+											<Icon icon="tabler:loader-2" class="h-3 w-3 animate-spin" />
+										{:else}
+											<Icon
+												icon={isSteward(member) ? 'tabler:check' : 'tabler:plus'}
+												class="h-3 w-3"
+											/>
+										{/if}
+										{isSteward(member) ? 'Steward' : 'Make steward'}
+									</button>
+								{/if}
 							</td>
 							<td class="px-4 py-3">
 								{#if member.walletAddress}

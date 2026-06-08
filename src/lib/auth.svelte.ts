@@ -21,6 +21,8 @@ export interface AuthUser {
 	safeOwnerStatus: 'pending' | 'confirmed' | 'executed' | 'delegate_added' | null;
 	safeRole: 'owner' | 'proposer' | null;
 	safeRoleStatus: string | null;
+	// Personal buddy-call scheduling URL (stewards/admins only)
+	meetingSchedulingUrl?: string | null;
 }
 
 class AuthState {
@@ -65,6 +67,14 @@ class AuthState {
 	// EcoHubs Admin group membership — gates destructive admin actions like
 	// cancelling applications + their linked proposals.
 	isAdmin = $derived(this.user?.groups?.includes('EcoHubs Admin') ?? false);
+
+	// EcoHubs Steward group membership — gates the Member Onboarding app and
+	// steward-only profile fields (admins implicitly qualify too).
+	isSteward = $derived(this.user?.groups?.includes('EcoHubs Steward') ?? false);
+	isStewardOrAdmin = $derived(this.isAdmin || this.isSteward);
+
+	// Personal buddy-call scheduling URL
+	meetingSchedulingUrl = $derived(this.user?.meetingSchedulingUrl ?? null);
 
 	// Legacy compatibility (for components that still use shortAddress)
 	shortAddress = $derived(this.shortWalletAddress);

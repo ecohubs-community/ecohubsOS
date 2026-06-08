@@ -10,6 +10,10 @@
 
 	let { app }: { app: AppDefinition } = $props();
 
+	let fullscreen = $state(false);
+	// Only honour fullscreen for apps that opt in.
+	const isFullscreen = $derived(fullscreen && !!app.allowFullscreen);
+
 	function imgError(e: Event) {
 		(e.currentTarget as HTMLImageElement).src = FallbackFavicon;
 	}
@@ -26,13 +30,17 @@
 </script>
 
 <div
-	class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-2 backdrop-blur-sm md:p-10"
+	class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm {isFullscreen
+		? 'p-0'
+		: 'p-2 md:p-10'}"
 	transition:fade={{ duration: 200 }}
 	onclick={close}
 	role="presentation"
 >
 	<div
-		class="relative flex h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-solar-900/80 shadow-2xl ring-1 ring-white/20 backdrop-blur-2xl md:h-[80vh]"
+		class="relative flex flex-col overflow-hidden border border-white/10 bg-solar-900/80 shadow-2xl ring-1 ring-white/20 backdrop-blur-2xl {isFullscreen
+			? 'h-screen w-screen max-w-none rounded-none'
+			: 'h-[95vh] w-full max-w-4xl rounded-2xl md:h-[80vh]'}"
 		transition:scale={{ duration: 400, easing: elasticOut, start: 0.95 }}
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
@@ -72,7 +80,18 @@
 					{/if}
 				</div>
 			</div>
-			<div class="flex items-center gap-2"></div>
+			<div class="flex items-center gap-2">
+				{#if app.allowFullscreen}
+					<button
+						onclick={() => (fullscreen = !fullscreen)}
+						class="rounded-full p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+						title={isFullscreen ? 'Restore window' : 'Fullscreen'}
+						aria-label={isFullscreen ? 'Restore window' : 'Fullscreen'}
+					>
+						<Icon icon={isFullscreen ? 'tabler:minimize' : 'tabler:maximize'} class="h-4 w-4" />
+					</button>
+				{/if}
+			</div>
 		</div>
 
 		<div class="relative flex-1 overflow-auto p-0" tabindex="0" role="dialog">
@@ -105,7 +124,7 @@
 					{#if app.helpItems && app.helpItems.length > 0}
 						<HelpSection appId={app.id} title={'About the ' + app.name + ' app'} defaultOpen={true}>
 							<ul class="space-y-2">
-								{#each app.helpItems as item}
+								{#each app.helpItems as item (item)}
 									<li class="text-solar-300/80 flex items-start gap-2 text-sm">
 										<Icon icon="tabler:check" class="text-solar-400 mt-0.5 h-4 w-4 shrink-0" />
 										{item}

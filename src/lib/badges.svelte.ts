@@ -6,6 +6,7 @@ interface BadgeCounts {
 	voting: number;
 	'feedback-admin': number;
 	'admin-logs': number;
+	'member-onboarding': number;
 }
 
 function createBadgesStore() {
@@ -14,7 +15,8 @@ function createBadgesStore() {
 		'blog-manager': 0,
 		voting: 0,
 		'feedback-admin': 0,
-		'admin-logs': 0
+		'admin-logs': 0,
+		'member-onboarding': 0
 	});
 
 	let isLoading = $state(false);
@@ -110,6 +112,27 @@ function createBadgesStore() {
 			console.error('Failed to fetch logs:', err);
 		}
 
+		try {
+			// Onboarding cards needing a steward action (steward/admin-only; others
+			// get 403 → 0). Needs-reminder = in the reminder column with no reminder
+			// sent; logged-in members with no buddy-call invite yet.
+			const onboardingResponse = await fetch('/api/onboarding-board');
+			if (onboardingResponse.ok) {
+				const data = await onboardingResponse.json();
+				counts['member-onboarding'] = Array.isArray(data.cards)
+					? data.cards.filter(
+							(c: { stage: string; reminderSentAt: string | null; buddyCallInvitedAt: string | null }) =>
+								(c.stage === 'reminder' && !c.reminderSentAt) ||
+								(c.stage === 'logged_in' && !c.buddyCallInvitedAt)
+						).length
+					: 0;
+			} else {
+				counts['member-onboarding'] = 0;
+			}
+		} catch (err) {
+			console.error('Failed to fetch onboarding board:', err);
+		}
+
 		isLoading = false;
 	}
 
@@ -119,6 +142,7 @@ function createBadgesStore() {
 		if (appId === 'voting') return counts.voting;
 		if (appId === 'feedback-admin') return counts['feedback-admin'];
 		if (appId === 'admin-logs') return counts['admin-logs'];
+		if (appId === 'member-onboarding') return counts['member-onboarding'];
 		return 0;
 	}
 

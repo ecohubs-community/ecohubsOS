@@ -12,6 +12,8 @@ import WalletConnect from './apps/wallet-connect/WalletConnect.svelte';
 import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Voting from './apps/voting/Voting.svelte';
 import Members from './apps/members/Members.svelte';
+import MemberOnboarding from './apps/member-onboarding/MemberOnboarding.svelte';
+import MemberOnboardingFavicon from './apps/member-onboarding/favicon.svg';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import FeedbackAdmin from './apps/feedback-admin/FeedbackAdmin.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
@@ -49,6 +51,12 @@ export interface AppDefinition {
 	hiddenFromAllApps?: boolean;
 	helpItems?: string[]; // List of help items for external apps
 	groups?: string[]; // List of required user groups to see/access the app
+	/**
+	 * When true, the window shows a maximize/restore toggle so the app can be
+	 * expanded to fill the viewport. Opt-in per app — best for data-dense apps
+	 * (kanban boards, tables) that benefit from the extra space.
+	 */
+	allowFullscreen?: boolean;
 }
 
 // Re-export from notifications.ts for backward compatibility
@@ -233,7 +241,19 @@ export const APPS: AppDefinition[] = [
 		icon: MembersFavicon,
 		component: Members,
 		description: 'View and manage community members.',
-		groups: ['EcoHubs Admin']
+		groups: ['EcoHubs Admin'],
+		allowFullscreen: true
+	},
+	{
+		id: 'member-onboarding',
+		name: 'Member Onboarding',
+		category: 'ops',
+		isInternalApp: true,
+		icon: MemberOnboardingFavicon,
+		component: MemberOnboarding,
+		description: 'Track and guide new members through onboarding.',
+		groups: ['EcoHubs Admin', 'EcoHubs Steward'],
+		allowFullscreen: true
 	},
 	{
 		id: 'admin-logs',
