@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { type OnboardingCard, fmtRelative } from './types';
+	import { type OnboardingCard, fmtRelative, fmtDate, standbyFollowUpDue } from './types';
 
 	let { card, onclick }: { card: OnboardingCard; onclick: () => void } = $props();
 
@@ -12,10 +12,13 @@
 			.join('')
 	);
 
+	const followUpDue = $derived(standbyFollowUpDue(card.stage, card.standbyUntil));
+
 	// A card needs steward attention when it's waiting on a manual action.
 	const needsAction = $derived(
 		(card.stage === 'reminder' && !card.reminderSentAt) ||
-			(card.stage === 'logged_in' && !card.buddyCallInvitedAt)
+			(card.stage === 'logged_in' && !card.buddyCallInvitedAt) ||
+			followUpDue
 	);
 </script>
 
@@ -74,6 +77,19 @@
 			<span class="rounded-md bg-white/5 px-1.5 py-0.5 text-white/40"> Call skipped </span>
 		{:else if card.buddyCallInvitedAt && card.stage === 'buddy_call'}
 			<span class="rounded-md bg-teal-500/15 px-1.5 py-0.5 text-teal-300"> Invited </span>
+		{/if}
+		{#if card.stage === 'standby'}
+			{#if followUpDue}
+				<span class="rounded-md bg-amber-500/20 px-1.5 py-0.5 font-medium text-amber-300">
+					Follow-up due
+				</span>
+			{:else if card.standbyUntil}
+				<span class="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-indigo-300">
+					Follow up {fmtDate(card.standbyUntil)}
+				</span>
+			{:else}
+				<span class="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-indigo-300">On standby</span>
+			{/if}
 		{/if}
 		{#if card.noteCount > 0}
 			<span class="flex items-center gap-0.5 rounded-md bg-white/5 px-1.5 py-0.5 text-white/40">

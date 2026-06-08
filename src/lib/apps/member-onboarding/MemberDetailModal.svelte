@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { portal } from '$lib/actions/portal';
-	import { type OnboardingDetail, STAGE_META, fmtDate } from './types';
+	import { type OnboardingDetail, STAGE_META, fmtDate, standbyFollowUpDue } from './types';
 	import NotesList from './NotesList.svelte';
 	import EmailComposerModal from './EmailComposerModal.svelte';
 
@@ -31,6 +31,9 @@
 	let logBusy = $state(false);
 	let skipBusy = $state(false);
 	let dormantBusy = $state(false);
+	let standbyBusy = $state(false);
+	let showStandbyForm = $state(false);
+	let standbyUntil = $state('');
 
 	onMount(load);
 
@@ -124,6 +127,27 @@
 		}
 	}
 
+	async function toggleStandby(standby: boolean) {
+		if (standbyBusy) return;
+		standbyBusy = true;
+		error = null;
+		try {
+			const res = await fetch(`/api/onboarding-board/${onboardingId}/standby`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ standby, until: standby ? standbyUntil || null : null })
+			});
+			if (!res.ok) throw new Error('Failed to update status');
+			showStandbyForm = false;
+			standbyUntil = '';
+			refresh();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update status';
+		} finally {
+			standbyBusy = false;
+		}
+	}
+
 	function handleBackdrop(e: MouseEvent) {
 		if (e.target === e.currentTarget) onClose();
 	}
@@ -138,6 +162,8 @@
 		buddy_call_unskipped: 'tabler:calendar-plus',
 		set_dormant: 'tabler:user-off',
 		reactivated: 'tabler:user-check',
+		set_standby: 'tabler:player-pause',
+		resumed: 'tabler:player-play',
 		note_added: 'tabler:note',
 		note_edited: 'tabler:pencil',
 		note_deleted: 'tabler:trash',
@@ -366,6 +392,83 @@
 							{/if}
 						</div>
 					</div>
+
+					<!-- Standby (engaged member who paused) -->
+					{#if detail.standbyAt}
+						{@const due = standbyFollowUpDue(detail.stage, detail.standbyUntil)}
+						<div
+							class="flex items-center justify-between gap-2 rounded-xl border p-3 {due
+								? 'border-amber-500/30 bg-amber-500/10'
+								: 'border-indigo-500/20 bg-indigo-500/10'}"
+						>
+							<div class="text-xs {due ? 'text-amber-200' : 'text-indigo-200'}">
+								<div class="font-medium">{due ? 'On standby — follow-up due' : 'On standby'}</div>
+								<div class="opacity-80">
+									Since {fmtDate(detail.standbyAt)}{detail.standbyBy ? ` · ${detail.standbyBy}` : ''}
+									· {detail.standbyUntil
+										? `follow up ${fmtDate(detail.standbyUntil)}`
+										: 'no follow-up date'}
+								</div>
+							</div>
+							<button
+								type="button"
+								onclick={() => toggleStandby(false)}
+								disabled={standbyBusy}
+								class="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-40"
+							>
+								<Icon icon="tabler:player-play" class="h-4 w-4" />
+								Resume
+							</button>
+						</div>
+					{:else if showStandbyForm}
+						<div class="space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3">
+							<div class="text-xs font-medium text-indigo-200">Put on standby</div>
+							<div>
+								<label for="standby-until" class="mb-1 block text-[11px] text-white/50">
+									Follow up on (optional)
+								</label>
+								<input
+									id="standby-until"
+									type="date"
+									bind:value={standbyUntil}
+									class="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white focus:border-indigo-400 focus:outline-none"
+								/>
+								<p class="mt-1 text-[11px] text-white/30">
+									If set, the card flags for attention once this date arrives.
+								</p>
+							</div>
+							<div class="flex justify-end gap-2">
+								<button
+									type="button"
+									onclick={() => {
+										showStandbyForm = false;
+										standbyUntil = '';
+									}}
+									class="rounded-md px-2.5 py-1.5 text-sm text-white/60 hover:text-white"
+								>
+									Cancel
+								</button>
+								<button
+									type="button"
+									onclick={() => toggleStandby(true)}
+									disabled={standbyBusy}
+									class="rounded-md bg-indigo-500/90 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-40"
+								>
+									Put on standby
+								</button>
+							</div>
+						</div>
+					{:else}
+						<button
+							type="button"
+							onclick={() => (showStandbyForm = true)}
+							class="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/40 hover:text-white/70"
+							title="Pause an engaged member who asked for a break — they'll return"
+						>
+							<Icon icon="tabler:player-pause" class="h-4 w-4" />
+							Put on standby
+						</button>
+					{/if}
 
 					<!-- Set aside / reactivate (no-response handling) -->
 					{#if detail.dormantAt}

@@ -10,7 +10,7 @@ interface BadgeCounts {
 }
 
 function createBadgesStore() {
-	let counts = $state<BadgeCounts>({
+	const counts = $state<BadgeCounts>({
 		'membership-manager': 0,
 		'blog-manager': 0,
 		voting: 0,
@@ -119,11 +119,21 @@ function createBadgesStore() {
 			const onboardingResponse = await fetch('/api/onboarding-board');
 			if (onboardingResponse.ok) {
 				const data = await onboardingResponse.json();
+				const nowMs = Date.now();
 				counts['member-onboarding'] = Array.isArray(data.cards)
 					? data.cards.filter(
-							(c: { stage: string; reminderSentAt: string | null; buddyCallInvitedAt: string | null }) =>
+							(c: {
+								stage: string;
+								reminderSentAt: string | null;
+								buddyCallInvitedAt: string | null;
+								standbyUntil: string | null;
+							}) =>
 								(c.stage === 'reminder' && !c.reminderSentAt) ||
-								(c.stage === 'logged_in' && !c.buddyCallInvitedAt)
+								(c.stage === 'logged_in' && !c.buddyCallInvitedAt) ||
+								// On-standby members whose follow-up date has arrived.
+								(c.stage === 'standby' &&
+									!!c.standbyUntil &&
+									new Date(c.standbyUntil).getTime() <= nowMs)
 						).length
 					: 0;
 			} else {

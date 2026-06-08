@@ -16,6 +16,7 @@ export const STAGES = [
 	'logged_in',
 	'buddy_call',
 	'complete',
+	'standby',
 	'dormant'
 ] as const;
 export type Stage = (typeof STAGES)[number];
@@ -35,9 +36,11 @@ type UserRow = typeof userTable.$inferSelect;
  * skipped ("not needed"). Finishing onboarding alone keeps the member in
  * "Logged in" with the invite-to-buddy-call prompt.
  *
- * Priority high→low: complete > dormant > buddy_call > logged_in > reminder > accepted.
- * `dormant` is a manual "set aside — no response" override (parks the card out of
- * the active flow); a genuinely completed member still shows as complete.
+ * Priority high→low: complete > standby > dormant > buddy_call > logged_in >
+ * reminder > accepted. `standby` (engaged member who paused) and `dormant`
+ * ("set aside — no response") are mutually-exclusive manual overrides that park
+ * the card out of the active flow; a genuinely completed member still shows as
+ * complete.
  */
 export function deriveStage(
 	row: OnboardingRow,
@@ -49,6 +52,7 @@ export function deriveStage(
 	const onboardingDone = !!linkedUser?.onboardingCompletedAt;
 
 	if (onboardingDone && buddyDone) return 'complete';
+	if (row.standbyAt) return 'standby';
 	if (row.dormantAt) return 'dormant';
 	if (buddyStarted) return 'buddy_call';
 	// An account with the same email exists → the member has enrolled & logged in.
@@ -147,6 +151,8 @@ export interface OnboardingCard {
 	buddyCallWith: string | null;
 	buddyCallSkippedAt: string | null;
 	dormantAt: string | null;
+	standbyAt: string | null;
+	standbyUntil: string | null;
 	onboardingCompletedAt: string | null;
 	avatarUrl: string | null;
 	noteCount: number;
@@ -216,6 +222,8 @@ export async function getEnrichedBoard(): Promise<OnboardingCard[]> {
 			buddyCallWith: row.buddyCallWith,
 			buddyCallSkippedAt: row.buddyCallSkippedAt?.toISOString() ?? null,
 			dormantAt: row.dormantAt?.toISOString() ?? null,
+			standbyAt: row.standbyAt?.toISOString() ?? null,
+			standbyUntil: row.standbyUntil?.toISOString() ?? null,
 			onboardingCompletedAt: linkedUser?.onboardingCompletedAt?.toISOString() ?? null,
 			avatarUrl: linkedUser?.image ?? null,
 			noteCount: noteCounts.get(row.id) ?? 0,

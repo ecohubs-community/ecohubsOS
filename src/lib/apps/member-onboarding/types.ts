@@ -1,4 +1,11 @@
-export type Stage = 'accepted' | 'reminder' | 'logged_in' | 'buddy_call' | 'complete' | 'dormant';
+export type Stage =
+	| 'accepted'
+	| 'reminder'
+	| 'logged_in'
+	| 'buddy_call'
+	| 'complete'
+	| 'standby'
+	| 'dormant';
 
 export interface OnboardingCard {
 	id: string;
@@ -15,6 +22,8 @@ export interface OnboardingCard {
 	buddyCallWith: string | null;
 	buddyCallSkippedAt: string | null;
 	dormantAt: string | null;
+	standbyAt: string | null;
+	standbyUntil: string | null;
 	onboardingCompletedAt: string | null;
 	avatarUrl: string | null;
 	noteCount: number;
@@ -60,6 +69,9 @@ export interface OnboardingDetail {
 	buddyCallSkippedBy: string | null;
 	dormantAt: string | null;
 	dormantBy: string | null;
+	standbyAt: string | null;
+	standbyBy: string | null;
+	standbyUntil: string | null;
 	onboardingCompletedAt: string | null;
 	onboardingStartedAt: string | null;
 	avatarUrl: string | null;
@@ -106,6 +118,12 @@ export const STAGE_META: Record<
 		badgeClass: 'bg-emerald-500/20 text-emerald-300',
 		dotClass: 'bg-emerald-400'
 	},
+	standby: {
+		label: 'Standby',
+		hint: 'Paused — will return',
+		badgeClass: 'bg-indigo-500/20 text-indigo-300',
+		dotClass: 'bg-indigo-400'
+	},
 	dormant: {
 		label: 'No response',
 		hint: 'Set aside — never engaged',
@@ -120,8 +138,19 @@ export const STAGE_ORDER: Stage[] = [
 	'logged_in',
 	'buddy_call',
 	'complete',
+	'standby',
 	'dormant'
 ];
+
+/** True when an on-standby card's follow-up date has arrived (time to check in). */
+export function standbyFollowUpDue(
+	stage: Stage,
+	standbyUntil: string | null | undefined
+): boolean {
+	if (stage !== 'standby' || !standbyUntil) return false;
+	const d = new Date(standbyUntil);
+	return !Number.isNaN(d.getTime()) && d.getTime() <= Date.now();
+}
 
 /** Format an ISO date as a short local date, or a fallback. */
 export function fmtDate(iso: string | null | undefined): string {

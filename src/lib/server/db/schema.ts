@@ -278,6 +278,13 @@ export const memberOnboarding = sqliteTable(
 		// members who never engaged and likely never will. Reversible.
 		dormantAt: integer('dormant_at', { mode: 'timestamp' }),
 		dormantBy: text('dormant_by').references(() => user.id, { onDelete: 'set null' }),
+		// On standby ("Standby" lane). Engaged member who asked to pause and will
+		// return. `standbyUntil` is an optional follow-up date — once it passes the
+		// card flags for attention so they aren't forgotten. Mutually exclusive with
+		// dormant. Reversible.
+		standbyAt: integer('standby_at', { mode: 'timestamp' }),
+		standbyBy: text('standby_by').references(() => user.id, { onDelete: 'set null' }),
+		standbyUntil: integer('standby_until', { mode: 'timestamp' }),
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
 			.$defaultFn(() => new Date()),

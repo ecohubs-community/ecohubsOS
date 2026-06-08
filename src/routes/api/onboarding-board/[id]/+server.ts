@@ -44,7 +44,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		row.reminderSentBy,
 		row.buddyCallInvitedBy,
 		row.buddyCallSkippedBy,
-		row.dormantBy
+		row.dormantBy,
+		row.standbyBy
 	])
 		if (id) refIds.add(id);
 	for (const n of notes) if (n.createdBy) refIds.add(n.createdBy);
@@ -87,6 +88,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			: null,
 		dormantAt: row.dormantAt?.toISOString() ?? null,
 		dormantBy: row.dormantBy ? nameMap.get(row.dormantBy) ?? null : null,
+		standbyAt: row.standbyAt?.toISOString() ?? null,
+		standbyBy: row.standbyBy ? nameMap.get(row.standbyBy) ?? null : null,
+		standbyUntil: row.standbyUntil?.toISOString() ?? null,
 		onboardingCompletedAt: linkedUser?.onboardingCompletedAt?.toISOString() ?? null,
 		onboardingStartedAt: linkedUser?.onboardingStartedAt?.toISOString() ?? null,
 		avatarUrl: linkedUser?.image ?? null,

@@ -30,6 +30,8 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 		.set({
 			dormantAt: setting ? now : null,
 			dormantBy: setting ? locals.user!.id : null,
+			// Dormant and standby are mutually exclusive — clear standby when setting aside.
+			...(setting ? { standbyAt: null, standbyBy: null, standbyUntil: null } : {}),
 			updatedAt: now
 		})
 		.where(eq(memberOnboarding.id, row.id));
