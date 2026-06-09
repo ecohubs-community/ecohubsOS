@@ -61,6 +61,11 @@ export const user = sqliteTable('user', {
 	onboardingStartedAt: integer('onboarding_started_at', { mode: 'timestamp' }),
 	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' }),
 
+	// Welcome / intro video — set once the member watches ≥90% of the
+	// onboarding presentation. Drives the auto-opening Welcome window and the
+	// "watched" column in the Members app. Null = not yet watched.
+	introWatchedAt: integer('intro_watched_at', { mode: 'timestamp' }),
+
 	// Personal buddy-call scheduling URL (e.g. Cal.com / Calendly). Surfaced and
 	// editable only for stewards/admins; used to pre-fill the buddy-call invite email.
 	meetingSchedulingUrl: text('meeting_scheduling_url')

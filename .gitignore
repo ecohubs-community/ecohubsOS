@@ -39,3 +39,5 @@ vite.config.ts.timestamp-*
 
 # User data (avatars, uploads)
 /data
+
+/static/videos/

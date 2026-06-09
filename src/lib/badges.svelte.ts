@@ -1,5 +1,7 @@
 // Badge counts for apps with pending items
 
+import { auth } from '$lib/auth.svelte';
+
 interface BadgeCounts {
 	'membership-manager': number;
 	'blog-manager': number;
@@ -153,6 +155,9 @@ function createBadgesStore() {
 		if (appId === 'feedback-admin') return counts['feedback-admin'];
 		if (appId === 'admin-logs') return counts['admin-logs'];
 		if (appId === 'member-onboarding') return counts['member-onboarding'];
+		// Derived live from the auth store (not the fetched counts) so the badge
+		// clears the instant the member finishes the video — no refresh needed.
+		if (appId === 'member-welcome') return auth.hasWatchedIntro ? 0 : 1;
 		return 0;
 	}
 

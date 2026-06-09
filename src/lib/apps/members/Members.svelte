@@ -20,6 +20,7 @@
 		eco: number;
 		avatarUrl: string | null;
 		walletAddress: string | null;
+		introWatchedAt: string | null;
 		pendingLogin?: boolean;
 		inviteSentAt?: string | null;
 	}
@@ -193,6 +194,7 @@
 						<th class="px-4 py-3 font-medium">Groups</th>
 						<th class="px-4 py-3 font-medium">Steward</th>
 						<th class="px-4 py-3 font-medium">Wallet</th>
+						<th class="px-4 py-3 font-medium">Intro Video</th>
 						<th class="px-4 py-3 font-medium">Onboarding</th>
 						<th class="px-4 py-3 font-medium">Last Login</th>
 						<!-- <th class="px-4 py-3 text-right font-medium">XP</th>
@@ -288,6 +290,26 @@
 									</div>
 								{:else}
 									<span class="text-xs text-white/20">--</span>
+								{/if}
+							</td>
+							<td class="px-4 py-3">
+								{#if member.pendingLogin}
+									<span class="text-xs text-white/20">--</span>
+								{:else if member.introWatchedAt}
+									<span
+										class="inline-flex items-center gap-1 rounded-full border border-green-400/20 bg-green-400/10 px-2 py-0.5 text-[10px] font-medium text-green-300"
+										title={`Watched ${formatDate(member.introWatchedAt)}`}
+									>
+										<Icon icon="tabler:circle-check" class="h-3 w-3" />
+										Watched
+									</span>
+								{:else}
+									<span
+										class="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/40"
+									>
+										<Icon icon="tabler:player-play" class="h-3 w-3" />
+										Not watched
+									</span>
 								{/if}
 							</td>
 							<td class="px-4 py-3">

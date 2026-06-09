@@ -103,6 +103,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				contributionProgress: dbUser.contributionProgress ?? null,
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null,
+				introWatchedAt: dbUser.introWatchedAt ?? null,
 				meetingSchedulingUrl: dbUser.meetingSchedulingUrl ?? null
 			};
 			event.locals.session = {

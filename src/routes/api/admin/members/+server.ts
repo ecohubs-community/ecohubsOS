@@ -73,6 +73,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                 eco: Math.floor(Math.random() * 1000), // Placeholder,
                 avatarUrl: u.image,
                 walletAddress: u.walletAddress || null,
+                introWatchedAt: u.introWatchedAt?.toISOString() ?? null,
                 pendingLogin: false
             };
         });
@@ -101,6 +102,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                 eco: 0,
                 avatarUrl: null,
                 walletAddress: null,
+                introWatchedAt: null,
                 pendingLogin: true,
                 inviteSentAt: app.confirmationEmailSentAt
             }));

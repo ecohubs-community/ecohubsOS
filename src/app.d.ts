@@ -40,6 +40,8 @@ interface AuthUser {
 	// Onboarding lifecycle timestamps
 	onboardingStartedAt: Date | null;
 	onboardingCompletedAt: Date | null;
+	// Welcome / intro video watched timestamp (null = unwatched)
+	introWatchedAt: Date | null;
 	// Personal buddy-call scheduling URL (stewards/admins only)
 	meetingSchedulingUrl: string | null;
 }

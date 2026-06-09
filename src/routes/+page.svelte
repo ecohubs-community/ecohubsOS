@@ -18,6 +18,7 @@
 	let { data } = $props();
 
 	let fabOpen = $state(false);
+	let welcomeAutoOpened = false;
 
 	// Initialize auth store with server data
 	$effect(() => {
@@ -27,11 +28,29 @@
 			offcoin.initFromServer(data.user.puckstackUserId);
 			// Refresh badge counts when user is authenticated
 			badges.refresh();
+			// First-timers: auto-open the welcome video once on load. Once
+			// they've watched it (introWatchedAt set) this never fires again.
+			if (!data.user.introWatchedAt && !welcomeAutoOpened) {
+				welcomeAutoOpened = true;
+				os.openApp('member-welcome');
+			}
 		}
 	});
 
 	// Derived state for the active app object
 	let activeApp = $derived(APPS.find((a) => a.id === os.activeWindow));
+
+	// Dock apps: the normal (non-hidden) set, plus the Welcome app pinned to
+	// the front while the member hasn't watched the intro yet. Once watched it
+	// drops off the dock and lives only in All Apps for rewatching.
+	let dockApps = $derived(
+		auth.hasWatchedIntro
+			? APPS.filter((a) => !a.hidden)
+			: [
+					...APPS.filter((a) => a.id === 'member-welcome'),
+					...APPS.filter((a) => !a.hidden)
+				]
+	);
 
 	// Date time logic
 	let time = $state(new Date());
@@ -103,7 +122,7 @@
 				class="flex items-end gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-2xl transition-all duration-300 hover:scale-105"
 				in:fly={{ y: 50, duration: 800, delay: 500 }}
 			>
-				{#each APPS.filter((a) => !a.hidden) as app (app.id)}
+				{#each dockApps as app (app.id)}
 					{#if !app.groups || (data.user?.groups && app.groups.some( (g) => data.user.groups.includes(g) ))}
 						{@const badgeCount = badges.getCount(app.id)}
 						<button

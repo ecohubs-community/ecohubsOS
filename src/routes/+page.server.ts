@@ -47,7 +47,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			safeRole: locals.user.safeRole,
 			safeRoleStatus: locals.user.safeRoleStatus,
 			puckstackUserId: locals.user.puckstackUserId,
-			meetingSchedulingUrl: locals.user.meetingSchedulingUrl
+			meetingSchedulingUrl: locals.user.meetingSchedulingUrl,
+			introWatchedAt: locals.user.introWatchedAt?.toISOString() ?? null
 		},
 		onboardingProgress
 	};

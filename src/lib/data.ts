@@ -18,6 +18,8 @@ import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import FeedbackAdmin from './apps/feedback-admin/FeedbackAdmin.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
 import MyProfileFavicon from './apps/my-profile/favicon.svg';
+import WelcomeVideo from './apps/member-welcome/WelcomeVideo.svelte';
+import WelcomeFavicon from './assets/icons/welcome.svg';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
@@ -224,6 +226,20 @@ export const APPS: AppDefinition[] = [
 	// 	description: 'Create your account on the ecohubs Discussions Forum.',
 	// 	hidden: true // Only accessible via onboarding, not shown in dock
 	// },
+	{
+		id: 'member-welcome',
+		name: 'Welcome',
+		icon: WelcomeFavicon,
+		category: 'ops',
+		isInternalApp: true,
+		component: WelcomeVideo,
+		description: 'Watch the intro presentation about ecohubsOS.',
+		// Hidden from the dock by default — it's surfaced on the dock only
+		// while unwatched (handled in +page.svelte) and auto-opens for
+		// first-timers. Once watched it lives in All Apps for rewatching.
+		hidden: true,
+		allowFullscreen: true
+	},
 	{
 		id: 'my-profile',
 		name: 'My Profile',

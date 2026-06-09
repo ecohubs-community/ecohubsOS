@@ -23,6 +23,8 @@ export interface AuthUser {
 	safeRoleStatus: string | null;
 	// Personal buddy-call scheduling URL (stewards/admins only)
 	meetingSchedulingUrl?: string | null;
+	// Welcome / intro video watched timestamp (ISO string) or null if unwatched
+	introWatchedAt: string | null;
 }
 
 class AuthState {
@@ -35,6 +37,15 @@ class AuthState {
 
 	clearUser() {
 		this.user = null;
+	}
+
+	// Mark the onboarding/intro video as watched locally so the UI (dock,
+	// badge, auto-open) updates immediately without a reload. The server is
+	// the source of truth; this just mirrors the persisted change.
+	markIntroWatched(at: string = new Date().toISOString()) {
+		if (this.user && !this.user.introWatchedAt) {
+			this.user.introWatchedAt = at;
+		}
 	}
 
 	// Derived properties
@@ -75,6 +86,9 @@ class AuthState {
 
 	// Personal buddy-call scheduling URL
 	meetingSchedulingUrl = $derived(this.user?.meetingSchedulingUrl ?? null);
+
+	// Welcome / intro video — true once the member has watched ≥90%.
+	hasWatchedIntro = $derived(!!this.user?.introWatchedAt);
 
 	// Legacy compatibility (for components that still use shortAddress)
 	shortAddress = $derived(this.shortWalletAddress);
