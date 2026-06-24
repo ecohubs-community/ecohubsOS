@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { user, memberOnboarding } from '$lib/server/db/schema';
+import { eq, or } from 'drizzle-orm';
 
 export type ContributionProgress = Record<string, string>;
 
@@ -35,4 +35,19 @@ export async function getContributionProgress(userId: string): Promise<Contribut
 	} catch {
 		return {};
 	}
+}
+
+/**
+ * Whether the member still needs a 1:1 buddy call — i.e. they have an
+ * onboarding row but the call has neither been held (`buddyCallAt`) nor
+ * deliberately skipped (`buddyCallSkippedAt`). Members without an onboarding
+ * row (founders / pre-onboarding-system accounts) are not nudged. Drives the
+ * "Book your 1:1 Buddy call" item in the Immediate Contributions card.
+ */
+export async function userNeedsBuddyCall(userId: string, email: string): Promise<boolean> {
+	const row = await db.query.memberOnboarding.findFirst({
+		where: or(eq(memberOnboarding.userId, userId), eq(memberOnboarding.email, email))
+	});
+	if (!row) return false;
+	return !row.buddyCallAt && !row.buddyCallSkippedAt;
 }

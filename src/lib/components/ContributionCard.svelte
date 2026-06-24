@@ -9,7 +9,8 @@
 		SOCIAL_LINKS,
 		DISCORD_URL,
 		PUCKSTACK_LINKS,
-		ECOHUBS_CALENDAR_URL
+		ECOHUBS_CALENDAR_URL,
+		BUDDY_CALL_URL
 	} from '$lib/contributions/contributionData';
 
 	let { delay = 350 }: { delay?: number } = $props();
@@ -107,6 +108,15 @@
 
 	const dynamicItems = $derived.by<DynamicItem[]>(() => {
 		const items: DynamicItem[] = [];
+		// One-time onboarding nudge: book your 1:1 buddy call. Shown until the
+		// call is held or skipped (server-derived from the onboarding board).
+		if (contributions.needsBuddyCall)
+			items.push({
+				id: 'buddy-call',
+				icon: 'tabler:phone-call',
+				title: 'Book your 1:1 Buddy call',
+				onOpen: () => openExternal(BUDDY_CALL_URL)
+			});
 		// Recurring weekly community meeting — always-on link nudge.
 		items.push({
 			id: 'weekly-meeting',

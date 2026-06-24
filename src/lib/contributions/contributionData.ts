@@ -33,6 +33,13 @@ export const DISCORD_URL = 'https://discord.gg/Xnh7247Nq3';
 export const ECOHUBS_CALENDAR_URL =
 	'https://calendar.google.com/calendar/u/0?cid=ZWQyYzZmMzAwNmJlMWQ2NzhiNWE3NDQyNjk5MjMwYTZlNmFiM2Q0YjIzYjg0MDg0MDY5YjQ4MWQyYWMxMjdkM0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t';
 
+/**
+ * Team scheduling page for booking a 1:1 buddy call. Surfaced as an immediate
+ * action for members who haven't had (or skipped) their buddy call yet.
+ */
+export const BUDDY_CALL_URL =
+	'https://calendar.mediakular.com/team/ecohubs/1-1-buddy-call-meeting';
+
 /** Puckstack deep links for the dynamic items. */
 export const PUCKSTACK_LINKS = {
 	notifications: 'https://puckstack.xyz/ecohubs/notifications',

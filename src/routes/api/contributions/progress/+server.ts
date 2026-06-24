@@ -5,17 +5,22 @@ import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import {
 	getContributionProgress,
+	userNeedsBuddyCall,
 	VALID_CONTRIBUTION_IDS,
 	type ContributionProgress
 } from '$lib/server/contributions';
 
 /**
- * GET /api/contributions/progress — returns the user's stored completion map.
+ * GET /api/contributions/progress — returns the user's stored completion map
+ * plus whether they still need to book a 1:1 buddy call.
  */
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) error(401, 'Unauthorized');
-	const progress = await getContributionProgress(locals.user.id);
-	return json({ progress });
+	const [progress, needsBuddyCall] = await Promise.all([
+		getContributionProgress(locals.user.id),
+		userNeedsBuddyCall(locals.user.id, locals.user.email)
+	]);
+	return json({ progress, needsBuddyCall });
 };
 
 /**

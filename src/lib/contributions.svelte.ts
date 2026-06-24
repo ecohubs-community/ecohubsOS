@@ -22,6 +22,9 @@ class ContributionsState {
 	isMember = $state(false);
 	votingCount = $state(0);
 	countsLoaded = $state(false);
+	// Member still needs to book/hold their 1:1 buddy call (server-derived from
+	// the onboarding board). Drives the "Book your 1:1 Buddy call" action.
+	needsBuddyCall = $state(false);
 
 	private progressLoaded = false;
 	private countsRequested = false;
@@ -38,6 +41,7 @@ class ContributionsState {
 			if (res.ok) {
 				const data = await res.json();
 				this.completed = (data.progress as Record<string, string>) ?? {};
+				this.needsBuddyCall = !!data.needsBuddyCall;
 			}
 		} catch {
 			// non-critical
