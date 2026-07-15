@@ -12,16 +12,11 @@ import { sendDiscordMessage } from '$lib/server/discord';
 import { confirmationSentMessage } from '$lib/server/discord-templates';
 import { subscribeToNewsletter } from '$lib/server/listmonk';
 import { ensureOnboardingRow } from '$lib/server/member-onboarding/service';
+import { requireAdmin } from '$lib/server/authz';
 
 // POST - Send confirmation email with Authentik enrollment invitation
 export const POST: RequestHandler = async ({ params, locals, url }) => {
-	if (!locals.user) {
-		error(401, 'Not authenticated');
-	}
-
-	if (locals.user.safeOwnerStatus !== 'executed') {
-		error(403, 'Only Safe owners can send confirmation emails');
-	}
+	requireAdmin(locals);
 
 	const { id } = params;
 	const isResend = url.searchParams.get('resend') === 'true';
@@ -64,11 +59,11 @@ export const POST: RequestHandler = async ({ params, locals, url }) => {
 	if (!closedStatuses.includes(proposal.status as (typeof closedStatuses)[number])) {
 		error(400, 'Voting has not ended yet');
 	}
-	if (proposal.result !== 'approved') {
-		error(400, `Application was not approved (result: ${proposal.result || 'unknown'})`);
+	if (proposal.result !== 'approved' && proposal.result !== 'needs_review') {
+		error(400, `Application cannot be confirmed (result: ${proposal.result || 'unknown'})`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 1/4] Voting proposal verified: closed & approved');
+	apiLogger.info({ applicationId: id }, '[Step 1/4] Voting proposal verified: closed & confirmable');
 
 	// Step 2: Create Authentik enrollment invitation
 	let enrollmentUrl: string;

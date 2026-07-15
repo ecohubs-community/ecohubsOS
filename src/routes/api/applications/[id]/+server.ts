@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { applications } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import { getMembershipVisibility } from '$lib/server/membership-visibility';
 
 // GET - Get single application (authenticated users only)
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -16,6 +17,18 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		const [application] = await db.select().from(applications).where(eq(applications.id, id));
 
 		if (!application) {
+			error(404, 'Application not found');
+		}
+
+		// Non-admin members may only see applications submitted after their own.
+		const vis = await getMembershipVisibility(locals);
+		if (
+			vis.restricted &&
+			!(
+				application.submittedAt > (vis.cutoff as string) &&
+				application.email.toLowerCase() !== vis.email
+			)
+		) {
 			error(404, 'Application not found');
 		}
 

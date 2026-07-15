@@ -11,6 +11,7 @@ import { getChoices } from '$lib/server/voting/choice-sets';
 import { canAuthorProposal } from '$lib/server/voting/eligibility';
 import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
+import { getMembershipVisibility } from '$lib/server/membership-visibility';
 
 const TITLE_MAX = 140;
 const BODY_MAX = 10_000;
@@ -74,6 +75,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				sql`exists (select 1 from json_each(${proposals.tags}) where json_each.value = ${norm})`
 			);
 		}
+	}
+
+	// Non-admin members must not see membership votes tied to applications
+	// submitted before their own (or their own). Non-membership proposals
+	// (no linked application) are always visible.
+	const vis = await getMembershipVisibility(locals);
+	if (vis.restricted) {
+		conditions.push(
+			sql`(${proposals.linkedApplicationId} is null or ${proposals.linkedApplicationId} in (
+				select ${applications.id} from ${applications}
+				where ${applications.submittedAt} > ${vis.cutoff} and lower(${applications.email}) <> ${vis.email}))`
+		);
 	}
 
 	const rows = await db

@@ -212,8 +212,8 @@
 	}
 
 	async function sendConfirmationEmail(app: Application, resend = false) {
-		if (!auth.isSafeOwner) {
-			statusMessage = { type: 'error', text: 'Only Safe owners can send confirmation emails' };
+		if (!auth.isAdmin) {
+			statusMessage = { type: 'error', text: 'Only admins can send confirmation emails' };
 			return;
 		}
 
@@ -269,8 +269,8 @@
 	}
 
 	async function sendRejectionEmail(app: Application) {
-		if (!auth.isSafeOwner) {
-			statusMessage = { type: 'error', text: 'Only Safe owners can send rejection emails' };
+		if (!auth.isAdmin) {
+			statusMessage = { type: 'error', text: 'Only admins can send rejection emails' };
 			return;
 		}
 
@@ -540,12 +540,12 @@
 		</a>
 	{/if}
 	{#if app.status !== 'cancelled'}
-		{#if app.votingResult === 'approved' && !app.confirmationEmailSentAt}
+		{#if auth.isAdmin && (app.votingResult === 'approved' || app.votingResult === 'needs_review') && !app.confirmationEmailSentAt && !app.rejectionEmailSentAt}
 			<button
 				type="button"
 				class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={() => sendConfirmationEmail(app)}
-				disabled={sendingEmailFor !== null || !auth.isSafeOwner}
+				disabled={sendingEmailFor !== null}
 			>
 				{#if sendingEmailFor === app.id}
 					<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />
@@ -562,7 +562,7 @@
 				<Icon icon="tabler:mail-check" class="h-4 w-4" />
 				Email Sent {formatDate(app.confirmationEmailSentAt)}
 			</span>
-			{#if auth.isSafeOwner}
+			{#if auth.isAdmin}
 				<button
 					type="button"
 					class="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -579,12 +579,12 @@
 				</button>
 			{/if}
 		{/if}
-		{#if app.votingResult === 'rejected' && !app.rejectionEmailSentAt}
+		{#if auth.isAdmin && (app.votingResult === 'rejected' || app.votingResult === 'needs_review') && !app.rejectionEmailSentAt && !app.confirmationEmailSentAt}
 			<button
 				type="button"
 				class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={() => sendRejectionEmail(app)}
-				disabled={sendingRejectionFor !== null || !auth.isSafeOwner}
+				disabled={sendingRejectionFor !== null}
 			>
 				{#if sendingRejectionFor === app.id}
 					<Icon icon="tabler:loader-2" class="h-4 w-4 animate-spin" />

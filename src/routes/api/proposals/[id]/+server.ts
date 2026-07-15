@@ -9,6 +9,7 @@ import {
 } from '$lib/server/db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { materialiseProposal } from '$lib/server/voting/materialise';
+import { getMembershipVisibility } from '$lib/server/membership-visibility';
 
 function parseTags(raw: string): string[] {
 	try {
@@ -35,6 +36,25 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const [row] = await db.select().from(proposals).where(eq(proposals.id, params.id));
 	if (!row) error(404, 'Proposal not found');
+
+	// Non-admin members may only see a membership vote if its linked application
+	// was submitted after their own. Non-membership proposals are always visible.
+	if (row.linkedApplicationId) {
+		const vis = await getMembershipVisibility(locals);
+		if (vis.restricted) {
+			const [app] = await db
+				.select({ submittedAt: applications.submittedAt, email: applications.email })
+				.from(applications)
+				.where(eq(applications.id, row.linkedApplicationId))
+				.limit(1);
+			if (
+				!app ||
+				!(app.submittedAt > (vis.cutoff as string) && app.email.toLowerCase() !== vis.email)
+			) {
+				error(404, 'Proposal not found');
+			}
+		}
+	}
 
 	const proposal = await materialiseProposal(row);
 

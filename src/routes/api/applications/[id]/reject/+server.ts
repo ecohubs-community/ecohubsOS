@@ -9,16 +9,11 @@ import { materialiseProposal } from '$lib/server/voting/materialise';
 import { apiLogger, emailLogger } from '$lib/server/logger';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { rejectionSentMessage } from '$lib/server/discord-templates';
+import { requireAdmin } from '$lib/server/authz';
 
 // POST - Send rejection email to applicant
 export const POST: RequestHandler = async ({ params, locals }) => {
-	if (!locals.user) {
-		error(401, 'Not authenticated');
-	}
-
-	if (locals.user.safeOwnerStatus !== 'executed') {
-		error(403, 'Only Safe owners can send rejection emails');
-	}
+	requireAdmin(locals);
 
 	const { id } = params;
 
@@ -61,11 +56,16 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		error(400, 'Voting has not ended yet');
 	}
 	// A 'tied' result is treated as rejected per the protocol (status quo holds).
-	if (proposal.result !== 'rejected' && proposal.result !== 'tied') {
-		error(400, `Application was not rejected (result: ${proposal.result || 'unknown'})`);
+	// 'needs_review' is admin-resolvable either way, so a reject is permitted here too.
+	if (
+		proposal.result !== 'rejected' &&
+		proposal.result !== 'tied' &&
+		proposal.result !== 'needs_review'
+	) {
+		error(400, `Application cannot be rejected (result: ${proposal.result || 'unknown'})`);
 	}
 
-	apiLogger.info({ applicationId: id }, '[Step 1/3] Voting proposal verified: closed & rejected');
+	apiLogger.info({ applicationId: id }, '[Step 1/3] Voting proposal verified: closed & rejectable');
 
 	// Step 2: Build and send the rejection email
 	const discordInviteUrl = env.DISCORD_INVITE_URL || 'https://discord.gg/ecohubs';

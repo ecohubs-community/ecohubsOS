@@ -2,8 +2,9 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { applications, proposals, proposalVotes } from '$lib/server/db/schema';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { materialiseAllStale } from '$lib/server/voting/materialise';
+import { getMembershipVisibility } from '$lib/server/membership-visibility';
 import { env } from '$env/dynamic/private';
 import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
@@ -47,9 +48,20 @@ export const GET: RequestHandler = async ({ locals }) => {
 	try {
 		await materialiseAllStale();
 
+		// Non-admin members only see applications submitted after their own
+		// (and never their own). Admins see everything.
+		const vis = await getMembershipVisibility(locals);
+		const visibilityFilter = vis.restricted
+			? and(
+					gt(applications.submittedAt, vis.cutoff as string),
+					sql`lower(${applications.email}) <> ${vis.email}`
+				)
+			: undefined;
+
 		const allApplications = await db
 			.select()
 			.from(applications)
+			.where(visibilityFilter)
 			.orderBy(desc(applications.submittedAt));
 
 		const applicationIds = allApplications.map((a) => a.id);
