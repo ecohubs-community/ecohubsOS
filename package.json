@@ -57,7 +57,7 @@
 	"dependencies": {
 		"@iconify/svelte": "^5.1.0",
 		"@iocium/favicon-extractor": "^1.1.0",
-		"@offcoin/sdk": "^0.0.9",
+		"@offcoin/sdk": "^0.0.11",
 		"@safe-global/api-kit": "^4.0.1",
 		"@safe-global/protocol-kit": "^6.1.2",
 		"@tryghost/admin-api": "^1.14.3",
