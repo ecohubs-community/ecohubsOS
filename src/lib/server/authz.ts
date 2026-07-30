@@ -1,8 +1,12 @@
 import { error } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
+import { ROLE_GROUPS } from '$lib/policy';
 
-export const ADMIN_GROUP = 'EcoHubs Admin';
-export const STEWARD_GROUP = 'EcoHubs Steward';
+// Re-exported from `$lib/policy` so the group names have exactly one definition.
+// `$lib/server/membership.ts` is the richer gate (capabilities, status, member-
+// facing reasons); these remain for the many call sites that only need a role.
+export const ADMIN_GROUP = ROLE_GROUPS.admin;
+export const STEWARD_GROUP = ROLE_GROUPS.steward;
 
 /**
  * Parse the JSON-encoded group list off `locals.user`. Returns [] when there
