@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { isNotNull } from 'drizzle-orm';
-import { getOffcoinClient } from '$lib/server/offcoin';
+import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -33,7 +33,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		const offcoinResults = await Promise.allSettled(
 			members.map(async (member) => {
 				if (!member.puckstackUserId) return null;
-				const alias = `puckstack:${member.puckstackUserId}`;
+				const alias = memberAlias(member.puckstackUserId);
 				const [memberData, xpData, balanceData] = await Promise.all([
 					offcoin.members.get(alias),
 					offcoin.members.getXp(alias),

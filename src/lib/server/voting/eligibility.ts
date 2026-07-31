@@ -1,4 +1,4 @@
-import { getOffcoinClient } from '$lib/server/offcoin';
+import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { NotFoundError } from '@offcoin/sdk';
 import { votingLogger } from '$lib/server/logger';
 
@@ -21,7 +21,7 @@ export async function canAuthorProposal(user: {
 
 	try {
 		const offcoin = getOffcoinClient();
-		const alias = `puckstack:${user.puckstackUserId}`;
+		const alias = memberAlias(user.puckstackUserId);
 		const xpData = await offcoin.members.getXp(alias);
 		return (xpData.level ?? 0) >= PROPOSAL_AUTHOR_MIN_LEVEL;
 	} catch (err) {
