@@ -104,7 +104,16 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null,
 				introWatchedAt: dbUser.introWatchedAt ?? null,
-				meetingSchedulingUrl: dbUser.meetingSchedulingUrl ?? null
+				meetingSchedulingUrl: dbUser.meetingSchedulingUrl ?? null,
+				membershipStatus:
+					(dbUser.membershipStatus as 'active' | 'standby' | 'exited' | null) ?? 'active',
+				membershipStatusSince: dbUser.membershipStatusSince ?? null,
+				standbyReason: dbUser.standbyReason ?? null,
+				exitReason: dbUser.exitReason ?? null,
+				offcoinMemberId: dbUser.offcoinMemberId ?? null,
+				offcoinXp: dbUser.offcoinXp ?? null,
+				offcoinLevel: dbUser.offcoinLevel ?? null,
+				offcoinSyncedAt: dbUser.offcoinSyncedAt ?? null
 			};
 			event.locals.session = {
 				id: session.session.id,

@@ -68,7 +68,51 @@ export const user = sqliteTable('user', {
 
 	// Personal buddy-call scheduling URL (e.g. Cal.com / Calendly). Surfaced and
 	// editable only for stewards/admins; used to pre-fill the buddy-call invite email.
-	meetingSchedulingUrl: text('meeting_scheduling_url')
+	meetingSchedulingUrl: text('meeting_scheduling_url'),
+
+	// --- Membership status ---------------------------------------------------
+	// Orthogonal to *role*, which lives in Authentik groups (see $lib/policy).
+	// A member is `trial` by holding no role group; that is not a status.
+	// 'active' | 'standby' | 'exited'
+	membershipStatus: text('membership_status').notNull().default('active'),
+	membershipStatusSince: integer('membership_status_since', { mode: 'timestamp' }),
+	// Reason text captured when a member requests standby, and when they exit.
+	// Voters' reasons on a reactivation vote are deliberately NOT stored here —
+	// a rejected member is never told why.
+	standbyReason: text('standby_reason'),
+	exitReason: text('exit_reason'),
+
+	// --- Offcoin snapshot ----------------------------------------------------
+	// Cached so a gate never depends on a live Offcoin call. An outage must not
+	// silently demote the community, so reads fall back to these values.
+	offcoinMemberId: text('offcoin_member_id'),
+	offcoinXp: integer('offcoin_xp'),
+	offcoinLevel: integer('offcoin_level'),
+	offcoinSyncedAt: integer('offcoin_synced_at', { mode: 'timestamp' })
+});
+
+// Audit trail for every membership role/status transition. Append-only —
+// downgrades are proposed by a timer but always applied by a human, and this is
+// the record of who decided what, and why.
+export const membershipEvents = sqliteTable('membership_events', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	// Role is resolved from Authentik groups, so it is recorded here as text
+	// rather than referenced: 'trial' | 'member' | 'steward' | 'admin'.
+	fromRole: text('from_role'),
+	toRole: text('to_role'),
+	fromStatus: text('from_status'),
+	toStatus: text('to_status'),
+	reason: text('reason'),
+	// Null for system-applied transitions (e.g. the Offcoin level-up promotion).
+	actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
 });
 
 // BetterAuth session table
@@ -175,27 +219,31 @@ export const proposals = sqliteTable('proposals', {
 	linkedBlogDraftId: text('linked_blog_draft_id').unique()
 });
 
-export const proposalVotes = sqliteTable('proposal_votes', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	proposalId: text('proposal_id')
-		.notNull()
-		.references(() => proposals.id, { onDelete: 'cascade' }),
-	userId: text('user_id')
-		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
-	choice: text('choice').notNull(),
-	reason: text('reason'),
-	votedAt: integer('voted_at', { mode: 'timestamp' })
-		.notNull()
-		.$defaultFn(() => new Date())
-}, (table) => ({
-	uniqueVotePerUser: uniqueIndex('proposal_votes_proposal_user_unique').on(
-		table.proposalId,
-		table.userId
-	)
-}));
+export const proposalVotes = sqliteTable(
+	'proposal_votes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		proposalId: text('proposal_id')
+			.notNull()
+			.references(() => proposals.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		choice: text('choice').notNull(),
+		reason: text('reason'),
+		votedAt: integer('voted_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		uniqueVotePerUser: uniqueIndex('proposal_votes_proposal_user_unique').on(
+			table.proposalId,
+			table.userId
+		)
+	})
+);
 
 export const applications = sqliteTable('applications', {
 	id: text('id')

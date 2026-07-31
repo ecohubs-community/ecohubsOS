@@ -66,7 +66,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Parse JSON fields for client (same shape as desktop +page.server.ts)
-	const safeJsonParse = <T,>(json: string | null | undefined, fallback: T, field?: string): T => {
+	const safeJsonParse = <T>(json: string | null | undefined, fallback: T, field?: string): T => {
 		if (!json) return fallback;
 		try {
 			return JSON.parse(json) as T;
@@ -100,7 +100,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			safeRole: locals.user.safeRole,
 			safeRoleStatus: locals.user.safeRoleStatus,
 			puckstackUserId: locals.user.puckstackUserId,
-			introWatchedAt: locals.user.introWatchedAt?.toISOString() ?? null
+			introWatchedAt: locals.user.introWatchedAt?.toISOString() ?? null,
+			membershipStatus: locals.user.membershipStatus ?? 'active',
+			offcoinLevel: locals.user.offcoinLevel ?? null
 		},
 		onboardingProgress
 	};

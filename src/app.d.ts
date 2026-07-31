@@ -44,6 +44,16 @@ interface AuthUser {
 	introWatchedAt: Date | null;
 	// Personal buddy-call scheduling URL (stewards/admins only)
 	meetingSchedulingUrl: string | null;
+	// Membership status — orthogonal to role, which lives in `groups`.
+	membershipStatus: 'active' | 'standby' | 'exited';
+	membershipStatusSince: Date | null;
+	standbyReason: string | null;
+	exitReason: string | null;
+	// Offcoin snapshot — gates read these, never a live Offcoin call.
+	offcoinMemberId: string | null;
+	offcoinXp: number | null;
+	offcoinLevel: number | null;
+	offcoinSyncedAt: Date | null;
 }
 
 interface AuthSession {

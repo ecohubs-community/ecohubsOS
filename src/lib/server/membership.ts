@@ -5,11 +5,6 @@
  * Endpoints should reach for `requireCapability()` rather than hand-rolling
  * group checks, so that what the server enforces and what the UI explains can
  * never drift apart.
- *
- * ⚠️ Phase 1 dependency: `membershipStatus` and `offcoinLevel` are not on the
- * `user` table yet. Until the migration lands, {@link getMemberContext} falls
- * back to `active` / level 0 — see the notes on that function for why this is
- * safe but temporarily imprecise.
  */
 
 import { error } from '@sveltejs/kit';
@@ -28,39 +23,24 @@ import { parseGroups } from '$lib/server/authz';
 type Locals = RequestEvent['locals'];
 
 /**
- * The membership fields Phase 1 adds to the `user` table. Declared separately
- * and read defensively so this module compiles and behaves correctly both
- * before and after the migration, without a cast at every call site.
- */
-interface PendingMembershipFields {
-	membershipStatus?: MembershipStatus | null;
-	offcoinLevel?: number | null;
-}
-
-/**
  * Build the policy context for the current request.
  *
- * Two fallbacks apply until the Phase 1 migration:
+ * `level` comes from the Offcoin snapshot on the user row, never a live Offcoin
+ * call — an outage must not be able to demote anyone. It also never decides an
+ * allow/deny on its own: authorization is settled by Authentik group
+ * membership, so a stale snapshot can only make a denial *message* imprecise.
  *
- * - **status → `active`.** Every existing account is active today, and the
- *   migration grandfathers them as such, so this is the correct reading rather
- *   than a guess.
- * - **level → `0`.** Level never affects an allow/deny decision — authorization
- *   is decided by Authentik group membership — so a stale level can only make a
- *   *denial message* imprecise ("you're at Level 0"), never wrongly grant or
- *   refuse access. Pass `overrides.level` at call sites that already hold a real
- *   level, and the snapshot column will supply it everywhere once it exists.
+ * `status` defaults to `active` only for the anonymous case; every account row
+ * has the column with an `active` default.
  */
 export function getMemberContext(
 	locals: Locals,
 	overrides: Partial<MemberContext> = {}
 ): MemberContext {
-	const user = locals.user as (typeof locals.user & PendingMembershipFields) | null;
-
 	return {
 		groups: parseGroups(locals),
-		status: user?.membershipStatus ?? 'active',
-		level: user?.offcoinLevel ?? 0,
+		status: locals.user?.membershipStatus ?? 'active',
+		level: locals.user?.offcoinLevel ?? 0,
 		...overrides
 	};
 }
