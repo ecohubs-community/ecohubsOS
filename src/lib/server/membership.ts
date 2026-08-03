@@ -77,12 +77,15 @@ export function hasCapability(
  * - No session → **401**, matching the existing `requireAdmin` behaviour.
  * - Denied → **403** carrying the policy's member-facing message, so an API
  *   client and the UI say the same thing about the same refusal.
+ *
+ * Declared as an assertion so callers get `locals.user` narrowed to non-null
+ * afterwards, the same as the `if (!locals.user) error(401)` line it replaces.
  */
 export function requireCapability(
 	capability: Capability,
 	locals: Locals,
 	overrides?: Partial<MemberContext>
-): void {
+): asserts locals is Locals & { user: NonNullable<Locals['user']> } {
 	if (!locals.user) error(401, 'Unauthorized');
 
 	const result = check(capability, locals, overrides);

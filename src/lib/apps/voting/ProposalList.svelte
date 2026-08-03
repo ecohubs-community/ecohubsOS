@@ -16,6 +16,7 @@
 		onTagChange: (tag: string) => void;
 		onSelect: (id: string) => void;
 		onNew: () => void;
+		onProposeBlocked: () => void;
 		onRefresh: () => void;
 	}
 
@@ -33,6 +34,7 @@
 		onTagChange,
 		onSelect,
 		onNew,
+		onProposeBlocked,
 		onRefresh
 	}: Props = $props();
 
@@ -70,7 +72,11 @@
 <div class="list-root">
 	<div class="header">
 		<div class="tabs">
-			<button class="tab" class:active={statusTab === 'active'} onclick={() => onTabChange('active')}>
+			<button
+				class="tab"
+				class:active={statusTab === 'active'}
+				onclick={() => onTabChange('active')}
+			>
 				Active
 			</button>
 			<button class="tab" class:active={statusTab === 'past'} onclick={() => onTabChange('past')}>
@@ -82,7 +88,8 @@
 			<select
 				class="filter-select"
 				value={typeFilter}
-				onchange={(e) => onTypeChange((e.currentTarget as HTMLSelectElement).value as Props['typeFilter'])}
+				onchange={(e) =>
+					onTypeChange((e.currentTarget as HTMLSelectElement).value as Props['typeFilter'])}
 			>
 				<option value="">All types</option>
 				<option value="operational">Operational</option>
@@ -105,12 +112,10 @@
 				<Icon icon="tabler:refresh" class="h-4 w-4" />
 			</button>
 
-			{#if canAuthor}
-				<button class="btn-primary" onclick={onNew}>
-					<Icon icon="tabler:plus" class="h-4 w-4" />
-					New Proposal
-				</button>
-			{/if}
+			<button class="btn-primary" onclick={canAuthor ? onNew : onProposeBlocked}>
+				<Icon icon="tabler:plus" class="h-4 w-4" />
+				New Proposal
+			</button>
 		</div>
 	</div>
 

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { page } from '$app/state';
 	import { os } from '$lib/os.svelte';
-	import { APPS } from '$lib/data';
+	import { APPS, appSurfaceFor, type AppDefinition } from '$lib/data';
+	import { auth } from '$lib/auth.svelte';
 	import Icon from '@iconify/svelte';
 	import FallbackFavicon from '$lib/assets/favicon.svg';
 	import SystemFavicon from '$lib/assets/icons/system.svg';
@@ -32,6 +32,15 @@
 		}
 	}
 
+	let memberCtx = $derived({
+		groups: auth.userGroups,
+		status: auth.membershipStatus,
+		level: auth.offcoinLevel
+	});
+
+	// Apps the member can see, each with its surface. `locked` entries stay in
+	// the grid deliberately: a member who could *ask* for access learns the tool
+	// exists and how to get it, rather than it silently not being there.
 	let filteredApps = $derived(
 		APPS.filter(
 			(app) =>
@@ -42,13 +51,35 @@
 				!app.hiddenFromAllApps &&
 				app.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
 				activeCategories.has(app.category) &&
-				(!app.groups ||
-					(page.data.user?.groups &&
-						app.groups.some((g: string) => page.data.user.groups.includes(g))))
-		)
+				appSurfaceFor(app, memberCtx) !== 'hidden'
+		).map((app) => ({ app, surface: appSurfaceFor(app, memberCtx) }))
 	);
 
+	/** The policy's own explanation for why an app is locked. */
+	function lockedReason(app: AppDefinition): string {
+		if (!app.requires) return app.description;
+		const result = auth.can(app.requires);
+		return result.allowed ? app.description : result.message;
+	}
+
+	/**
+	 * Open an app, or — when it is locked behind a grant the member could ask
+	 * for — open the feedback widget prefilled with that request instead of
+	 * dropping them into a tool they cannot use.
+	 */
 	function openApp(appId: string) {
+		const app = APPS.find((a) => a.id === appId);
+		if (app && appSurfaceFor(app, memberCtx) === 'locked') {
+			os.closeAllApps();
+			os.openFeedback({
+				subject: `Access request: ${app.name}`,
+				message:
+					`I'd like access to ${app.name}.\n\n` +
+					`What I'd like to contribute:\n\n` +
+					`(${lockedReason(app)})`
+			});
+			return;
+		}
 		os.openApp(appId);
 	}
 
@@ -149,13 +180,15 @@
 			</div>
 		{:else}
 			<div class="flex flex-wrap gap-3 md:gap-6">
-				{#each filteredApps as app (app.id)}
+				{#each filteredApps as { app, surface } (app.id)}
+					{@const locked = surface === 'locked'}
 					<button
 						class="group flex w-20 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10 md:w-24"
 						onclick={() => openApp(app.id)}
+						title={locked ? lockedReason(app) : app.description}
 					>
 						<div
-							class="from-solar-800 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110 md:h-16 md:w-16 {app.groups &&
+							class="from-solar-800 relative flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br to-solar-900 shadow-lg transition-transform duration-200 group-hover:scale-110 md:h-16 md:w-16 {app.groups &&
 							app.groups.includes('EcoHubs Admin')
 								? 'border-2 border-blue-500/50 bg-blue-500/10'
 								: ''}"
@@ -163,12 +196,23 @@
 							<img
 								src={getAppIcon(app)}
 								alt={app.name}
-								class="h-10 w-10"
+								class="h-10 w-10 {locked ? 'opacity-40' : ''}"
 								onerror={imgError}
 								data-app-id={app.id}
 							/>
+							{#if locked}
+								<span
+									class="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 ring-1 ring-white/20"
+								>
+									<Icon icon="tabler:lock" class="h-3 w-3 text-white/70" />
+								</span>
+							{/if}
 						</div>
-						<span class="line-clamp-2 text-center text-xs text-white/80 group-hover:text-white">
+						<span
+							class="line-clamp-2 text-center text-xs group-hover:text-white {locked
+								? 'text-white/40'
+								: 'text-white/80'}"
+						>
 							{app.name}
 						</span>
 					</button>

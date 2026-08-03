@@ -156,12 +156,21 @@ class OSState {
 		this.closeGuard = fn;
 	}
 
-	openFeedback() {
+	/**
+	 * Prefill for the feedback widget, set when it is opened from an access
+	 * request so the member does not have to explain what they are asking for.
+	 * Cleared on close.
+	 */
+	feedbackPrefill = $state<{ subject: string; message: string } | null>(null);
+
+	openFeedback(prefill: { subject: string; message: string } | null = null) {
+		this.feedbackPrefill = prefill;
 		this.feedbackOpen = true;
 	}
 
 	closeFeedback() {
 		this.feedbackOpen = false;
+		this.feedbackPrefill = null;
 	}
 
 	openAllApps() {

@@ -1,4 +1,5 @@
 import type { Component } from 'svelte';
+import { appSurface, type Capability, type MembershipStatus } from '$lib/policy';
 import OffcoinConnect from './apps/offcoin-connect/OffcoinConnect.svelte';
 import PuckstackSignup from './apps/puckstack-signup/PuckstackSignup.svelte';
 // import FlarumConnect from './apps/flarum-connect/FlarumConnect.svelte';
@@ -59,10 +60,42 @@ export interface AppDefinition {
 	 * (kanban boards, tables) that benefit from the extra space.
 	 */
 	allowFullscreen?: boolean;
+	/**
+	 * Membership capability governing this app, resolved through `$lib/policy`.
+	 *
+	 * Richer than `groups`, which is a flat any-of match: a capability also
+	 * accounts for membership status and for requestable grants, and decides
+	 * between *hidden* and *locked*. An app the member could ask for renders
+	 * locked with an explanation; one their role cannot reach is hidden.
+	 *
+	 * Prefer this over `groups` for anything new. Both are honoured, and an app
+	 * declaring both must satisfy both.
+	 */
+	requires?: Capability;
 }
 
 // Re-export from notifications.ts for backward compatibility
 export { MOCK_NOTIFICATIONS, type Notification } from './notifications';
+
+/**
+ * How an app should surface for the current user: `open`, `locked` (shown with
+ * an explanation, and a request path when the grant is askable), or `hidden`.
+ *
+ * Shared by the dock and the All Apps grid so the two cannot disagree about
+ * what a member is allowed to see. Legacy `groups` and the newer `requires`
+ * capability are both honoured; an app declaring both must satisfy both, and
+ * the stricter outcome wins.
+ */
+export function appSurfaceFor(
+	app: AppDefinition,
+	ctx: { groups: string[]; status: MembershipStatus; level: number }
+): 'open' | 'locked' | 'hidden' {
+	if (app.groups && !app.groups.some((g) => ctx.groups.includes(g))) {
+		return 'hidden';
+	}
+	if (!app.requires) return 'open';
+	return appSurface(app.requires, ctx);
+}
 
 export const APPS: AppDefinition[] = [
 	{
@@ -73,10 +106,11 @@ export const APPS: AppDefinition[] = [
 		isInternalApp: true,
 		component: Voting,
 		description: 'Vote on active proposals and shape the future.',
+		requires: 'voting.view',
 		helpItems: [
-			'View and vote on active governance proposals',
-			'Create new proposals (requires Offcoin Level 3 or higher)',
-			'Track voting results and proposal history',
+			'View active governance proposals and past decisions',
+			'Vote once you reach member status (Offcoin Level 1)',
+			'Proposals are created by stewards — bring ideas via Discord',
 			'Read voter reasons and outcomes for past decisions'
 		]
 	},
@@ -87,6 +121,7 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://blueprint.ecohubs.community/admin',
 		description: 'Create the future together.',
+		requires: 'blueprint.admin',
 		helpItems: [
 			'You will need a free github.com account to access the Blueprint Admin panel',
 			'Share and collaborate on the ecohubs blueprint for regenerative communities',
@@ -135,6 +170,7 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		url: 'https://newsletter.ecohubs.community',
 		description: 'Create and manage newsletters.',
+		requires: 'newsletter.write',
 		// Hidden from the dock by default (opt-in / context-launched),
 		// but visible in the All Apps grid so members can discover it.
 		hidden: true,
@@ -161,7 +197,8 @@ export const APPS: AppDefinition[] = [
 		category: 'social',
 		isInternalApp: true,
 		component: BlogManager,
-		description: 'Manage blog drafts and create publication proposals.'
+		description: 'Manage blog drafts and create publication proposals.',
+		requires: 'blog.write'
 	},
 	// Wallet & Safe — kept as registered apps so existing flows that open
 	// them via os.openApp() (and any deep links) continue to work, but
@@ -292,4 +329,3 @@ export const APPS: AppDefinition[] = [
 		groups: ['EcoHubs Admin']
 	}
 ];
-
