@@ -34,6 +34,14 @@ export interface BackfillResult {
 	alreadyMember: number;
 	/** Skipped because their status is not `active`. */
 	skippedInactive: number;
+	/**
+	 * Who would be (or was) added, so the decision to grandfather someone is
+	 * made with names in front of you rather than a count. The group was
+	 * historically assigned by the Authentik enrollment flow, so who already
+	 * holds it reflects *when* they enrolled, not what they have contributed —
+	 * the people in this list are not necessarily newer or less active.
+	 */
+	addedMembers: { email: string; name: string }[];
 	/** Failed, with the reason. Reported rather than thrown, so one bad row
 	 *  cannot abandon the rest of the run half-done. */
 	failed: { email: string; error: string }[];
@@ -67,6 +75,7 @@ export async function backfillMemberGroup(
 		added: 0,
 		alreadyMember: 0,
 		skippedInactive: 0,
+		addedMembers: [],
 		failed: []
 	};
 
@@ -99,6 +108,7 @@ export async function backfillMemberGroup(
 
 		if (dryRun) {
 			result.added++;
+			result.addedMembers.push({ email: u.email, name: u.name });
 			continue;
 		}
 
@@ -128,6 +138,7 @@ export async function backfillMemberGroup(
 			});
 
 			result.added++;
+			result.addedMembers.push({ email: u.email, name: u.name });
 		} catch (err) {
 			const error = err instanceof Error ? err.message : 'Unknown error';
 			apiLogger.error({ err, userId: u.id }, 'Member group backfill failed for user');
@@ -135,6 +146,18 @@ export async function backfillMemberGroup(
 		}
 	}
 
-	apiLogger.info({ ...result, dryRun }, 'Member group backfill complete');
+	// Counts only — `addedMembers` and `failed` carry emails, which belong in the
+	// admin's response, not in the log stream.
+	apiLogger.info(
+		{
+			dryRun,
+			total: result.total,
+			added: result.added,
+			alreadyMember: result.alreadyMember,
+			skippedInactive: result.skippedInactive,
+			failedCount: result.failed.length
+		},
+		'Member group backfill complete'
+	);
 	return result;
 }
