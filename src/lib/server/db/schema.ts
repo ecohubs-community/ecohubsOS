@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 // BetterAuth user table with extended fields
 export const user = sqliteTable('user', {
@@ -124,6 +125,46 @@ export const membershipEvents = sqliteTable('membership_events', {
 		.notNull()
 		.$defaultFn(() => new Date())
 });
+
+// Proposed membership downgrades awaiting a human decision.
+//
+// A timer elapsing creates a row here; it never changes a membership. Nothing
+// in this system removes someone's access without a steward or admin acting.
+export const membershipReviews = sqliteTable(
+	'membership_reviews',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		kind: text('kind').notNull(),
+		fromStatus: text('from_status').notNull(),
+		toStatus: text('to_status').notNull(),
+		// The evidence, snapshotted at proposal time so the queue still explains
+		// itself after the member acts again.
+		reason: text('reason').notNull(),
+		daysElapsed: integer('days_elapsed').notNull(),
+		thresholdDays: integer('threshold_days').notNull(),
+		// 'pending' | 'applied' | 'dismissed'
+		status: text('status').notNull().default('pending'),
+		resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+		resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+		resolutionNote: text('resolution_note'),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		// At most one pending review per member. Without this, every evaluator run
+		// would pile up a duplicate for the same elapsed timer.
+		uniquePending: uniqueIndex('membership_reviews_pending_unique')
+			.on(table.userId)
+			.where(sql`status = 'pending'`)
+	})
+);
 
 // BetterAuth session table
 export const session = sqliteTable('session', {
