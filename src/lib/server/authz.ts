@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
-import { ROLE_GROUPS } from '$lib/policy';
+import { ROLE_GROUPS, parseGroupsJson } from '$lib/policy';
 
 // Re-exported from `$lib/policy` so the group names have exactly one definition.
 // `$lib/server/membership.ts` is the richer gate (capabilities, status, member-
@@ -14,13 +14,7 @@ export const STEWARD_GROUP = ROLE_GROUPS.steward;
  * across the existing /api/admin/* endpoints.
  */
 export function parseGroups(locals: RequestEvent['locals']): string[] {
-	if (!locals.user?.groups) return [];
-	try {
-		const parsed = JSON.parse(locals.user.groups as unknown as string);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+	return parseGroupsJson(locals.user?.groups as unknown as string | null);
 }
 
 export function isAdmin(locals: RequestEvent['locals']): boolean {

@@ -52,6 +52,22 @@ export function isAtLeastRole(role: Role, minimum: Role): boolean {
 }
 
 /**
+ * Parse the JSON-encoded group list stored on `user.groups`.
+ *
+ * Returns `[]` for null or malformed input — a member with unreadable groups
+ * resolves to `trial`, which denies rather than grants.
+ */
+export function parseGroupsJson(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	try {
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
+/**
  * Highest role implied by a set of Authentik group names. Unknown groups are
  * ignored, so grant groups (see `GRANT_GROUPS`) can live in the same list.
  */

@@ -17,7 +17,7 @@
 import { db } from '$lib/server/db';
 import { user as userTable, membershipEvents } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { ROLE_GROUPS, resolveRole } from '$lib/policy';
+import { ROLE_GROUPS, parseGroupsJson, resolveRole } from '$lib/policy';
 import {
 	getAuthentikGroupByName,
 	getAuthentikUserByEmail,
@@ -45,16 +45,6 @@ export interface BackfillResult {
 	/** Failed, with the reason. Reported rather than thrown, so one bad row
 	 *  cannot abandon the rest of the run half-done. */
 	failed: { email: string; error: string }[];
-}
-
-function parseGroups(raw: string | null): string[] {
-	if (!raw) return [];
-	try {
-		const parsed = JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
 }
 
 /**
@@ -92,7 +82,7 @@ export async function backfillMemberGroup(
 	result.total = users.length;
 
 	for (const u of users) {
-		const groups = parseGroups(u.groups);
+		const groups = parseGroupsJson(u.groups);
 
 		if (groups.includes(ROLE_GROUPS.member)) {
 			result.alreadyMember++;
