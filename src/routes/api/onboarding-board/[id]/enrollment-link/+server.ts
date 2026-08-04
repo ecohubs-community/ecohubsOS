@@ -6,6 +6,7 @@ import { memberOnboarding } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { createAuthentikInvitation } from '$lib/server/authentik';
 import { buildReminderTemplate } from '$lib/server/member-onboarding/emailTemplates';
+import { personDisplayName } from '$lib/server/member-onboarding/service';
 import { apiLogger } from '$lib/server/logger';
 
 // GET — generate a fresh Authentik enrollment link and a pre-filled reminder
@@ -24,12 +25,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		enrollmentUrl = result.enrollmentUrl;
 	} catch (err) {
 		apiLogger.error({ err, onboardingId: row.id }, 'Failed to regenerate enrollment link');
-		error(500, `Failed to create enrollment link: ${err instanceof Error ? err.message : 'Unknown'}`);
+		error(
+			500,
+			`Failed to create enrollment link: ${err instanceof Error ? err.message : 'Unknown'}`
+		);
 	}
 
 	const template = buildReminderTemplate({
 		recipientName: row.fullName,
-		senderName: locals.user!.name,
+		senderName: personDisplayName(locals.user!),
 		enrollmentUrl
 	});
 
