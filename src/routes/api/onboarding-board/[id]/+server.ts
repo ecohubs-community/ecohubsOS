@@ -65,7 +65,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const senderName = personDisplayName(locals.user!);
 	const buddyCallTemplate = buildBuddyCallTemplate({
-		recipientName: row.fullName,
+		// Greet the member by the name they chose in My Profile. By buddy-call
+		// time they have an account; before that only the application name exists.
+		recipientName: linkedUser ? personDisplayName(linkedUser) : row.fullName,
 		senderName,
 		schedulingUrl: locals.user!.meetingSchedulingUrl ?? null
 	});
