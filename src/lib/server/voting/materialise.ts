@@ -2,7 +2,7 @@ import { db } from '$lib/server/db';
 import { proposals, proposalVotes } from '$lib/server/db/schema';
 import { and, eq, lte, or, sql } from 'drizzle-orm';
 import type { ProposalType, Threshold } from './periods';
-import { resolveResult, type Tallies } from './resolve';
+import { resolveResult, type Tallies, type VoteResult } from './resolve';
 import { sendDiscordMessage } from '$lib/server/discord';
 import {
 	proposalClosedApprovedMessage,
@@ -13,6 +13,8 @@ import {
 import { votingLogger } from '$lib/server/logger';
 import { applications, membershipEvents, user as userTable } from '$lib/server/db/schema';
 import { POLICY } from '$lib/policy';
+import { sendReactivationOutcomeEmail } from '$lib/server/membership-emails';
+import { env } from '$env/dynamic/private';
 
 type ProposalRow = typeof proposals.$inferSelect;
 
@@ -117,11 +119,11 @@ async function applyReactivationOutcome(
 	row: ProposalRow,
 	result: ProposalRow['result']
 ): Promise<void> {
-	if (result !== 'approved' || !row.linkedApplicationId) return;
+	if (!result || !row.linkedApplicationId) return;
 	if (!(await isReactivationProposal(row))) return;
 
 	const [app] = await db
-		.select({ email: applications.email })
+		.select({ email: applications.email, fullName: applications.fullName })
 		.from(applications)
 		.where(eq(applications.id, row.linkedApplicationId))
 		.limit(1);
@@ -130,28 +132,47 @@ async function applyReactivationOutcome(
 	const member = await db.query.user.findFirst({
 		where: eq(userTable.email, app.email)
 	});
-	if (!member || member.membershipStatus !== 'standby') return;
 
-	const now = new Date();
-	await db
-		.update(userTable)
-		.set({
-			membershipStatus: 'active',
-			membershipStatusSince: now,
-			standbyReason: null,
-			updatedAt: now
-		})
-		.where(eq(userTable.id, member.id));
+	// Approval restores the membership. Guarded on still being in standby, so a
+	// repeated materialisation cannot reactivate twice or resurrect someone whose
+	// status has since moved on.
+	if (result === 'approved' && member?.membershipStatus === 'standby') {
+		const now = new Date();
+		await db
+			.update(userTable)
+			.set({
+				membershipStatus: 'active',
+				membershipStatusSince: now,
+				standbyReason: null,
+				updatedAt: now
+			})
+			.where(eq(userTable.id, member.id));
 
-	await db.insert(membershipEvents).values({
-		userId: member.id,
-		fromStatus: 'standby',
-		toStatus: 'active',
-		reason: 'Reactivation approved by community vote',
-		actorUserId: null // decided collectively, not by one person
+		await db.insert(membershipEvents).values({
+			userId: member.id,
+			fromStatus: 'standby',
+			toStatus: 'active',
+			reason: 'Reactivation approved by community vote',
+			actorUserId: null // decided collectively, not by one person
+		});
+
+		votingLogger.info({ userId: member.id, proposalId: row.id }, 'Membership reactivated by vote');
+	}
+
+	// Every outcome is emailed, not just approval. The member cannot see the vote
+	// — that is what keeps it free of campaigning — so this is the only way they
+	// learn what happened. Fire-and-forget: the membership change above has
+	// already landed and must not be undone by a mail failure.
+	void sendReactivationOutcomeEmail({
+		proposalId: row.id,
+		email: app.email,
+		recipientName: member?.displayName?.trim() || member?.name || app.fullName,
+		// The column is plain text; the resolver only ever writes a VoteResult,
+		// and the guard above has already excluded null.
+		result: result as VoteResult,
+		voteClosedAt: row.voteClosesAt,
+		appUrl: env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community'
 	});
-
-	votingLogger.info({ userId: member.id, proposalId: row.id }, 'Membership reactivated by vote');
 }
 
 /**
