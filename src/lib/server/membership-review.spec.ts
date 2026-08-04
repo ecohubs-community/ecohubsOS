@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	evaluateMembership,
 	daysUntilTransition,
-	warningDue,
+	dueWarningMarks,
+	cycleAnchor,
 	type MembershipSnapshot
 } from './membership-review';
 import { POLICY } from '$lib/policy';
@@ -50,7 +51,7 @@ describe('no participation recorded', () => {
 
 	it('reports no countdown, rather than an elapsed one', () => {
 		expect(daysUntilTransition(snapshot({ lastParticipationAt: null }), NOW)).toBeNull();
-		expect(warningDue(snapshot({ lastParticipationAt: null }), NOW)).toBeNull();
+		expect(dueWarningMarks(snapshot({ lastParticipationAt: null }), NOW)).toEqual([]);
 	});
 
 	it('starts working for a member as soon as they act', () => {
@@ -173,22 +174,41 @@ describe('exited members are terminal', () => {
 });
 
 describe('advance warnings', () => {
-	it('fires at each configured mark before the threshold', () => {
+	it('fires at each configured mark', () => {
 		for (const mark of POLICY.timers.warnBeforeDays) {
 			const member = snapshot({
 				role: 'trial',
 				lastParticipationAt: daysAgo(POLICY.timers.trialToStandby - mark)
 			});
-			expect(warningDue(member, NOW), `mark ${mark}`).toBe(mark);
+			expect(dueWarningMarks(member, NOW), `mark ${mark}`).toContain(mark);
 		}
 	});
 
-	it('is silent between the marks', () => {
-		const between = snapshot({
+	it('is silent before any mark is reached', () => {
+		const early = snapshot({
 			role: 'trial',
 			lastParticipationAt: daysAgo(POLICY.timers.trialToStandby - 30)
 		});
-		expect(warningDue(between, NOW)).toBeNull();
+		expect(dueWarningMarks(early, NOW)).toEqual([]);
+	});
+
+	it('still reports a mark that was passed without being observed', () => {
+		// The reason this is "at or below" rather than an exact day match:
+		// evaluation is lazy-on-read, so nothing guarantees the app is touched on
+		// precisely day T-14. An exact match would drop the notice entirely.
+		const missed = snapshot({
+			role: 'trial',
+			lastParticipationAt: daysAgo(POLICY.timers.trialToStandby - 10)
+		});
+		expect(dueWarningMarks(missed, NOW)).toContain(14);
+	});
+
+	it('orders most urgent first, so the caller sends one email not two', () => {
+		const late = snapshot({
+			role: 'trial',
+			lastParticipationAt: daysAgo(POLICY.timers.trialToStandby - 3)
+		});
+		expect(dueWarningMarks(late, NOW)).toEqual([7, 14]);
 	});
 
 	it('is silent once the threshold has passed — by then it is a proposal', () => {
@@ -196,13 +216,33 @@ describe('advance warnings', () => {
 			role: 'trial',
 			lastParticipationAt: daysAgo(POLICY.timers.trialToStandby + 5)
 		});
-		expect(warningDue(overdue, NOW)).toBeNull();
+		expect(dueWarningMarks(overdue, NOW)).toEqual([]);
 		expect(evaluateMembership(overdue, NOW)).not.toBeNull();
 	});
 
 	it('counts down toward the threshold', () => {
 		const member = snapshot({ role: 'trial', lastParticipationAt: daysAgo(80) });
 		expect(daysUntilTransition(member, NOW)).toBe(POLICY.timers.trialToStandby - 80);
+	});
+});
+
+describe('warning cycles', () => {
+	it('anchors an active member to their last participation', () => {
+		const at = daysAgo(40);
+		expect(cycleAnchor(snapshot({ lastParticipationAt: at }))).toEqual(at);
+	});
+
+	it('anchors a standby member to when their pause began', () => {
+		const since = daysAgo(200);
+		expect(cycleAnchor(snapshot({ status: 'standby', membershipStatusSince: since }))).toEqual(
+			since
+		);
+	});
+
+	it('changes when a member participates, so warnings start over', () => {
+		const before = cycleAnchor(snapshot({ lastParticipationAt: daysAgo(80) }));
+		const after = cycleAnchor(snapshot({ lastParticipationAt: NOW }));
+		expect(before).not.toEqual(after);
 	});
 });
 

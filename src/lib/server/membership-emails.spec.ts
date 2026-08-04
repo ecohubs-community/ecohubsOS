@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	buildReactivationApprovedTemplate,
 	buildReactivationRejectedTemplate,
-	buildReactivationNeedsReviewTemplate
+	buildReactivationNeedsReviewTemplate,
+	buildTimerWarningTemplate
 } from './membership-emails';
 
 const APP_URL = 'https://os.ecohubs.community';
@@ -79,11 +80,77 @@ describe('needs review', () => {
 	});
 });
 
+describe('timer warning', () => {
+	const inactive = buildTimerWarningTemplate({
+		recipientName: 'Ada',
+		daysRemaining: 14,
+		toStatus: 'standby',
+		isStandbyCycle: false,
+		appUrl: APP_URL
+	});
+
+	it('leads with how easily it is undone', () => {
+		expect(inactive.body).toContain('resets it');
+		expect(inactive.body).toContain('voting on a proposal');
+	});
+
+	it('never threatens automatic removal, because nothing is automatic', () => {
+		expect(inactive.body.toLowerCase()).not.toContain('will be removed');
+		expect(inactive.body.toLowerCase()).not.toContain('automatically');
+		expect(inactive.body).toContain('a steward takes a look before anything changes');
+	});
+
+	it('reads as a heads-up rather than a final notice', () => {
+		expect(inactive.body).toContain('heads-up rather than a deadline');
+		expect(inactive.subject.toLowerCase()).not.toContain('warning');
+		expect(inactive.subject.toLowerCase()).not.toContain('final');
+	});
+
+	it('offers a way out that is not just participating harder', () => {
+		expect(inactive.body).toContain("if now isn't the right time");
+	});
+
+	it('pluralises the remaining days', () => {
+		const one = buildTimerWarningTemplate({
+			recipientName: 'Ada',
+			daysRemaining: 1,
+			toStatus: 'standby',
+			isStandbyCycle: false,
+			appUrl: APP_URL
+		});
+		expect(one.body).toContain('1 day');
+		expect(one.body).not.toContain('1 days');
+		expect(inactive.body).toContain('14 days');
+	});
+
+	it('speaks differently to someone already on standby', () => {
+		const standby = buildTimerWarningTemplate({
+			recipientName: 'Ada',
+			daysRemaining: 14,
+			toStatus: 'exited',
+			isStandbyCycle: true,
+			appUrl: APP_URL
+		});
+		// They are not neglecting anything — they chose to pause — so the
+		// "we haven't seen you" framing would be wrong.
+		expect(standby.body).not.toContain("haven't seen you");
+		expect(standby.body).toContain('/standby');
+		expect(standby.body).toContain('stay paused');
+	});
+});
+
 describe('all templates', () => {
 	const all = [
 		buildReactivationApprovedTemplate({ recipientName: 'Ada', appUrl: APP_URL }),
 		buildReactivationRejectedTemplate({ recipientName: 'Ada', canReapplyOn: '1 September 2026' }),
-		buildReactivationNeedsReviewTemplate({ recipientName: 'Ada' })
+		buildReactivationNeedsReviewTemplate({ recipientName: 'Ada' }),
+		buildTimerWarningTemplate({
+			recipientName: 'Ada',
+			daysRemaining: 14,
+			toStatus: 'standby',
+			isStandbyCycle: false,
+			appUrl: APP_URL
+		})
 	];
 
 	it('have a subject and a body', () => {

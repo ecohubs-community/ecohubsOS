@@ -92,6 +92,74 @@ The EcoHubs community`
 }
 
 /**
+ * Advance warning that a membership timer is about to elapse.
+ *
+ * The point of this email is that it should be easy to make go away: one
+ * ordinary act of participation resets the clock. So it leads with that, and
+ * avoids sounding like a final notice — most people receiving it are simply
+ * busy, not leaving.
+ *
+ * Deliberately never says "or you will be removed". Nothing is automatic: a
+ * steward reviews every proposed change, which is both true and the reason the
+ * tone can stay light.
+ */
+export function buildTimerWarningTemplate(opts: {
+	recipientName: string;
+	daysRemaining: number;
+	/** What the timer would propose — 'standby' or 'exited'. */
+	toStatus: string;
+	isStandbyCycle: boolean;
+	appUrl: string;
+}): EmailTemplate {
+	const { recipientName, daysRemaining, toStatus, isStandbyCycle, appUrl } = opts;
+	const days = daysRemaining === 1 ? '1 day' : `${daysRemaining} days`;
+
+	if (isStandbyCycle) {
+		return {
+			subject: `Your EcoHubs membership — a note about your standby`,
+			body: `Hi ${recipientName},
+
+Your membership has been on standby for a while now, and in about ${days} it
+will come up for review, with a steward deciding whether to close it.
+
+If you'd like to come back, you can ask any time — it takes a couple of
+sentences, and the community votes on it:
+
+${appUrl}/standby
+
+If you'd rather stay paused for now, that's completely fine; just reply and let
+us know and we'll keep it open.
+
+Warmly,
+The EcoHubs community`
+		};
+	}
+
+	const outcome = toStatus === 'standby' ? 'move to standby' : 'come up for review';
+
+	return {
+		subject: `We've missed you at EcoHubs`,
+		body: `Hi ${recipientName},
+
+We haven't seen you around EcoHubs for a while. In about ${days}, your
+membership would ${outcome} — a steward takes a look before anything changes,
+so this is a heads-up rather than a deadline.
+
+Anything at all resets it: voting on a proposal, picking up a task, joining a
+call, or just saying hello.
+
+${appUrl}
+
+And if now isn't the right time, that's okay too — reply to this email and
+we'll sort out whatever suits you, whether that's pausing properly or stepping
+away for a while.
+
+Warmly,
+The EcoHubs community`
+	};
+}
+
+/**
  * Claim the right to send a notification for a proposal transition.
  *
  * Reuses `discordNotifiedTransitions` — the same atomic claim the Discord

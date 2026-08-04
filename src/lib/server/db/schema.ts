@@ -166,6 +166,43 @@ export const membershipReviews = sqliteTable(
 	})
 );
 
+// Advance warnings sent before a membership timer elapses.
+//
+// Keyed by *cycle* rather than just member + mark: `cycleAnchor` is the
+// timestamp the countdown is measured from, so a member who goes quiet, is
+// warned, participates again, and later goes quiet once more gets a fresh set
+// of warnings — their new activity moves the anchor, making it a new cycle.
+export const membershipWarnings = sqliteTable(
+	'membership_warnings',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// Days before the threshold this warning represents (see POLICY.timers).
+		daysBefore: integer('days_before').notNull(),
+		// Start of the countdown this warning belongs to.
+		cycleAnchor: integer('cycle_anchor', { mode: 'timestamp' }).notNull(),
+		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		kind: text('kind').notNull(),
+		// False when the mark was reached but a more urgent one was sent instead —
+		// recorded so it cannot fire later, without claiming an email went out.
+		emailSent: integer('email_sent', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		uniquePerCycle: uniqueIndex('membership_warnings_cycle_unique').on(
+			table.userId,
+			table.daysBefore,
+			table.cycleAnchor
+		)
+	})
+);
+
 // BetterAuth session table
 export const session = sqliteTable('session', {
 	id: text('id').primaryKey(),

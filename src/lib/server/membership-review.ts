@@ -157,13 +157,39 @@ export function daysUntilTransition(
 }
 
 /**
- * Whether a member is exactly at one of the advance-warning marks.
+ * Advance-warning marks that have been reached but not yet passed.
  *
- * Returns the mark that matched, so the caller can record which warning was
- * sent and avoid repeating it.
+ * Returns every mark where the remaining days have fallen to or below it,
+ * **most urgent first**, and an empty array once the threshold itself has
+ * elapsed — by then it is a proposal in the review queue, not a warning.
+ *
+ * This is deliberately "at or below" rather than an exact-day match. Evaluation
+ * is lazy-on-read: nothing guarantees the app is touched on precisely day T-14,
+ * and an exact match would silently drop the warning for that whole cycle. A
+ * member must not lose their notice because the community happened to be quiet
+ * that day.
+ *
+ * The caller sends only the most urgent mark and records the rest as
+ * superseded — see `sendDueWarnings`. Firing every reached mark at once would
+ * mean two emails in the same minute.
  */
-export function warningDue(member: MembershipSnapshot, now: Date = new Date()): number | null {
+export function dueWarningMarks(member: MembershipSnapshot, now: Date = new Date()): number[] {
 	const remaining = daysUntilTransition(member, now);
-	if (remaining === null) return null;
-	return POLICY.timers.warnBeforeDays.find((d) => d === remaining) ?? null;
+	if (remaining === null || remaining <= 0) return [];
+
+	return POLICY.timers.warnBeforeDays
+		.filter((mark) => remaining <= mark)
+		.slice()
+		.sort((a, b) => a - b);
+}
+
+/**
+ * The anchor identifying the current countdown cycle.
+ *
+ * Warnings are recorded against this, so a member who goes quiet, is warned,
+ * participates again, and later goes quiet once more gets a fresh set of
+ * warnings — their new activity moves the anchor, which makes it a new cycle.
+ */
+export function cycleAnchor(member: MembershipSnapshot): Date | null {
+	return member.status === 'standby' ? member.membershipStatusSince : member.lastParticipationAt;
 }

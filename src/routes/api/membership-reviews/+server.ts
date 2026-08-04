@@ -5,6 +5,7 @@ import {
 	listPendingReviews,
 	materialiseMembershipReviews
 } from '$lib/server/membership-review-service';
+import { sendDueWarnings } from '$lib/server/membership-warnings';
 
 // GET /api/membership-reviews — pending membership downgrades awaiting a
 // decision. Stewards and admins only.
@@ -15,8 +16,11 @@ import {
 export const GET: RequestHandler = async ({ locals }) => {
 	requireCapability('membership.exit', locals);
 
+	// Warnings first: a member should hear their membership is about to change
+	// before it appears in this queue, not after.
+	const warned = await sendDueWarnings();
 	const created = await materialiseMembershipReviews();
 	const reviews = await listPendingReviews();
 
-	return json({ reviews, created });
+	return json({ reviews, created, warned });
 };
