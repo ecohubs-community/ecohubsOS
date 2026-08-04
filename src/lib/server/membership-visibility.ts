@@ -39,11 +39,17 @@ export async function getMembershipVisibility(
 	const u = locals.user!;
 	const email = (u.email ?? '').toLowerCase();
 
-	// Anchor to the caller's own most-recent application.
+	// Anchor to the caller's own most-recent *membership* application.
+	//
+	// The type filter is load-bearing. A reactivation request creates another
+	// `applications` row for the same person; without it, their cutoff would jump
+	// forward to the reactivation date and they would silently lose visibility of
+	// every application and membership vote between their original join and their
+	// return.
 	const [own] = await db
 		.select({ submittedAt: applications.submittedAt })
 		.from(applications)
-		.where(sql`lower(${applications.email}) = ${email}`)
+		.where(sql`lower(${applications.email}) = ${email} and ${applications.type} = 'membership'`)
 		.orderBy(desc(applications.submittedAt))
 		.limit(1);
 

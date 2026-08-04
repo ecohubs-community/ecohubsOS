@@ -14,6 +14,7 @@ import { membershipEvents, membershipReviews, user as userTable } from '$lib/ser
 import { and, desc, eq } from 'drizzle-orm';
 import { parseGroupsJson, resolveRole, type MembershipStatus } from '$lib/policy';
 import { evaluateMembership, type MembershipSnapshot } from '$lib/server/membership-review';
+import { executeExit } from '$lib/server/membership-exit';
 import { apiLogger } from '$lib/server/logger';
 
 export interface ReviewRow {
@@ -133,41 +134,49 @@ export type Resolution = 'apply' | 'dismiss';
  * timer keeps running, so if they stay inactive a fresh review appears later;
  * dismissing is "not now", not "never".
  *
- * ⚠️ Applying an exit sets the status only. Revoking Authentik access, the
- * Discord role and the newsletter subscription is `executeExit()`, which is
- * Phase 6 — until then an applied exit blocks the OS (the policy checks status
- * first) but leaves external access in place.
+ * Applying an exit runs the full offboarding through `executeExit` — Authentik
+ * deactivation, session revocation, Discord role and newsletter removal — not
+ * just the status change. Its per-system warnings are returned so a steward
+ * sees what did not complete rather than assuming a clean exit.
  */
 export async function resolveReview(
 	reviewId: string,
 	resolution: Resolution,
 	actorUserId: string,
 	note?: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; warnings?: string[] }> {
 	const review = await db.query.membershipReviews.findFirst({
 		where: and(eq(membershipReviews.id, reviewId), eq(membershipReviews.status, 'pending'))
 	});
 	if (!review) return { ok: false, error: 'Review not found or already resolved' };
 
 	const now = new Date();
+	let warnings: string[] = [];
 
 	if (resolution === 'apply') {
-		await db
-			.update(userTable)
-			.set({
-				membershipStatus: review.toStatus,
-				membershipStatusSince: now,
-				updatedAt: now
-			})
-			.where(eq(userTable.id, review.userId));
+		if (review.toStatus === 'exited') {
+			// A full exit reaches four systems; executeExit owns that and records
+			// its own membership event.
+			const exit = await executeExit(review.userId, note?.trim() || review.reason, actorUserId);
+			warnings = exit.warnings;
+		} else {
+			await db
+				.update(userTable)
+				.set({
+					membershipStatus: review.toStatus,
+					membershipStatusSince: now,
+					updatedAt: now
+				})
+				.where(eq(userTable.id, review.userId));
 
-		await db.insert(membershipEvents).values({
-			userId: review.userId,
-			fromStatus: review.fromStatus,
-			toStatus: review.toStatus,
-			reason: note?.trim() || review.reason,
-			actorUserId
-		});
+			await db.insert(membershipEvents).values({
+				userId: review.userId,
+				fromStatus: review.fromStatus,
+				toStatus: review.toStatus,
+				reason: note?.trim() || review.reason,
+				actorUserId
+			});
+		}
 	}
 
 	await db
@@ -184,5 +193,5 @@ export async function resolveReview(
 		{ reviewId, resolution, userId: review.userId, actorUserId },
 		'Membership review resolved'
 	);
-	return { ok: true };
+	return { ok: true, warnings };
 }

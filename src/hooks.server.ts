@@ -147,6 +147,18 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		redirect(303, '/');
 	}
 
+	// Standby members get the reactivation screen instead of the desktop. They
+	// keep os.access precisely so this route exists — without it there is no way
+	// back short of email.
+	if (
+		event.locals.user?.membershipStatus === 'standby' &&
+		event.url.pathname !== '/standby' &&
+		!event.url.pathname.startsWith('/api/') &&
+		event.url.pathname !== '/login'
+	) {
+		redirect(303, '/standby');
+	}
+
 	// Protect main desktop route - require authentication
 	if (event.url.pathname === '/' || event.url.pathname.startsWith('/app')) {
 		if (!event.locals.user) {

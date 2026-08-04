@@ -32,5 +32,5 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	if (!result.ok) error(404, result.error ?? 'Could not resolve review');
 
-	return json({ success: true });
+	return json({ success: true, warnings: result.warnings ?? [] });
 };

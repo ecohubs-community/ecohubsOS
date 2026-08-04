@@ -300,6 +300,11 @@ export const applications = sqliteTable('applications', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
+	// 'membership' (the original application) | 'reactivation' (a standby member
+	// asking to come back). Both run through the same review + vote machinery,
+	// but they must stay distinguishable — see getMembershipVisibility, whose
+	// cutoff is anchored to the caller's own *membership* application.
+	type: text('type').notNull().default('membership'),
 	// Core identifying fields (kept for querying)
 	fullName: text('full_name').notNull(),
 	email: text('email').notNull(),

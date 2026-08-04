@@ -11,6 +11,8 @@ import {
 	proposalRatifiedMessage
 } from '$lib/server/discord-templates';
 import { votingLogger } from '$lib/server/logger';
+import { applications, membershipEvents, user as userTable } from '$lib/server/db/schema';
+import { POLICY } from '$lib/policy';
 
 type ProposalRow = typeof proposals.$inferSelect;
 
@@ -84,6 +86,75 @@ async function notifyTransition(
 }
 
 /**
+ * Whether this proposal is a standby member's reactivation request.
+ *
+ * Read from the linked application's type rather than the proposal, so the
+ * distinction lives in one place — the same column the visibility cutoff keys
+ * off.
+ */
+async function isReactivationProposal(row: ProposalRow): Promise<boolean> {
+	if (!row.linkedApplicationId) return false;
+	const [app] = await db
+		.select({ type: applications.type })
+		.from(applications)
+		.where(eq(applications.id, row.linkedApplicationId))
+		.limit(1);
+	return app?.type === 'reactivation';
+}
+
+/**
+ * Restore a member whose reactivation vote passed.
+ *
+ * Runs inside the same lazy materialisation as the status change, so a standby
+ * member visiting their own screen resolves their finished vote rather than
+ * waiting for someone else's request to trigger it.
+ *
+ * Idempotent: it only acts on a member still in `standby`, so a redelivered or
+ * repeated materialisation cannot reactivate twice or resurrect someone whose
+ * status has since moved on.
+ */
+async function applyReactivationOutcome(
+	row: ProposalRow,
+	result: ProposalRow['result']
+): Promise<void> {
+	if (result !== 'approved' || !row.linkedApplicationId) return;
+	if (!(await isReactivationProposal(row))) return;
+
+	const [app] = await db
+		.select({ email: applications.email })
+		.from(applications)
+		.where(eq(applications.id, row.linkedApplicationId))
+		.limit(1);
+	if (!app) return;
+
+	const member = await db.query.user.findFirst({
+		where: eq(userTable.email, app.email)
+	});
+	if (!member || member.membershipStatus !== 'standby') return;
+
+	const now = new Date();
+	await db
+		.update(userTable)
+		.set({
+			membershipStatus: 'active',
+			membershipStatusSince: now,
+			standbyReason: null,
+			updatedAt: now
+		})
+		.where(eq(userTable.id, member.id));
+
+	await db.insert(membershipEvents).values({
+		userId: member.id,
+		fromStatus: 'standby',
+		toStatus: 'active',
+		reason: 'Reactivation approved by community vote',
+		actorUserId: null // decided collectively, not by one person
+	});
+
+	votingLogger.info({ userId: member.id, proposalId: row.id }, 'Membership reactivated by vote');
+}
+
+/**
  * Advance a proposal's status through deliberating → active → closed → ratifying → ratified
  * based on its timestamps. Returns the (possibly updated) row.
  *
@@ -112,7 +183,16 @@ export async function materialiseProposal(
 	if (next.status === 'active' && next.voteClosesAt.getTime() <= t) {
 		const tallies = await tallyVotes(next.id);
 		const choices = parseChoices(next.choices);
-		const result = resolveResult(tallies, choices, next.threshold as Threshold);
+		let result = resolveResult(tallies, choices, next.threshold as Threshold);
+
+		// Silence must not refuse a person. resolveResult treats zero votes as
+		// `rejected` ("no mandate; status quo holds") — correct for a policy
+		// proposal, wrong for a reactivation request, where nobody voting would
+		// turn indifference into a refusal. Route those to a steward instead.
+		const votesCast = Object.values(tallies).reduce((a, b) => a + b, 0);
+		if (votesCast === 0 && (await isReactivationProposal(next))) {
+			result = POLICY.reactivation.zeroVotesResult;
+		}
 
 		// Constitutional approved → ratifying; everyone else (or non-approved) → closed
 		const constitutionalApproved =
@@ -126,6 +206,7 @@ export async function materialiseProposal(
 			.returning();
 		next = updated;
 		await notifyTransition(next, newStatus, result);
+		await applyReactivationOutcome(next, result);
 	}
 
 	// ratifying → ratified
