@@ -7,6 +7,7 @@ import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { dev } from '$app/environment';
 import { hasPendingRetroactiveSteps } from '$lib/server/onboarding';
+import { recordLogin } from '$lib/server/participation';
 
 // Security headers middleware
 const securityHeaders: Handle = async ({ event, resolve }) => {
@@ -113,8 +114,15 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				offcoinMemberId: dbUser.offcoinMemberId ?? null,
 				offcoinXp: dbUser.offcoinXp ?? null,
 				offcoinLevel: dbUser.offcoinLevel ?? null,
-				offcoinSyncedAt: dbUser.offcoinSyncedAt ?? null
+				offcoinSyncedAt: dbUser.offcoinSyncedAt ?? null,
+				lastParticipationAt: dbUser.lastParticipationAt ?? null,
+				lastParticipationSource: dbUser.lastParticipationSource ?? null
 			};
+
+			// Weakest participation signal, throttled so a browsing session costs
+			// one write rather than one per request. Deliberately not awaited —
+			// bookkeeping must never add latency to, or fail, a real request.
+			void recordLogin(dbUser.id, dbUser.lastParticipationAt ?? null);
 			event.locals.session = {
 				id: session.session.id,
 				userId: session.session.userId,

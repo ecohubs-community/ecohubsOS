@@ -12,6 +12,7 @@ import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
 import { getMembershipVisibility } from '$lib/server/membership-visibility';
 import { requireCapability } from '$lib/server/membership';
+import { recordParticipation } from '$lib/server/participation';
 
 const TITLE_MAX = 140;
 const BODY_MAX = 10_000;
@@ -122,10 +123,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.select({ proposalId: proposalVotes.proposalId })
 		.from(proposalVotes)
 		.where(
-			and(
-				inArray(proposalVotes.proposalId, proposalIds),
-				eq(proposalVotes.userId, locals.user.id)
-			)
+			and(inArray(proposalVotes.proposalId, proposalIds), eq(proposalVotes.userId, locals.user.id))
 		);
 	const votedSet = new Set(userVotes.map((v) => v.proposalId));
 
@@ -286,6 +284,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		{ proposalId: created.id, type: created.type, authorUserId: locals.user.id },
 		'proposal created'
 	);
+
+	void recordParticipation(locals.user.id, 'proposal');
 
 	return json({ proposal: { ...created, votesByChoice: {}, votesTotal: 0, userHasVoted: false } });
 };

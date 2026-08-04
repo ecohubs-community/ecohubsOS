@@ -14,6 +14,7 @@ import {
 	addUserToAuthentikGroup
 } from '$lib/server/authentik';
 import { offcoinLogger } from '$lib/server/logger';
+import { recordParticipation } from '$lib/server/participation';
 
 /**
  * POST /api/offcoin/webhook — Offcoin event receiver.
@@ -77,6 +78,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			updatedAt: new Date()
 		})
 		.where(eq(userTable.id, dbUser.id));
+
+	// Earning XP means they did something in Puckstack — the only signal we get
+	// for task and meeting activity. Guarded on an actual increase so a
+	// re-delivered or zero-amount event cannot fake participation.
+	if (xp.newXp > (dbUser.offcoinXp ?? 0)) {
+		void recordParticipation(dbUser.id, 'offcoin_xp');
+	}
 
 	const promoted = await maybePromote(dbUser, xp);
 

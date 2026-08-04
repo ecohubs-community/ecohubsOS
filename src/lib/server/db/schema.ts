@@ -82,6 +82,16 @@ export const user = sqliteTable('user', {
 	standbyReason: text('standby_reason'),
 	exitReason: text('exit_reason'),
 
+	// --- Participation -------------------------------------------------------
+	// When this member last did something that counts as taking part. Drives the
+	// inactivity timers, which is why it is stored rather than derived: sessions
+	// are pruned, so `max(session.createdAt)` cannot answer "active in the last
+	// 12 months". Only ever moves forward.
+	lastParticipationAt: integer('last_participation_at', { mode: 'timestamp' }),
+	// What that most recent signal was — 'login' | 'vote' | 'proposal' |
+	// 'offcoin_xp' | 'onboarding' | 'buddy_call' | 'steward_logged'.
+	lastParticipationSource: text('last_participation_source'),
+
 	// --- Offcoin snapshot ----------------------------------------------------
 	// Cached so a gate never depends on a live Offcoin call. An outage must not
 	// silently demote the community, so reads fall back to these values.

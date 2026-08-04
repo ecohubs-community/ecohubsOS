@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
+import { recordParticipation } from '$lib/server/participation';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import {
@@ -86,6 +87,10 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			updatedAt: new Date()
 		})
 		.where(eq(user.id, locals.user.id));
+
+	// Working through onboarding is participation — it is often the only thing a
+	// brand-new member does before their first task.
+	void recordParticipation(locals.user.id, 'onboarding');
 
 	return json({ success: true, progress: merged });
 };

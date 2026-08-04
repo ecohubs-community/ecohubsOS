@@ -7,6 +7,7 @@ import { materialiseProposal } from '$lib/server/voting/materialise';
 import { votingLogger } from '$lib/server/logger';
 import { checkRateLimit, PROPOSAL_VOTE_RATE_LIMIT } from '$lib/server/rateLimit';
 import { requireCapability } from '$lib/server/membership';
+import { recordParticipation } from '$lib/server/participation';
 
 const REASON_MAX = 1_000;
 
@@ -71,10 +72,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			})
 			.returning();
 
-		votingLogger.info(
-			{ proposalId: proposal.id, userId: locals.user.id, choice },
-			'vote cast'
-		);
+		votingLogger.info({ proposalId: proposal.id, userId: locals.user.id, choice }, 'vote cast');
+
+		// Voting is governance participation. Not awaited — bookkeeping must not
+		// be able to turn a recorded vote into a 500.
+		void recordParticipation(locals.user.id, 'vote');
 
 		return json({ vote });
 	} catch (err) {

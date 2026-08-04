@@ -54,6 +54,9 @@ interface AuthUser {
 	offcoinXp: number | null;
 	offcoinLevel: number | null;
 	offcoinSyncedAt: Date | null;
+	// Participation — drives the inactivity timers.
+	lastParticipationAt: Date | null;
+	lastParticipationSource: string | null;
 }
 
 interface AuthSession {
