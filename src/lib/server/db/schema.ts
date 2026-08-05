@@ -203,6 +203,40 @@ export const membershipWarnings = sqliteTable(
 	})
 );
 
+// Disciplinary cases — "broke participation rules".
+//
+// A steward opens a case, which suspends the member to standby immediately.
+// That is protective and reversible; it is not the removal. Making it permanent
+// requires a community vote, which is the only thing that can trigger an exit.
+//
+// The evidence and the summary are separate on purpose. A case often involves
+// someone else who was harmed, and their account of it must not be broadcast to
+// the whole community — voters see `publicSummary`, stewards see `privateNotes`.
+export const membershipCases = sqliteTable('membership_cases', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	openedBy: text('opened_by').references(() => user.id, { onDelete: 'set null' }),
+	/** Shown to voters. Written to be readable without exposing anyone. */
+	publicSummary: text('public_summary').notNull(),
+	/** Stewards and admins only. Never rendered to the community or the subject. */
+	privateNotes: text('private_notes'),
+	/** The vote deciding it. Null only between opening and proposal creation. */
+	proposalId: text('proposal_id').references(() => proposals.id, { onDelete: 'set null' }),
+	// 'voting' | 'exited' | 'dismissed' | 'withdrawn' | 'needs_review'
+	status: text('status').notNull().default('voting'),
+	/** Status the member held before suspension, so a dismissal can restore it. */
+	previousStatus: text('previous_status').notNull(),
+	resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+	resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
 // BetterAuth session table
 export const session = sqliteTable('session', {
 	id: text('id').primaryKey(),

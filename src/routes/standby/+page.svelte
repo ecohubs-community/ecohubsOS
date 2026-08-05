@@ -39,14 +39,29 @@
 	<div class="card">
 		<div class="head">
 			<Icon icon="tabler:player-pause" class="h-6 w-6" />
-			<h1>Your membership is on standby</h1>
+			<h1>
+				{data.openCase ? 'Your membership is suspended' : 'Your membership is on standby'}
+			</h1>
 		</div>
 
-		{#if data.standbyReason}
+		{#if data.standbyReason && !data.openCase}
 			<p class="muted">Noted at the time: {data.standbyReason}</p>
 		{/if}
 
-		{#if submitted || requestState === 'pending'}
+		{#if data.openCase}
+			<p>
+				Your membership is suspended while the community considers a concern that was raised about
+				it. A steward will be in touch, and you'll hear the outcome by email.
+			</p>
+			<p class="muted">
+				{data.openCase.status === 'needs_review'
+					? 'The vote finished without a clear result, so a steward is reviewing it now.'
+					: 'The vote is open for three days.'}
+			</p>
+			<p class="muted">
+				If you'd like to respond, reply to any email from us — it reaches a real person.
+			</p>
+		{:else if submitted || requestState === 'pending'}
 			<p>
 				Great — your request is with the community. Active members have three days to vote, and
 				we'll email you the result.

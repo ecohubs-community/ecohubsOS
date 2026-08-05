@@ -11,9 +11,15 @@ import {
 	proposalRatifiedMessage
 } from '$lib/server/discord-templates';
 import { votingLogger } from '$lib/server/logger';
-import { applications, membershipEvents, user as userTable } from '$lib/server/db/schema';
+import {
+	applications,
+	membershipCases,
+	membershipEvents,
+	user as userTable
+} from '$lib/server/db/schema';
 import { POLICY } from '$lib/policy';
 import { sendReactivationOutcomeEmail } from '$lib/server/membership-emails';
+import { applyCaseOutcome } from '$lib/server/membership-cases';
 import { env } from '$env/dynamic/private';
 
 type ProposalRow = typeof proposals.$inferSelect;
@@ -102,6 +108,24 @@ async function isReactivationProposal(row: ProposalRow): Promise<boolean> {
 		.where(eq(applications.id, row.linkedApplicationId))
 		.limit(1);
 	return app?.type === 'reactivation';
+}
+
+/**
+ * Whether this ballot decides a person's membership rather than a policy.
+ *
+ * Those get the zero-vote override: `resolveResult` treats an empty ballot as
+ * `rejected` ("no mandate; status quo holds"), which is right for a proposal
+ * and wrong for a person — it would refuse a returning member, or remove one,
+ * on the strength of nobody having voted.
+ */
+async function decidesAPerson(row: ProposalRow): Promise<boolean> {
+	if (await isReactivationProposal(row)) return true;
+	const [c] = await db
+		.select({ id: membershipCases.id })
+		.from(membershipCases)
+		.where(eq(membershipCases.proposalId, row.id))
+		.limit(1);
+	return !!c;
 }
 
 /**
@@ -210,8 +234,10 @@ export async function materialiseProposal(
 		// `rejected` ("no mandate; status quo holds") — correct for a policy
 		// proposal, wrong for a reactivation request, where nobody voting would
 		// turn indifference into a refusal. Route those to a steward instead.
+		// Also covers disciplinary cases: an empty ballot must never be read as
+		// the community agreeing to remove someone.
 		const votesCast = Object.values(tallies).reduce((a, b) => a + b, 0);
-		if (votesCast === 0 && (await isReactivationProposal(next))) {
+		if (votesCast === 0 && (await decidesAPerson(next))) {
 			result = POLICY.reactivation.zeroVotesResult;
 		}
 
@@ -228,6 +254,7 @@ export async function materialiseProposal(
 		next = updated;
 		await notifyTransition(next, newStatus, result);
 		await applyReactivationOutcome(next, result);
+		await applyCaseOutcome(next.id, result);
 	}
 
 	// ratifying → ratified
