@@ -202,8 +202,20 @@ export const POLICY = {
 		warnBeforeDays: [14, 7] as readonly number[]
 	},
 
-	/** Reward-granting guardrails — XP grants are a privilege-escalation path. */
+	/**
+	 * Reward-granting guardrails.
+	 *
+	 * XP is a privilege-escalation path — it decides when a trial member becomes
+	 * a full one — so a steward handing it out is doing something closer to
+	 * granting rights than saying thank you. Hence the caps.
+	 */
 	grants: {
+		/**
+		 * XP awarded per unit of ECO. Matches Puckstack's task rewards, so the
+		 * same contribution is worth the same wherever it is recognised. Stewards
+		 * choose one number; this derives the other.
+		 */
+		ecoToXpRatio: 1.5,
 		maxXpPerGrant: 100,
 		/** Same cap for stewards and admins. */
 		maxXpPerActorPerDay: 500,

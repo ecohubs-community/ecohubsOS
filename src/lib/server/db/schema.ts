@@ -273,6 +273,36 @@ export const memberEmails = sqliteTable('member_emails', {
 		.$defaultFn(() => new Date())
 });
 
+// XP/ECO grants made by stewards and admins.
+//
+// The local half of a two-ledger record: Offcoin holds the balance, this holds
+// who gave it, to whom, and why. The transaction ids make the two reconcilable
+// — without them there is no way to ask "did this grant actually land?".
+export const rewardGrants = sqliteTable('reward_grants', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	recipientUserId: text('recipient_user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Who granted it. Never null — an unattributed grant is not auditable. */
+	actorUserId: text('actor_user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'restrict' }),
+	eco: integer('eco').notNull(),
+	xp: integer('xp').notNull(),
+	/** Why. Required — this is what makes the Discord post meaningful. */
+	reason: text('reason').notNull(),
+	/** Offcoin ledger ids, null when that half was zero or the call failed. */
+	offcoinEcoTxId: text('offcoin_eco_tx_id'),
+	offcoinXpTxId: text('offcoin_xp_tx_id'),
+	/** Set when the transparency post reached Discord. */
+	announcedAt: integer('announced_at', { mode: 'timestamp' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
 // BetterAuth session table
 export const session = sqliteTable('session', {
 	id: text('id').primaryKey(),

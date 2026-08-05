@@ -14,6 +14,7 @@ import SafeProposal from './apps/safe-proposal/SafeProposal.svelte';
 import Voting from './apps/voting/Voting.svelte';
 import Members from './apps/members/Members.svelte';
 import MemberOnboarding from './apps/member-onboarding/MemberOnboarding.svelte';
+import RewardsGrant from './apps/rewards/RewardsGrant.svelte';
 import MemberOnboardingFavicon from './apps/member-onboarding/favicon.svg';
 import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import FeedbackAdmin from './apps/feedback-admin/FeedbackAdmin.svelte';
@@ -296,6 +297,23 @@ export const APPS: AppDefinition[] = [
 		description: 'View and manage community members.',
 		groups: ['EcoHubs Admin'],
 		allowFullscreen: true
+	},
+	{
+		id: 'rewards',
+		name: 'Grant Rewards',
+		icon: MembersFavicon,
+		category: 'ops',
+		isInternalApp: true,
+		component: RewardsGrant,
+		description: 'Recognise a contribution with ECO and XP.',
+		requires: 'rewards.grant',
+		groups: ['EcoHubs Admin', 'EcoHubs Steward'],
+		helpItems: [
+			'Grant ECO to a member — XP follows automatically at the same rate as Puckstack tasks',
+			'Every grant is posted to Discord: who, to whom, how much, and what for',
+			'Daily and per-grant caps apply, because XP is what unlocks membership',
+			'You cannot grant to yourself'
+		]
 	},
 	{
 		id: 'member-onboarding',
