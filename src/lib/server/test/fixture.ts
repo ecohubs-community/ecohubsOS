@@ -302,3 +302,32 @@ export function fixtureTableDrift(): { missing: string[]; unlisted: string[] } {
 		unlisted: [...created].filter((t) => !listed.has(t))
 	};
 }
+
+/**
+ * Run `fn` with inserts into one table failing, then restore it.
+ *
+ * A legitimate way to force a mid-operation database failure, which is
+ * otherwise hard to provoke: it lets a test reach the rollback branch of
+ * something that has already done real work — created a proposal, called an
+ * external system — and check the compensation actually happens.
+ *
+ * A trigger rather than a dropped table, because operations usually read the
+ * table before writing to it. Dropping it would fail the earlier read and the
+ * test would never reach the branch it meant to exercise.
+ */
+export async function withFailingInserts(
+	client: Database.Database,
+	table: string,
+	fn: () => Promise<void>
+): Promise<void> {
+	const trigger = `fixture_fail_insert_${table}`;
+	client.exec(
+		`CREATE TRIGGER ${trigger} BEFORE INSERT ON ${table} ` +
+			`BEGIN SELECT RAISE(ABORT, 'fixture: insert failed'); END`
+	);
+	try {
+		await fn();
+	} finally {
+		client.exec(`DROP TRIGGER ${trigger}`);
+	}
+}
