@@ -89,6 +89,7 @@ describe('participation sources', () => {
 				'login',
 				'offcoin_xp',
 				'onboarding',
+				'puckstack_activity',
 				'proposal',
 				'steward_logged',
 				'vote'

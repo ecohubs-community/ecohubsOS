@@ -23,6 +23,7 @@ export const PARTICIPATION_SOURCES = {
 	login: 'Logged in',
 	onboarding: 'Onboarding step',
 	offcoin_xp: 'Earned XP',
+	puckstack_activity: 'Active in Puckstack',
 	vote: 'Voted',
 	proposal: 'Authored a proposal',
 	buddy_call: 'Buddy call',

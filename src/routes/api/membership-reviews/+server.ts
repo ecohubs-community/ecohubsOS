@@ -6,6 +6,7 @@ import {
 	materialiseMembershipReviews
 } from '$lib/server/membership-review-service';
 import { sendDueWarnings } from '$lib/server/membership-warnings';
+import { syncPuckstackActivity } from '$lib/server/puckstack-activity';
 
 // GET /api/membership-reviews — pending membership downgrades awaiting a
 // decision. Stewards and admins only.
@@ -16,11 +17,16 @@ import { sendDueWarnings } from '$lib/server/membership-warnings';
 export const GET: RequestHandler = async ({ locals }) => {
 	requireCapability('membership.exit', locals);
 
-	// Warnings first: a member should hear their membership is about to change
+	// Puckstack first. Proposing to exit someone whose task activity we had not
+	// checked would be exactly the wrong mistake, so the evidence is refreshed
+	// before anything is warned or proposed.
+	const synced = await syncPuckstackActivity();
+
+	// Warnings next: a member should hear their membership is about to change
 	// before it appears in this queue, not after.
 	const warned = await sendDueWarnings();
 	const created = await materialiseMembershipReviews();
 	const reviews = await listPendingReviews();
 
-	return json({ reviews, created, warned });
+	return json({ reviews, created, warned, synced });
 };

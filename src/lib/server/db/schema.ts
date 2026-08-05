@@ -89,9 +89,12 @@ export const user = sqliteTable('user', {
 	// are pruned, so `max(session.createdAt)` cannot answer "active in the last
 	// 12 months". Only ever moves forward.
 	lastParticipationAt: integer('last_participation_at', { mode: 'timestamp' }),
-	// What that most recent signal was — 'login' | 'vote' | 'proposal' |
-	// 'offcoin_xp' | 'onboarding' | 'buddy_call' | 'steward_logged'.
+	// What that most recent signal was — see PARTICIPATION_SOURCES.
 	lastParticipationSource: text('last_participation_source'),
+	// When we last asked Puckstack about this member's task activity. Throttles
+	// the sync: without it, a steward opening the review queue would fan out one
+	// HTTP call per member on every page load.
+	puckstackActivitySyncedAt: integer('puckstack_activity_synced_at', { mode: 'timestamp' }),
 
 	// --- Offcoin snapshot ----------------------------------------------------
 	// Cached so a gate never depends on a live Offcoin call. An outage must not
