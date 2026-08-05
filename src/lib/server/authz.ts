@@ -29,7 +29,9 @@ export function isStewardOrAdmin(locals: RequestEvent['locals']): boolean {
 /**
  * Require an authenticated EcoHubs Admin. Throws 401/403 otherwise.
  */
-export function requireAdmin(locals: RequestEvent['locals']): void {
+export function requireAdmin(
+	locals: RequestEvent['locals']
+): asserts locals is RequestEvent['locals'] & { user: NonNullable<RequestEvent['locals']['user']> } {
 	if (!locals.user) error(401, 'Unauthorized');
 	if (!isAdmin(locals)) error(403, 'Forbidden: Admin access required');
 }
@@ -37,7 +39,9 @@ export function requireAdmin(locals: RequestEvent['locals']): void {
 /**
  * Require an authenticated EcoHubs Steward OR Admin. Throws 401/403 otherwise.
  */
-export function requireStewardOrAdmin(locals: RequestEvent['locals']): void {
+export function requireStewardOrAdmin(
+	locals: RequestEvent['locals']
+): asserts locals is RequestEvent['locals'] & { user: NonNullable<RequestEvent['locals']['user']> } {
 	if (!locals.user) error(401, 'Unauthorized');
 	if (!isStewardOrAdmin(locals)) error(403, 'Forbidden: Steward or Admin access required');
 }

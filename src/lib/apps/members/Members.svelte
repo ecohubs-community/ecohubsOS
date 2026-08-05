@@ -31,18 +31,23 @@
 	let activeFilter = $state<OnboardingFilter>('All');
 
 	let filteredMembers = $derived(
-		activeFilter === 'All'
-			? members
-			: members.filter((m) => m.onboardingStatus === activeFilter)
+		activeFilter === 'All' ? members : members.filter((m) => m.onboardingStatus === activeFilter)
 	);
 
-	const FILTERS: OnboardingFilter[] = ['All', 'Not Started', 'In Progress', 'Complete', 'Pending Login'];
+	const FILTERS: OnboardingFilter[] = [
+		'All',
+		'Not Started',
+		'In Progress',
+		'Complete',
+		'Pending Login'
+	];
 
 	// Modal state
 	let showOnboardingModal = $state(false);
 	let selectedMember = $state<Member | null>(null);
 
 	onMount(async () => {
+		void loadManageableGroups();
 		try {
 			const res = await fetch('/api/admin/members');
 			if (!res.ok) {
@@ -97,34 +102,55 @@
 	}
 
 	// Steward role assignment (Authentik group "EcoHubs Steward")
-	const STEWARD_GROUP = 'EcoHubs Steward';
-	let stewardBusyId = $state<string | null>(null);
-
-	function isSteward(member: Member): boolean {
-		return member.groups.includes(STEWARD_GROUP);
+	interface ManageableGroup {
+		group: string;
+		label: string;
+		kind: 'role' | 'grant';
 	}
 
-	async function toggleSteward(member: Member) {
-		if (member.pendingLogin || stewardBusyId) return;
-		const action = isSteward(member) ? 'remove' : 'add';
-		stewardBusyId = member.id;
+	// Built from the server's allowlist rather than hardcoded, so the set of
+	// toggles and the set the API will accept cannot drift apart.
+	let manageableGroups = $state<ManageableGroup[]>([]);
+	// Keyed `${userId}:${group}` — several toggles can be in flight at once
+	// without one member's click disabling another's.
+	let groupBusy = $state<Record<string, boolean>>({});
+
+	async function loadManageableGroups() {
+		try {
+			const res = await fetch('/api/admin/groups');
+			if (res.ok) {
+				const data = await res.json();
+				manageableGroups = data.groups ?? [];
+			}
+		} catch {
+			// Non-critical: the table still lists members without the toggles.
+		}
+	}
+
+	function holdsGroup(member: Member, group: string): boolean {
+		return member.groups.includes(group);
+	}
+
+	async function toggleGroup(member: Member, group: string) {
+		const key = `${member.id}:${group}`;
+		if (member.pendingLogin || groupBusy[key]) return;
+
+		const action = holdsGroup(member, group) ? 'remove' : 'add';
+		groupBusy = { ...groupBusy, [key]: true };
 		error = null;
 		try {
-			const res = await fetch('/api/admin/stewards', {
+			const res = await fetch('/api/admin/groups', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ userId: member.id, action })
+				body: JSON.stringify({ userId: member.id, group, action })
 			});
-			if (!res.ok) {
-				const d = await res.json().catch(() => ({}));
-				throw new Error(d.message || 'Failed to update steward role');
-			}
-			const data = await res.json();
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(data.message || 'Failed to update access');
 			member.groups = data.groups;
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to update steward role';
+			error = e instanceof Error ? e.message : 'Failed to update access';
 		} finally {
-			stewardBusyId = null;
+			groupBusy = { ...groupBusy, [key]: false };
 		}
 	}
 
@@ -167,13 +193,14 @@
 			<!-- Onboarding filter tabs -->
 			<div class="mb-4 flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
 				{#each FILTERS as filter}
-					{@const count = filter === 'All' ? members.length : members.filter((m) => m.onboardingStatus === filter).length}
+					{@const count =
+						filter === 'All'
+							? members.length
+							: members.filter((m) => m.onboardingStatus === filter).length}
 					<button
 						type="button"
 						class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors
-							{activeFilter === filter
-							? 'bg-white/10 text-white'
-							: 'text-white/50 hover:text-white/70'}"
+							{activeFilter === filter ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/70'}"
 						onclick={() => (activeFilter = filter)}
 					>
 						{filter}
@@ -192,7 +219,7 @@
 					<tr class="text-solar-400/80 border-b border-white/10">
 						<th class="px-4 py-3 font-medium">Member</th>
 						<th class="px-4 py-3 font-medium">Groups</th>
-						<th class="px-4 py-3 font-medium">Steward</th>
+						<th class="px-4 py-3 font-medium">Role &amp; access</th>
 						<th class="px-4 py-3 font-medium">Wallet</th>
 						<th class="px-4 py-3 font-medium">Intro Video</th>
 						<th class="px-4 py-3 font-medium">Onboarding</th>
@@ -250,32 +277,39 @@
 								{#if member.pendingLogin}
 									<span class="text-xs text-white/20">--</span>
 								{:else}
-									<button
-										type="button"
-										onclick={() => toggleSteward(member)}
-										disabled={stewardBusyId === member.id}
-										class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50
-											{isSteward(member)
-											? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
-											: 'border-white/10 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'}"
-										title={isSteward(member) ? 'Remove steward role' : 'Make steward'}
-									>
-										{#if stewardBusyId === member.id}
-											<Icon icon="tabler:loader-2" class="h-3 w-3 animate-spin" />
-										{:else}
-											<Icon
-												icon={isSteward(member) ? 'tabler:check' : 'tabler:plus'}
-												class="h-3 w-3"
-											/>
-										{/if}
-										{isSteward(member) ? 'Steward' : 'Make steward'}
-									</button>
+									<div class="flex flex-wrap gap-1">
+										{#each manageableGroups as g (g.group)}
+											{@const held = holdsGroup(member, g.group)}
+											{@const busy = groupBusy[`${member.id}:${g.group}`]}
+											<button
+												type="button"
+												onclick={() => toggleGroup(member, g.group)}
+												disabled={busy}
+												class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50
+													{held
+													? g.kind === 'role'
+														? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
+														: 'border-indigo-400/30 bg-indigo-400/10 text-indigo-300 hover:bg-indigo-400/20'
+													: 'border-white/10 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'}"
+												title={held ? `Remove ${g.label} access` : `Grant ${g.label} access`}
+											>
+												{#if busy}
+													<Icon icon="tabler:loader-2" class="h-3 w-3 animate-spin" />
+												{:else}
+													<Icon icon={held ? 'tabler:check' : 'tabler:plus'} class="h-3 w-3" />
+												{/if}
+												{g.label}
+											</button>
+										{/each}
+									</div>
 								{/if}
 							</td>
 							<td class="px-4 py-3">
 								{#if member.walletAddress}
 									<div class="flex items-center gap-1">
-										<span class="font-mono text-xs text-white/60">{shortWallet(member.walletAddress)}</span>
+										<span class="font-mono text-xs text-white/60"
+											>{shortWallet(member.walletAddress)}</span
+										>
 										<button
 											class="text-solar-400 rounded p-0.5 transition-colors hover:bg-white/10 hover:text-white"
 											onclick={() => copyWallet(member.walletAddress!, member.id)}
@@ -332,7 +366,9 @@
 							</td>
 							<td class="text-solar-300 px-4 py-3">
 								{#if member.pendingLogin}
-									<span class="text-orange-400/70 text-xs">Invite sent {formatDate(member.inviteSentAt ?? null)}</span>
+									<span class="text-xs text-orange-400/70"
+										>Invite sent {formatDate(member.inviteSentAt ?? null)}</span
+									>
 								{:else}
 									{formatDate(member.lastLogin)}
 								{/if}
