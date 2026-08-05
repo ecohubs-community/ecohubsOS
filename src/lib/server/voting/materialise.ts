@@ -187,10 +187,12 @@ async function applyReactivationOutcome(
 	// — that is what keeps it free of campaigning — so this is the only way they
 	// learn what happened. Fire-and-forget: the membership change above has
 	// already landed and must not be undone by a mail failure.
+	if (!member) return;
 	void sendReactivationOutcomeEmail({
 		proposalId: row.id,
+		userId: member.id,
 		email: app.email,
-		recipientName: member?.displayName?.trim() || member?.name || app.fullName,
+		recipientName: member.displayName?.trim() || member.name,
 		// The column is plain text; the resolver only ever writes a VoteResult,
 		// and the guard above has already excluded null.
 		result: result as VoteResult,

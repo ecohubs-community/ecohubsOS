@@ -26,6 +26,9 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { POLICY, type MembershipStatus } from '$lib/policy';
 import { createSystemProposal } from '$lib/server/voting/system-proposal';
 import { executeExit } from '$lib/server/membership-exit';
+import { buildCaseOpenedTemplate } from '$lib/server/membership-emails';
+import { queueMemberEmail } from '$lib/server/member-email-queue';
+import { env } from '$env/dynamic/private';
 import { apiLogger } from '$lib/server/logger';
 
 /** Statuses meaning the case is still being decided. */
@@ -131,6 +134,22 @@ export async function openCase(
 		.update(membershipCases)
 		.set({ proposalId: proposal.id })
 		.where(eq(membershipCases.id, row.id));
+
+	// Draft the member's notification. Deliberately not sent: this is the most
+	// delicate message the system writes, and a steward should read and usually
+	// reword it before it reaches someone.
+	const template = buildCaseOpenedTemplate({
+		recipientName: displayName,
+		appUrl: env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community'
+	});
+	await queueMemberEmail({
+		userId: input.userId,
+		email: member.email,
+		kind: 'case_opened',
+		subject: template.subject,
+		body: template.body,
+		relatedId: row.id
+	});
 
 	apiLogger.info(
 		{ caseId: row.id, userId: input.userId, openedBy: input.openedBy },

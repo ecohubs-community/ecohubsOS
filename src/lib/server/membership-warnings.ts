@@ -22,8 +22,7 @@ import {
 	type MembershipSnapshot
 } from '$lib/server/membership-review';
 import { buildTimerWarningTemplate } from '$lib/server/membership-emails';
-import { renderBrandedEmailHtml } from '$lib/server/member-onboarding/emailTemplates';
-import { sendEmail } from '$lib/email';
+import { queueMemberEmail } from '$lib/server/member-email-queue';
 import { emailLogger } from '$lib/server/logger';
 
 function toSnapshot(u: typeof userTable.$inferSelect): MembershipSnapshot {
@@ -64,7 +63,7 @@ function pendingKind(member: MembershipSnapshot): { kind: string; toStatus: stri
  * `emailSent: false` so they cannot fire later, without claiming a message went
  * out that did not.
  *
- * Returns the number of emails actually sent.
+ * Returns the number of drafts created.
  */
 export async function sendDueWarnings(now: Date = new Date()): Promise<number> {
 	const users = await db.select().from(userTable);
@@ -132,21 +131,19 @@ export async function sendDueWarnings(now: Date = new Date()): Promise<number> {
 			}
 		}
 
-		try {
-			await sendEmail({
-				to: u.email,
-				subject: template.subject,
-				text: template.body,
-				html: renderBrandedEmailHtml(template.body)
-			});
-			sent++;
-			emailLogger.info({ userId: u.id, daysBefore: urgent }, 'Membership warning sent');
-		} catch (err) {
-			// The claim stays. Retrying would mean re-sending to everyone whose
-			// send happened to fail, and a missed warning is a smaller harm than a
-			// duplicate one — the review still goes to a human either way.
-			emailLogger.error({ err, userId: u.id }, 'Membership warning email failed');
-		}
+		// Drafted, not sent. A steward reads "we've missed you" before it goes —
+		// it is the kind of message that lands badly if the reason someone went
+		// quiet is one the system cannot see.
+		await queueMemberEmail({
+			userId: u.id,
+			email: u.email,
+			kind: 'timer_warning',
+			subject: template.subject,
+			body: template.body,
+			relatedId: `${anchor.getTime()}:${urgent}`
+		});
+		sent++;
+		emailLogger.info({ userId: u.id, daysBefore: urgent }, 'Membership warning drafted');
 	}
 
 	return sent;

@@ -103,8 +103,7 @@ function createBadgesStore() {
 				const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 				counts['admin-logs'] = Array.isArray(data.logs)
 					? data.logs.filter(
-							(log: { level: number; time: number }) =>
-								log.level >= 50 && log.time >= sevenDaysAgo
+							(log: { level: number; time: number }) => log.level >= 50 && log.time >= sevenDaysAgo
 						).length
 					: 0;
 			} else {
@@ -143,6 +142,19 @@ function createBadgesStore() {
 			}
 		} catch (err) {
 			console.error('Failed to fetch onboarding board:', err);
+		}
+
+		try {
+			// Member emails the system has drafted and nobody has decided on yet.
+			// These sit on the same app as the onboarding board, because that is
+			// where a steward already goes to act on individual members.
+			const emailResponse = await fetch('/api/member-emails');
+			if (emailResponse.ok) {
+				const data = await emailResponse.json();
+				counts['member-onboarding'] += Array.isArray(data.emails) ? data.emails.length : 0;
+			}
+		} catch (err) {
+			console.error('Failed to fetch member email drafts:', err);
 		}
 
 		isLoading = false;

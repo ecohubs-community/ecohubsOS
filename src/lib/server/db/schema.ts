@@ -237,6 +237,42 @@ export const membershipCases = sqliteTable('membership_cases', {
 		.$defaultFn(() => new Date())
 });
 
+// Outbound member email awaiting a human decision.
+//
+// The rule this table exists to enforce: **nothing reaches a member's inbox
+// without a steward choosing to send it.** The system drafts, a person reviews,
+// edits if the wording needs it, and sends — or dismisses it as unnecessary.
+//
+// A small number of transactional emails are exempt (the welcome mail when an
+// application is approved); those still send directly and never appear here.
+// See POLICY.emails.
+export const memberEmails = sqliteTable('member_emails', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Recipient address captured at draft time, so an exit cannot orphan it. */
+	email: text('email').notNull(),
+	/** Which template drafted this — see POLICY.emails.kinds. */
+	kind: text('kind').notNull(),
+	/** Editable before sending: delicate messages often need a human's wording. */
+	subject: text('subject').notNull(),
+	body: text('body').notNull(),
+	// 'pending' | 'sent' | 'dismissed' | 'failed'
+	status: text('status').notNull().default('pending'),
+	/** Case, proposal or review this was drafted for — for dedupe and context. */
+	relatedId: text('related_id'),
+	sentAt: integer('sent_at', { mode: 'timestamp' }),
+	sentBy: text('sent_by').references(() => user.id, { onDelete: 'set null' }),
+	/** Why a steward decided not to send it. */
+	dismissedReason: text('dismissed_reason'),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
 // BetterAuth session table
 export const session = sqliteTable('session', {
 	id: text('id').primaryKey(),

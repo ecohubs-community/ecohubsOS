@@ -13,10 +13,8 @@
 import { db } from '$lib/server/db';
 import { proposals } from '$lib/server/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
-import { sendEmail } from '$lib/email';
 import { POLICY } from '$lib/policy';
-import { renderBrandedEmailHtml } from '$lib/server/member-onboarding/emailTemplates';
-import { emailLogger } from '$lib/server/logger';
+import { queueMemberEmail } from '$lib/server/member-email-queue';
 
 export interface EmailTemplate {
 	subject: string;
@@ -160,6 +158,41 @@ The EcoHubs community`
 }
 
 /**
+ * A concern has been raised and the member is suspended while it is decided.
+ *
+ * The hardest message in this system to get right, and the reason it is drafted
+ * rather than sent: it has to be honest that something serious is happening,
+ * without accusing, without detail that would identify whoever raised it, and
+ * without sounding like the outcome is already settled — because it isn't.
+ *
+ * A steward is expected to edit this before it goes.
+ */
+export function buildCaseOpenedTemplate(opts: {
+	recipientName: string;
+	appUrl: string;
+}): EmailTemplate {
+	return {
+		subject: 'Your EcoHubs membership — a pause while we talk',
+		body: `Hi ${opts.recipientName},
+
+A concern has been raised about participation in the community, and your
+membership is paused while we work through it. That pause isn't a conclusion —
+it's so nothing moves further while people talk.
+
+The community will decide together whether anything changes, and we'll let you
+know the outcome either way.
+
+We'd genuinely like to hear your side. Reply to this email and it reaches a
+steward directly, or ask for a call if that's easier.
+
+${opts.appUrl}
+
+Warmly,
+The EcoHubs stewards`
+	};
+}
+
+/**
  * Claim the right to send a notification for a proposal transition.
  *
  * Reuses `discordNotifiedTransitions` — the same atomic claim the Discord
@@ -197,16 +230,17 @@ async function claimEmailNotification(proposalId: string, key: string): Promise<
  */
 export async function sendReactivationOutcomeEmail(opts: {
 	proposalId: string;
+	userId: string;
 	email: string;
 	recipientName: string;
 	result: 'approved' | 'rejected' | 'tied' | 'needs_review';
 	voteClosedAt: Date | null;
 	appUrl: string;
 }): Promise<boolean> {
-	const { proposalId, email, recipientName, result, voteClosedAt, appUrl } = opts;
+	const { proposalId, userId, email, recipientName, result, voteClosedAt, appUrl } = opts;
 
 	if (!(await claimEmailNotification(proposalId, `reactivation:${result}`))) {
-		return false; // Another request already sent it.
+		return false; // Already drafted for this outcome.
 	}
 
 	let template: EmailTemplate;
@@ -229,19 +263,14 @@ export async function sendReactivationOutcomeEmail(opts: {
 		});
 	}
 
-	try {
-		await sendEmail({
-			to: email,
-			subject: template.subject,
-			text: template.body,
-			// Same branded shell as the onboarding emails, so these do not arrive
-			// looking like a different system.
-			html: renderBrandedEmailHtml(template.body)
-		});
-		emailLogger.info({ proposalId, result }, 'Reactivation outcome email sent');
-		return true;
-	} catch (err) {
-		emailLogger.error({ err, proposalId, result }, 'Reactivation outcome email failed');
-		return false;
-	}
+	// Drafted, not sent: a steward reads it first. See member-email-queue.
+	await queueMemberEmail({
+		userId,
+		email,
+		kind: 'reactivation_outcome',
+		subject: template.subject,
+		body: template.body,
+		relatedId: proposalId
+	});
+	return true;
 }

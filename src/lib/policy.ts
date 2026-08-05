@@ -213,6 +213,29 @@ export const POLICY = {
 		allowNegative: false
 	},
 
+	/**
+	 * Which member-facing emails send themselves, and which wait for a steward.
+	 *
+	 * Default is `false` — draft it, badge it, let a person read it and press
+	 * send. Membership messages land in someone's life at an awkward moment, and
+	 * a human should have seen the wording before it goes.
+	 *
+	 * `true` is reserved for transactional mail a member is actively waiting on,
+	 * where a delay would itself be the failure.
+	 */
+	emails: {
+		autoSend: {
+			/** Approved applicants are waiting on this to get in at all. */
+			application_approved: true,
+			/** A concern was raised — wording matters far too much to automate. */
+			case_opened: false,
+			/** The member is waiting, but a rejection needs a human's eye first. */
+			reactivation_outcome: false,
+			/** "We've missed you" — never worth sending without someone checking. */
+			timer_warning: false
+		}
+	},
+
 	/** Reactivation from standby. */
 	reactivation: {
 		/**
