@@ -140,7 +140,9 @@
 				</div>
 			{:else}
 				{#if kind === 'reminder'}
-					<div class="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+					<div
+						class="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+					>
 						<span class="text-xs text-white/50">
 							A fresh single-use enrollment link is embedded in the body.
 						</span>
@@ -181,14 +183,18 @@
 				</div>
 
 				{#if error}
-					<div class="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+					<div
+						class="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+					>
 						{error}
 					</div>
 				{/if}
 			{/if}
 		</div>
 
-		<div class="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-5 py-4">
+		<div
+			class="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-5 py-4"
+		>
 			<button
 				type="button"
 				onclick={copyToClipboard}

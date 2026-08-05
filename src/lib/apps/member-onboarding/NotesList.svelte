@@ -140,11 +140,13 @@
 					</button>
 				</div>
 			{:else}
-				<p class="whitespace-pre-wrap text-sm text-white/90">{note.text}</p>
+				<p class="text-sm whitespace-pre-wrap text-white/90">{note.text}</p>
 				<div class="mt-2 flex items-center justify-between">
 					<span class="text-xs text-white/40">
 						{note.createdBy ?? 'Unknown'} · {fmtDate(note.createdAt)}
-						{#if note.updatedAt && note.updatedAt !== note.createdAt}<span class="italic"> (edited)</span>{/if}
+						{#if note.updatedAt && note.updatedAt !== note.createdAt}<span class="italic">
+								(edited)</span
+							>{/if}
 					</span>
 					<div class="flex items-center gap-1">
 						<button

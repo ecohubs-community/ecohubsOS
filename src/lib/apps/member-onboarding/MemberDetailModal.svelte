@@ -231,11 +231,11 @@
 					<!-- Key dates -->
 					<div class="grid grid-cols-2 gap-2 text-sm">
 						<div class="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-							<div class="text-[11px] uppercase tracking-wide text-white/40">Accepted</div>
+							<div class="text-[11px] tracking-wide text-white/40 uppercase">Accepted</div>
 							<div class="text-white/90">{fmtDate(detail.acceptedAt)}</div>
 						</div>
 						<div class="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-							<div class="text-[11px] uppercase tracking-wide text-white/40">Onboarding</div>
+							<div class="text-[11px] tracking-wide text-white/40 uppercase">Onboarding</div>
 							<div class="text-white/90">
 								{detail.onboardingCompletedAt
 									? 'Complete'
@@ -404,7 +404,9 @@
 							<div class="text-xs {due ? 'text-amber-200' : 'text-indigo-200'}">
 								<div class="font-medium">{due ? 'On standby — follow-up due' : 'On standby'}</div>
 								<div class="opacity-80">
-									Since {fmtDate(detail.standbyAt)}{detail.standbyBy ? ` · ${detail.standbyBy}` : ''}
+									Since {fmtDate(detail.standbyAt)}{detail.standbyBy
+										? ` · ${detail.standbyBy}`
+										: ''}
 									· {detail.standbyUntil
 										? `follow up ${fmtDate(detail.standbyUntil)}`
 										: 'no follow-up date'}
@@ -505,14 +507,16 @@
 					{/if}
 
 					{#if error}
-						<div class="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+						<div
+							class="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+						>
 							{error}
 						</div>
 					{/if}
 
 					<!-- Timeline -->
 					<div>
-						<h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-white/50">
+						<h3 class="mb-2 text-xs font-semibold tracking-wide text-white/50 uppercase">
 							Timeline
 						</h3>
 						<ol class="space-y-2">
@@ -536,7 +540,7 @@
 
 				<!-- Right: notes -->
 				<div>
-					<h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-white/50">Notes</h3>
+					<h3 class="mb-2 text-xs font-semibold tracking-wide text-white/50 uppercase">Notes</h3>
 					<NotesList {onboardingId} notes={detail.notes} onChanged={refresh} />
 				</div>
 			</div>
