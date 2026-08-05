@@ -190,9 +190,12 @@ export const membershipWarnings = sqliteTable(
 		cycleAnchor: integer('cycle_anchor', { mode: 'timestamp' }).notNull(),
 		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
 		kind: text('kind').notNull(),
-		// False when the mark was reached but a more urgent one was sent instead —
-		// recorded so it cannot fire later, without claiming an email went out.
-		emailSent: integer('email_sent', { mode: 'boolean' }).notNull().default(true),
+		// True when this mark produced a draft for a steward to review; false when
+		// the mark was reached but a more urgent one superseded it. Deliberately
+		// not called "sent" — warnings are drafted into the member email queue, so
+		// whether one actually reached the member is that queue's business, not
+		// this table's.
+		drafted: integer('drafted', { mode: 'boolean' }).notNull().default(true),
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
 			.$defaultFn(() => new Date())

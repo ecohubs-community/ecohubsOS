@@ -31,6 +31,20 @@ const DAY_MS = 86_400_000;
 export const SYNC_INTERVAL_MS = DAY_MS;
 
 /**
+ * How many members one run will ask about.
+ *
+ * Each is a sequential HTTP round-trip inside a request handler, so an
+ * uncapped run would make the review queue as slow as the community is large.
+ * It bites hardest on the very first run, when nobody has a participation
+ * timestamp yet and every member therefore looks worth asking about.
+ *
+ * The cap is safe because progress is durable: each attempt stamps
+ * `puckstackActivitySyncedAt`, so the next run picks up where this one stopped
+ * and the backlog drains over a few page loads rather than one long wait.
+ */
+export const MAX_SYNCS_PER_RUN = 10;
+
+/**
  * Only members already drifting toward a threshold are worth asking about.
  *
  * Someone who voted this morning is plainly active; a Puckstack round-trip
@@ -92,7 +106,8 @@ export async function fetchLastActivity(email: string): Promise<Date | null> {
  *
  * Deliberately narrow: exited members, members synced recently, and members who
  * have clearly done something lately are all skipped. What remains is the small
- * set where the answer could change a decision.
+ * set where the answer could change a decision — and even that is capped per
+ * run, so no single request pays for the whole backlog.
  *
  * `recordParticipation` is forward-only, so an older Puckstack timestamp can
  * never drag someone's participation backwards.
@@ -106,6 +121,7 @@ export async function syncPuckstackActivity(now: Date = new Date()): Promise<num
 	let synced = 0;
 
 	for (const u of users) {
+		if (synced >= MAX_SYNCS_PER_RUN) break;
 		if ((u.membershipStatus as MembershipStatus) === 'exited') continue;
 		if (!u.puckstackUserId) continue;
 
@@ -142,7 +158,10 @@ export async function syncPuckstackActivity(now: Date = new Date()): Promise<num
 	}
 
 	if (synced > 0) {
-		puckstackLogger.info({ synced }, 'Puckstack activity synced');
+		puckstackLogger.info(
+			{ synced, capped: synced >= MAX_SYNCS_PER_RUN },
+			'Puckstack activity synced'
+		);
 	}
 	return synced;
 }

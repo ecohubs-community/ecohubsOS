@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SYNC_INTERVAL_MS } from './puckstack-activity';
+import { SYNC_INTERVAL_MS, MAX_SYNCS_PER_RUN } from './puckstack-activity';
 import { POLICY } from '$lib/policy';
 
 const DAY_MS = 86_400_000;
@@ -27,5 +27,21 @@ describe('sync pacing', () => {
 		const syncsBeforeThreshold =
 			((POLICY.timers.trialToStandby - staleAfterDays) * DAY_MS) / SYNC_INTERVAL_MS;
 		expect(syncsBeforeThreshold).toBeGreaterThan(30);
+	});
+});
+
+describe('fan-out cap', () => {
+	it('bounds how many HTTP calls one request can make', () => {
+		// Each sync is a sequential round-trip inside a request handler. Uncapped,
+		// the review queue would be as slow as the community is large — worst on
+		// the first run, when nobody has a participation timestamp and every member
+		// therefore looks worth asking about.
+		expect(MAX_SYNCS_PER_RUN).toBeGreaterThan(0);
+		expect(MAX_SYNCS_PER_RUN).toBeLessThanOrEqual(25);
+	});
+
+	it('drains a realistic backlog in a handful of loads', () => {
+		const communitySize = 40;
+		expect(Math.ceil(communitySize / MAX_SYNCS_PER_RUN)).toBeLessThanOrEqual(5);
 	});
 });

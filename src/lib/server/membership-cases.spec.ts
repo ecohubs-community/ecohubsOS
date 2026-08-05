@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { OPEN_CASE_STATUSES } from './membership-cases';
 import { POLICY } from '$lib/policy';
 
@@ -37,5 +38,25 @@ describe('the ballot a case uses', () => {
 
 	it('never reads an empty ballot as agreement to remove someone', () => {
 		expect(POLICY.reactivation.zeroVotesResult).toBe('needs_review');
+	});
+});
+
+describe('a suspension always has a way out', () => {
+	// Regression guard for the ordering bug: the case used to suspend the member
+	// first and create the vote second. A failure in between left them suspended
+	// with no proposal — and applyCaseOutcome keys on proposalId, so nothing
+	// could ever release them.
+	it('creates the vote before the suspension', () => {
+		const source = readFileSync(new URL('./membership-cases.ts', import.meta.url), 'utf8');
+		const voteAt = source.indexOf('createSystemProposal(');
+		const suspendAt = source.indexOf("membershipStatus: 'standby'");
+		expect(voteAt).toBeGreaterThan(-1);
+		expect(suspendAt).toBeGreaterThan(-1);
+		expect(voteAt).toBeLessThan(suspendAt);
+	});
+
+	it('withdraws the vote if the case cannot be opened after it', () => {
+		const source = readFileSync(new URL('./membership-cases.ts', import.meta.url), 'utf8');
+		expect(source).toContain("status: 'withdrawn'");
 	});
 });

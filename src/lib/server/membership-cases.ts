@@ -79,61 +79,79 @@ export async function openCase(
 	const displayName = member.displayName?.trim() || member.name;
 	const now = new Date();
 
-	// Suspend first. If the proposal creation below fails, the protective action
-	// has still taken effect — the safer half to land.
-	await db
-		.update(userTable)
-		.set({
-			membershipStatus: 'standby',
-			membershipStatusSince: now,
-			standbyReason: 'Suspended pending a community decision',
-			updatedAt: now
-		})
-		.where(eq(userTable.id, input.userId));
+	// The vote comes first, and this ordering is load-bearing.
+	//
+	// Suspending before creating the proposal looks safer — the protective half
+	// lands even if the rest fails — but it is not. A failure there leaves the
+	// member suspended with no vote that can ever release them: applyCaseOutcome
+	// keys on proposalId, so a case with none is unresolvable and nothing
+	// surfaces it. Better to fail with nothing changed.
+	let proposal;
+	try {
+		proposal = await createSystemProposal({
+			type: POLICY.reactivation.proposalType,
+			choiceSetKey: 'membership',
+			tags: ['membership', 'conduct'],
+			title: `End ${displayName}'s membership?`,
+			body: [
+				`A steward has opened a case about ${displayName}'s participation, and their`,
+				'membership is suspended while the community decides.',
+				'',
+				'**Summary:**',
+				'',
+				summary,
+				'',
+				'_Approving ends their membership. Rejecting restores it. Details beyond this',
+				'summary are held by the stewards, deliberately — a case often involves someone',
+				'else who was affected._'
+			].join('\n')
+		});
+	} catch (err) {
+		apiLogger.error({ err, userId: input.userId }, 'Could not create case proposal');
+		return { ok: false, error: 'Could not open the vote — nothing was changed' };
+	}
 
-	await db.insert(membershipEvents).values({
-		userId: input.userId,
-		fromStatus: previousStatus,
-		toStatus: 'standby',
-		reason: `Disciplinary case opened: ${summary}`,
-		actorUserId: input.openedBy
-	});
+	let row;
+	try {
+		[row] = await db
+			.insert(membershipCases)
+			.values({
+				userId: input.userId,
+				openedBy: input.openedBy,
+				publicSummary: summary,
+				privateNotes: input.privateNotes?.trim() || null,
+				previousStatus,
+				proposalId: proposal.id,
+				status: 'voting'
+			})
+			.returning();
 
-	const [row] = await db
-		.insert(membershipCases)
-		.values({
+		// Suspend last. By now the vote exists, so the suspension always has a
+		// route out of it.
+		await db
+			.update(userTable)
+			.set({
+				membershipStatus: 'standby',
+				membershipStatusSince: now,
+				standbyReason: 'Suspended pending a community decision',
+				updatedAt: now
+			})
+			.where(eq(userTable.id, input.userId));
+
+		await db.insert(membershipEvents).values({
 			userId: input.userId,
-			openedBy: input.openedBy,
-			publicSummary: summary,
-			privateNotes: input.privateNotes?.trim() || null,
-			previousStatus,
-			status: 'voting'
-		})
-		.returning();
-
-	const proposal = await createSystemProposal({
-		type: POLICY.reactivation.proposalType,
-		choiceSetKey: 'membership',
-		tags: ['membership', 'conduct'],
-		title: `End ${displayName}'s membership?`,
-		body: [
-			`A steward has opened a case about ${displayName}'s participation, and their`,
-			'membership is suspended while the community decides.',
-			'',
-			'**Summary:**',
-			'',
-			summary,
-			'',
-			'_Approving ends their membership. Rejecting restores it. Details beyond this',
-			'summary are held by the stewards, deliberately — a case often involves someone',
-			'else who was affected._'
-		].join('\n')
-	});
-
-	await db
-		.update(membershipCases)
-		.set({ proposalId: proposal.id })
-		.where(eq(membershipCases.id, row.id));
+			fromStatus: previousStatus,
+			toStatus: 'standby',
+			reason: `Disciplinary case opened: ${summary}`,
+			actorUserId: input.openedBy
+		});
+	} catch (err) {
+		apiLogger.error({ err, userId: input.userId }, 'Case creation failed after the vote opened');
+		// Withdraw the vote rather than leave the community deciding something
+		// that was never properly opened.
+		await db.update(proposals).set({ status: 'withdrawn' }).where(eq(proposals.id, proposal.id));
+		return { ok: false, error: 'Could not open the case — the vote was withdrawn' };
+	}
 
 	// Draft the member's notification. Deliberately not sent: this is the most
 	// delicate message the system writes, and a steward should read and usually

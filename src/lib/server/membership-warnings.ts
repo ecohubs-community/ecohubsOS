@@ -59,9 +59,9 @@ function pendingKind(member: MembershipSnapshot): { kind: string; toStatus: stri
  * goes quiet again gets a fresh set.
  *
  * When several marks are due at once — which happens whenever the app was quiet
- * across a mark — only the most urgent is emailed. The rest are recorded with
- * `emailSent: false` so they cannot fire later, without claiming a message went
- * out that did not.
+ * across a mark — only the most urgent produces a draft. The rest are recorded
+ * with `drafted: false` so they cannot fire later, without implying anything
+ * reached the member.
  *
  * Returns the number of drafts created.
  */
@@ -109,7 +109,7 @@ export async function sendDueWarnings(now: Date = new Date()): Promise<number> {
 				daysBefore: urgent,
 				cycleAnchor: anchor,
 				kind: pending.kind,
-				emailSent: true
+				drafted: true
 			});
 		} catch {
 			continue; // Another request claimed it.
@@ -124,7 +124,7 @@ export async function sendDueWarnings(now: Date = new Date()): Promise<number> {
 					daysBefore: mark,
 					cycleAnchor: anchor,
 					kind: pending.kind,
-					emailSent: false
+					drafted: false
 				});
 			} catch {
 				// Already recorded — fine.
