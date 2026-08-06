@@ -79,6 +79,17 @@ export async function grantReward(input: GrantInput): Promise<GrantResult> {
 	const eco = Math.floor(input.eco);
 	const reason = input.reason.trim();
 
+	// NaN is the one amount that survives every check below — `NaN <= 0`,
+	// `NaN > max` and the daily-cap comparison are all false — so it would reach
+	// Offcoin with the amount intact, against the guarantee this function's
+	// docblock makes. Not reachable through the API, since JSON has no NaN
+	// literal, but the function is exported and NaN falls out of arithmetic on a
+	// missing field. (±Infinity needs no guard: the checks below already catch
+	// both, with better wording than a generic one would give.)
+	if (Number.isNaN(eco)) {
+		return { ok: false, error: 'Grants must be a positive amount' };
+	}
+
 	if (!POLICY.grants.allowNegative && eco <= 0) {
 		return { ok: false, error: 'Grants must be a positive amount' };
 	}
