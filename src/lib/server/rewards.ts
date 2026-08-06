@@ -148,21 +148,29 @@ export async function grantReward(input: GrantInput): Promise<GrantResult> {
 	} catch (err) {
 		apiLogger.error({ err, recipientId: recipient.id }, 'Offcoin grant failed');
 		// Record what did land, so a partial grant is visible rather than lost.
-		if (ecoTxId) {
+		//
+		// Read the transaction ids rather than assuming which half failed: the
+		// snapshot update sits after both Offcoin calls, so a database hiccup can
+		// throw with the XP already granted. Writing xp: 0 there would understate
+		// what the member received and leave room under the actor's daily cap for
+		// XP that has already been handed out.
+		if (ecoTxId || xpTxId) {
 			await db.insert(rewardGrants).values({
 				recipientUserId: recipient.id,
 				actorUserId: input.actorUserId,
-				eco,
-				xp: 0,
+				eco: ecoTxId ? eco : 0,
+				xp: xpTxId ? xp : 0,
 				reason,
 				offcoinEcoTxId: ecoTxId,
-				offcoinXpTxId: null
+				offcoinXpTxId: xpTxId
 			});
 		}
 		return {
 			ok: false,
 			error: ecoTxId
-				? 'The ECO went through but the XP did not — recorded, please check Offcoin'
+				? xpTxId
+					? 'The grant landed but recording it failed — check Offcoin before regranting'
+					: 'The ECO went through but the XP did not — recorded, please check Offcoin'
 				: 'Offcoin rejected the grant'
 		};
 	}

@@ -142,6 +142,17 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		event.locals.session = null;
 	}
 
+	// An exited member is not a member. `executeExit` deletes their sessions, but
+	// that is one best-effort step among several — if it fails, or a session is
+	// somehow issued afterwards, nothing else here would stop them: every gate
+	// below tests `locals.user`, not their membership. Dropping the identity is
+	// what makes `os.access` mean something rather than being a capability the
+	// tests describe and no code enforces.
+	if (event.locals.user?.membershipStatus === 'exited') {
+		event.locals.user = null;
+		event.locals.session = null;
+	}
+
 	// Redirect authenticated users away from login page
 	if (event.url.pathname === '/login' && event.locals.user) {
 		redirect(303, '/');
@@ -150,11 +161,15 @@ const authHandler: Handle = async ({ event, resolve }) => {
 	// Standby members get the reactivation screen instead of the desktop. They
 	// keep os.access precisely so this route exists — without it there is no way
 	// back short of email.
+	//
+	// `/api/` is deliberately exempt: the standby screen itself calls the
+	// reactivation endpoint, and API access is gated by `requireCapability`,
+	// which checks status. `/login` needs no exemption — the redirect above has
+	// already sent an authenticated caller to `/`.
 	if (
 		event.locals.user?.membershipStatus === 'standby' &&
 		event.url.pathname !== '/standby' &&
-		!event.url.pathname.startsWith('/api/') &&
-		event.url.pathname !== '/login'
+		!event.url.pathname.startsWith('/api/')
 	) {
 		redirect(303, '/standby');
 	}

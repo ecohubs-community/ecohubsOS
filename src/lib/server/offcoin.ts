@@ -15,10 +15,12 @@ let warnedMissingWorkspaceId = false;
  * members the same way or we look up the wrong row — or none at all.
  *
  * Falls back to the pre-scoping `puckstack:{userId}` when
- * `PUCKSTACK_WORKSPACE_ID` is unset. Puckstack still attaches that legacy alias
- * to newly created members while the transition completes, so the fallback is
- * today's behaviour rather than a failure — but it only resolves for members
- * whose first workspace was ours, so set the variable.
+ * `PUCKSTACK_WORKSPACE_ID` is unset. **Set the variable.** Puckstack no longer
+ * attaches that legacy alias to new members, and the ones that still carry it
+ * are pre-scoping members which Puckstack now adopts into whichever workspace
+ * asks for them first. So the fallback resolves for a shrinking set of members
+ * and, worse, may resolve to a member that has since been adopted by a
+ * different workspace — crediting a grant to an economy that is not ours.
  */
 export function memberAlias(puckstackUserId: string): string {
 	const workspaceId = env.PUCKSTACK_WORKSPACE_ID;
