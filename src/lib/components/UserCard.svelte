@@ -2,6 +2,7 @@
 	import { fade, fly } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import { auth } from '$lib/auth.svelte';
+	import type { Role } from '$lib/policy';
 	import { authClient } from '$lib/auth-client';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { xpForNextLevel } from '$lib/utils/balances.utils';
@@ -9,6 +10,20 @@
 	import { os } from '$lib/os.svelte';
 
 	let { showWallet = false, delay = 200 }: { showWallet?: boolean; delay?: number } = $props();
+
+	// Badge per role, resolved from `auth.role` rather than a raw group string,
+	// so it can never disagree with what the policy actually grants. Trial is
+	// shown too — a member should be able to see where they stand, not have to
+	// infer it from what they cannot do.
+	//
+	// Class strings are written out in full: Tailwind scans source text, so a
+	// composed name like `bg-${colour}-500/20` would never be generated.
+	const ROLE_BADGE: Record<Role, { label: string; class: string }> = {
+		trial: { label: 'Trial', class: 'bg-amber-500/20 text-amber-300' },
+		member: { label: 'Member', class: 'bg-blue-500/20 text-blue-300' },
+		steward: { label: 'Steward', class: 'bg-emerald-500/20 text-emerald-300' },
+		admin: { label: 'Admin', class: 'bg-indigo-500/20 text-indigo-300' }
+	};
 
 	function openProfile() {
 		os.openApp('my-profile');
@@ -80,7 +95,10 @@
 				</div>
 			{:else}
 				<button type="button" onclick={openProfile} class="cursor-pointer text-left">
-					<h3 class="leading-tight font-bold text-white transition-colors hover:text-white/80" in:fade>
+					<h3
+						class="leading-tight font-bold text-white transition-colors hover:text-white/80"
+						in:fade
+					>
 						{#if auth.user?.displayName && offcoin.isConnected}
 							{auth.user.displayName} / {offcoin.name}
 						{:else if auth.user?.displayName}
@@ -97,11 +115,16 @@
 				{:else}
 					<p class="text-solar-300 text-xs">{auth.userEmail ?? 'Member'}</p>
 				{/if}
-				{#if auth.userGroups.includes('EcoHubs Admin')}
-					<span class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">Admin</span>
-				{:else if auth.userGroups.includes('EcoHubs Member')}
-					<span class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">Member</span>
-				{/if}
+				<div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+					<span class="rounded-full px-2 py-0.5 text-xs {ROLE_BADGE[auth.role].class}">
+						{ROLE_BADGE[auth.role].label}
+					</span>
+					<!-- Status is orthogonal to role: a standby steward is still a
+					     steward, so this sits beside the role rather than replacing it. -->
+					{#if auth.membershipStatus === 'standby'}
+						<span class="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">Standby</span>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	</div>

@@ -8,10 +8,11 @@ import { newProposalMessage } from '$lib/server/discord-templates';
 import { votingLogger } from '$lib/server/logger';
 import { computePeriods, isValidProposalType, TYPE_CONFIG } from '$lib/server/voting/periods';
 import { getChoices } from '$lib/server/voting/choice-sets';
-import { canAuthorProposal } from '$lib/server/voting/eligibility';
 import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
 import { getMembershipVisibility } from '$lib/server/membership-visibility';
+import { requireCapability } from '$lib/server/membership';
+import { recordParticipation } from '$lib/server/participation';
 
 const TITLE_MAX = 140;
 const BODY_MAX = 10_000;
@@ -122,10 +123,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.select({ proposalId: proposalVotes.proposalId })
 		.from(proposalVotes)
 		.where(
-			and(
-				inArray(proposalVotes.proposalId, proposalIds),
-				eq(proposalVotes.userId, locals.user.id)
-			)
+			and(inArray(proposalVotes.proposalId, proposalIds), eq(proposalVotes.userId, locals.user.id))
 		);
 	const votedSet = new Set(userVotes.map((v) => v.proposalId));
 
@@ -189,19 +187,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	return json({ proposals: result });
 };
 
-// POST /api/proposals — create a member-authored proposal.
+// POST /api/proposals — create a steward- or admin-authored proposal.
+//
+// Authorship is a role, not a level: members bring ideas through a Discord
+// discussion and a steward carries the ones that fit the manifesto forward. The
+// former Offcoin Level 3 gate is gone — it made authorship depend on a live
+// Offcoin call that failed closed, so an outage silently removed the right.
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) error(401, 'Not authenticated');
+	requireCapability('proposal.create', locals);
 
 	if (!checkRateLimit(PROPOSAL_CREATE_RATE_LIMIT, locals.user.id)) {
 		error(429, 'Too many proposals — please wait before creating another');
 	}
-
-	const eligible = await canAuthorProposal({
-		id: locals.user.id,
-		puckstackUserId: locals.user.puckstackUserId
-	});
-	if (!eligible) error(403, 'Offcoin Level 3 or higher required to create a proposal');
 
 	let body: unknown;
 	try {
@@ -234,7 +231,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 	if (proposalBody.length > BODY_MAX) error(400, `Body must be ≤ ${BODY_MAX} characters`);
 
-	let normalisedTags: string[] = [];
+	const normalisedTags: string[] = [];
 	if (Array.isArray(tags)) {
 		const seen = new Set<string>();
 		for (const raw of tags) {
@@ -287,6 +284,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		{ proposalId: created.id, type: created.type, authorUserId: locals.user.id },
 		'proposal created'
 	);
+
+	void recordParticipation(locals.user.id, 'proposal');
 
 	return json({ proposal: { ...created, votesByChoice: {}, votesTotal: 0, userHasVoted: false } });
 };

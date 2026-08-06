@@ -4,7 +4,7 @@ import { requireStewardOrAdmin } from '$lib/server/authz';
 import { db } from '$lib/server/db';
 import { memberOnboarding, memberOnboardingNotes } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { addEvent } from '$lib/server/member-onboarding/service';
+import { addEvent, personDisplayName } from '$lib/server/member-onboarding/service';
 import { sanitizeString, MAX_LENGTHS } from '$lib/server/validation';
 
 // POST — add a note to an onboarding journey. Body: { text }
@@ -30,7 +30,7 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 	return json({
 		id: note.id,
 		text: note.text,
-		createdBy: locals.user!.name,
+		createdBy: personDisplayName(locals.user!),
 		createdAt: note.createdAt?.toISOString() ?? null,
 		updatedAt: note.updatedAt?.toISOString() ?? null
 	});

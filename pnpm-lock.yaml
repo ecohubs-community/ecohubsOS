@@ -18,8 +18,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@offcoin/sdk':
-        specifier: ^0.0.9
-        version: 0.0.9
+        specifier: ^0.0.12
+        version: 0.0.12
       '@safe-global/api-kit':
         specifier: ^4.0.1
         version: 4.0.1(typescript@5.9.3)(zod@4.3.4)
@@ -760,8 +760,8 @@ packages:
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
 
-  '@offcoin/sdk@0.0.9':
-    resolution: {integrity: sha512-3JdRGb/A+eL0g3qkFE7Pm+7TtCAArKny1mgwL2FiNXfsolRuKnXctg/Vfk68NC1RHcGF4wy+oTe+HrdWVZAb+A==}
+  '@offcoin/sdk@0.0.12':
+    resolution: {integrity: sha512-MVr9Xmg0j3WjSXdoI0OMEJBg5XIWxLwJyzwUt6G8OcIEwUTZGqrVtzI3EdAI9A94rEbBEhGTEm9T6Cs3975H7g==}
 
   '@peculiar/asn1-schema@2.6.0':
     resolution: {integrity: sha512-xNLYLBFTBKkCzEZIw842BxytQQATQv+lDTCEMZ8C196iJcJJMBUZxrhSTxLaohMyKK8QlzRNTRkUmanucnDSqg==}
@@ -3158,7 +3158,7 @@ snapshots:
 
   '@noble/hashes@1.8.0': {}
 
-  '@offcoin/sdk@0.0.9': {}
+  '@offcoin/sdk@0.0.12': {}
 
   '@peculiar/asn1-schema@2.6.0':
     dependencies:

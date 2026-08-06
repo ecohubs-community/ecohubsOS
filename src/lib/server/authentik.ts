@@ -88,10 +88,7 @@ export async function createAuthentikInvitation(
 			body: JSON.stringify(body)
 		});
 	} catch (fetchErr) {
-		authentikLogger.error(
-			{ err: fetchErr, apiUrl },
-			'Network error connecting to Authentik API'
-		);
+		authentikLogger.error({ err: fetchErr, apiUrl }, 'Network error connecting to Authentik API');
 		throw new Error(`Failed to connect to Authentik API at ${apiUrl}: ${fetchErr}`);
 	}
 
@@ -102,9 +99,7 @@ export async function createAuthentikInvitation(
 		if (contentType.includes('application/json')) {
 			const errorData = await response.json().catch(() => null);
 			errorDetail =
-				errorData?.detail ||
-				errorData?.non_field_errors?.join(', ') ||
-				JSON.stringify(errorData);
+				errorData?.detail || errorData?.non_field_errors?.join(', ') || JSON.stringify(errorData);
 			authentikLogger.error(
 				{
 					status: response.status,
@@ -117,8 +112,7 @@ export async function createAuthentikInvitation(
 		} else {
 			const errorText = await response.text().catch(() => 'Could not read response body');
 			// Truncate HTML responses for logging
-			errorDetail =
-				errorText.length > 500 ? errorText.slice(0, 500) + '...' : errorText;
+			errorDetail = errorText.length > 500 ? errorText.slice(0, 500) + '...' : errorText;
 			authentikLogger.error(
 				{
 					status: response.status,
@@ -262,4 +256,22 @@ export async function removeUserFromAuthentikGroup(
 		body: { pk: userPk }
 	});
 	authentikLogger.info({ groupUuid, userPk }, 'Removed user from Authentik group');
+}
+
+/**
+ * Activate or deactivate an Authentik user.
+ *
+ * Removing role groups is not enough to lock someone out: a trial member is
+ * defined by the *absence* of a role, so a group-stripped account still signs
+ * in and looks like a new trial member. Deactivating stops authentication
+ * outright, which also cuts every other app behind the same SSO.
+ *
+ * Reversible — pass `true` to restore.
+ */
+export async function setAuthentikUserActive(userPk: number, isActive: boolean): Promise<void> {
+	await authentikFetch(`/api/v3/core/users/${userPk}/`, {
+		method: 'PATCH',
+		body: { is_active: isActive }
+	});
+	authentikLogger.info({ userPk, isActive }, 'Updated Authentik user active state');
 }

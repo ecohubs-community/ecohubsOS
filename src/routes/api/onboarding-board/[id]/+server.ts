@@ -9,7 +9,7 @@ import {
 	user as userTable
 } from '$lib/server/db/schema';
 import { eq, asc, desc, inArray } from 'drizzle-orm';
-import { deriveStage } from '$lib/server/member-onboarding/service';
+import { deriveStage, personDisplayName } from '$lib/server/member-onboarding/service';
 import { buildBuddyCallTemplate } from '$lib/server/member-onboarding/emailTemplates';
 
 // GET — full detail for one onboarding journey: member data, notes, timeline,
@@ -53,15 +53,21 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const nameMap = new Map<string, string>();
 	if (refIds.size > 0) {
 		const refUsers = await db
-			.select({ id: userTable.id, name: userTable.name })
+			.select({
+				id: userTable.id,
+				name: userTable.name,
+				displayName: userTable.displayName
+			})
 			.from(userTable)
 			.where(inArray(userTable.id, [...refIds]));
-		for (const u of refUsers) nameMap.set(u.id, u.name);
+		for (const u of refUsers) nameMap.set(u.id, personDisplayName(u));
 	}
 
-	const senderName = locals.user!.name;
+	const senderName = personDisplayName(locals.user!);
 	const buddyCallTemplate = buildBuddyCallTemplate({
-		recipientName: row.fullName,
+		// Greet the member by the name they chose in My Profile. By buddy-call
+		// time they have an account; before that only the application name exists.
+		recipientName: linkedUser ? personDisplayName(linkedUser) : row.fullName,
 		senderName,
 		schedulingUrl: locals.user!.meetingSchedulingUrl ?? null
 	});
@@ -75,21 +81,21 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		stage: deriveStage(row, linkedUser ?? null),
 		acceptedAt: row.createdAt?.toISOString() ?? null,
 		reminderSentAt: row.reminderSentAt?.toISOString() ?? null,
-		reminderSentBy: row.reminderSentBy ? nameMap.get(row.reminderSentBy) ?? null : null,
+		reminderSentBy: row.reminderSentBy ? (nameMap.get(row.reminderSentBy) ?? null) : null,
 		buddyCallInvitedAt: row.buddyCallInvitedAt?.toISOString() ?? null,
 		buddyCallInvitedBy: row.buddyCallInvitedBy
-			? nameMap.get(row.buddyCallInvitedBy) ?? null
+			? (nameMap.get(row.buddyCallInvitedBy) ?? null)
 			: null,
 		buddyCallAt: row.buddyCallAt?.toISOString() ?? null,
 		buddyCallWith: row.buddyCallWith,
 		buddyCallSkippedAt: row.buddyCallSkippedAt?.toISOString() ?? null,
 		buddyCallSkippedBy: row.buddyCallSkippedBy
-			? nameMap.get(row.buddyCallSkippedBy) ?? null
+			? (nameMap.get(row.buddyCallSkippedBy) ?? null)
 			: null,
 		dormantAt: row.dormantAt?.toISOString() ?? null,
-		dormantBy: row.dormantBy ? nameMap.get(row.dormantBy) ?? null : null,
+		dormantBy: row.dormantBy ? (nameMap.get(row.dormantBy) ?? null) : null,
 		standbyAt: row.standbyAt?.toISOString() ?? null,
-		standbyBy: row.standbyBy ? nameMap.get(row.standbyBy) ?? null : null,
+		standbyBy: row.standbyBy ? (nameMap.get(row.standbyBy) ?? null) : null,
 		standbyUntil: row.standbyUntil?.toISOString() ?? null,
 		onboardingCompletedAt: linkedUser?.onboardingCompletedAt?.toISOString() ?? null,
 		onboardingStartedAt: linkedUser?.onboardingStartedAt?.toISOString() ?? null,
@@ -97,7 +103,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		notes: notes.map((n) => ({
 			id: n.id,
 			text: n.text,
-			createdBy: n.createdBy ? nameMap.get(n.createdBy) ?? null : null,
+			createdBy: n.createdBy ? (nameMap.get(n.createdBy) ?? null) : null,
 			createdAt: n.createdAt?.toISOString() ?? null,
 			updatedAt: n.updatedAt?.toISOString() ?? null
 		})),
@@ -105,7 +111,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			id: e.id,
 			type: e.type,
 			detail: e.detail,
-			actor: e.actorUserId ? nameMap.get(e.actorUserId) ?? null : null,
+			actor: e.actorUserId ? (nameMap.get(e.actorUserId) ?? null) : null,
 			createdAt: e.createdAt?.toISOString() ?? null
 		})),
 		buddyCallTemplate,

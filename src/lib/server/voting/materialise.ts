@@ -2,7 +2,7 @@ import { db } from '$lib/server/db';
 import { proposals, proposalVotes } from '$lib/server/db/schema';
 import { and, eq, lte, or, sql } from 'drizzle-orm';
 import type { ProposalType, Threshold } from './periods';
-import { resolveResult, type Tallies } from './resolve';
+import { resolveResult, type Tallies, type VoteResult } from './resolve';
 import { sendDiscordMessage } from '$lib/server/discord';
 import {
 	proposalClosedApprovedMessage,
@@ -11,6 +11,16 @@ import {
 	proposalRatifiedMessage
 } from '$lib/server/discord-templates';
 import { votingLogger } from '$lib/server/logger';
+import {
+	applications,
+	membershipCases,
+	membershipEvents,
+	user as userTable
+} from '$lib/server/db/schema';
+import { POLICY } from '$lib/policy';
+import { sendReactivationOutcomeEmail } from '$lib/server/membership-emails';
+import { applyCaseOutcome } from '$lib/server/membership-cases';
+import { env } from '$env/dynamic/private';
 
 type ProposalRow = typeof proposals.$inferSelect;
 
@@ -84,6 +94,114 @@ async function notifyTransition(
 }
 
 /**
+ * Whether this proposal is a standby member's reactivation request.
+ *
+ * Read from the linked application's type rather than the proposal, so the
+ * distinction lives in one place — the same column the visibility cutoff keys
+ * off.
+ */
+async function isReactivationProposal(row: ProposalRow): Promise<boolean> {
+	if (!row.linkedApplicationId) return false;
+	const [app] = await db
+		.select({ type: applications.type })
+		.from(applications)
+		.where(eq(applications.id, row.linkedApplicationId))
+		.limit(1);
+	return app?.type === 'reactivation';
+}
+
+/**
+ * Whether this ballot decides a person's membership rather than a policy.
+ *
+ * Those get the zero-vote override: `resolveResult` treats an empty ballot as
+ * `rejected` ("no mandate; status quo holds"), which is right for a proposal
+ * and wrong for a person — it would refuse a returning member, or remove one,
+ * on the strength of nobody having voted.
+ */
+async function decidesAPerson(row: ProposalRow): Promise<boolean> {
+	if (await isReactivationProposal(row)) return true;
+	const [c] = await db
+		.select({ id: membershipCases.id })
+		.from(membershipCases)
+		.where(eq(membershipCases.proposalId, row.id))
+		.limit(1);
+	return !!c;
+}
+
+/**
+ * Restore a member whose reactivation vote passed.
+ *
+ * Runs inside the same lazy materialisation as the status change, so a standby
+ * member visiting their own screen resolves their finished vote rather than
+ * waiting for someone else's request to trigger it.
+ *
+ * Idempotent: it only acts on a member still in `standby`, so a redelivered or
+ * repeated materialisation cannot reactivate twice or resurrect someone whose
+ * status has since moved on.
+ */
+async function applyReactivationOutcome(
+	row: ProposalRow,
+	result: ProposalRow['result']
+): Promise<void> {
+	if (!result || !row.linkedApplicationId) return;
+	if (!(await isReactivationProposal(row))) return;
+
+	const [app] = await db
+		.select({ email: applications.email, fullName: applications.fullName })
+		.from(applications)
+		.where(eq(applications.id, row.linkedApplicationId))
+		.limit(1);
+	if (!app) return;
+
+	const member = await db.query.user.findFirst({
+		where: eq(userTable.email, app.email)
+	});
+
+	// Approval restores the membership. Guarded on still being in standby, so a
+	// repeated materialisation cannot reactivate twice or resurrect someone whose
+	// status has since moved on.
+	if (result === 'approved' && member?.membershipStatus === 'standby') {
+		const now = new Date();
+		await db
+			.update(userTable)
+			.set({
+				membershipStatus: 'active',
+				membershipStatusSince: now,
+				standbyReason: null,
+				updatedAt: now
+			})
+			.where(eq(userTable.id, member.id));
+
+		await db.insert(membershipEvents).values({
+			userId: member.id,
+			fromStatus: 'standby',
+			toStatus: 'active',
+			reason: 'Reactivation approved by community vote',
+			actorUserId: null // decided collectively, not by one person
+		});
+
+		votingLogger.info({ userId: member.id, proposalId: row.id }, 'Membership reactivated by vote');
+	}
+
+	// Every outcome is emailed, not just approval. The member cannot see the vote
+	// — that is what keeps it free of campaigning — so this is the only way they
+	// learn what happened. Fire-and-forget: the membership change above has
+	// already landed and must not be undone by a mail failure.
+	if (!member) return;
+	void sendReactivationOutcomeEmail({
+		proposalId: row.id,
+		userId: member.id,
+		email: app.email,
+		recipientName: member.displayName?.trim() || member.name,
+		// The column is plain text; the resolver only ever writes a VoteResult,
+		// and the guard above has already excluded null.
+		result: result as VoteResult,
+		voteClosedAt: row.voteClosesAt,
+		appUrl: env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community'
+	});
+}
+
+/**
  * Advance a proposal's status through deliberating → active → closed → ratifying → ratified
  * based on its timestamps. Returns the (possibly updated) row.
  *
@@ -112,7 +230,18 @@ export async function materialiseProposal(
 	if (next.status === 'active' && next.voteClosesAt.getTime() <= t) {
 		const tallies = await tallyVotes(next.id);
 		const choices = parseChoices(next.choices);
-		const result = resolveResult(tallies, choices, next.threshold as Threshold);
+		let result = resolveResult(tallies, choices, next.threshold as Threshold);
+
+		// Silence must not refuse a person. resolveResult treats zero votes as
+		// `rejected` ("no mandate; status quo holds") — correct for a policy
+		// proposal, wrong for a reactivation request, where nobody voting would
+		// turn indifference into a refusal. Route those to a steward instead.
+		// Also covers disciplinary cases: an empty ballot must never be read as
+		// the community agreeing to remove someone.
+		const votesCast = Object.values(tallies).reduce((a, b) => a + b, 0);
+		if (votesCast === 0 && (await decidesAPerson(next))) {
+			result = POLICY.reactivation.zeroVotesResult;
+		}
 
 		// Constitutional approved → ratifying; everyone else (or non-approved) → closed
 		const constitutionalApproved =
@@ -126,6 +255,8 @@ export async function materialiseProposal(
 			.returning();
 		next = updated;
 		await notifyTransition(next, newStatus, result);
+		await applyReactivationOutcome(next, result);
+		await applyCaseOutcome(next.id, result);
 	}
 
 	// ratifying → ratified

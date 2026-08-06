@@ -2,6 +2,8 @@
 	import Icon from '@iconify/svelte';
 	import MarkdownView from './MarkdownView.svelte';
 	import VoteModal from './VoteModal.svelte';
+	import ApplicationModal from './ApplicationModal.svelte';
+	import { auth } from '$lib/auth.svelte';
 	import type { ProposalDetail } from './types';
 
 	interface Props {
@@ -14,6 +16,7 @@
 
 	let modalChoice = $state<string | null>(null);
 	let inlineError = $state<string | null>(null);
+	let applicationOpen = $state(false);
 
 	function fmtAbsolute(iso: string): string {
 		return new Date(iso).toLocaleString();
@@ -38,7 +41,16 @@
 		return Math.round(((proposal.votesByChoice[choice] ?? 0) / TOTAL) * 100);
 	}
 
-	const canVote = $derived(proposal.status === 'active' && !proposal.userHasVoted);
+	// Two separate questions: is this proposal open to votes, and is *this member*
+	// allowed to vote at all. Keeping them apart lets a trial member see the
+	// ballot and be told why it is closed to them, rather than seeing nothing.
+	const eligibility = $derived(auth.can('proposal.vote'));
+	const isEligibleVoter = $derived(eligibility.allowed);
+	const ineligibleReason = $derived(eligibility.allowed ? null : eligibility.message);
+
+	const canVote = $derived(
+		proposal.status === 'active' && !proposal.userHasVoted && isEligibleVoter
+	);
 
 	async function submitVote(reason: string) {
 		if (!modalChoice) return;
@@ -73,9 +85,17 @@
 		<div class="head-meta">
 			<span>Created {fmtAbsolute(proposal.createdAt)}</span>
 			{#if proposal.status === 'deliberating'}
-				<span>· Voting opens {fmtAbsolute(proposal.voteOpensAt)} (in {fmtCountdown(proposal.voteOpensAt)})</span>
+				<span
+					>· Voting opens {fmtAbsolute(proposal.voteOpensAt)} (in {fmtCountdown(
+						proposal.voteOpensAt
+					)})</span
+				>
 			{:else if proposal.status === 'active'}
-				<span>· Voting closes {fmtAbsolute(proposal.voteClosesAt)} (in {fmtCountdown(proposal.voteClosesAt)})</span>
+				<span
+					>· Voting closes {fmtAbsolute(proposal.voteClosesAt)} (in {fmtCountdown(
+						proposal.voteClosesAt
+					)})</span
+				>
 			{:else if proposal.status === 'ratifying' && proposal.ratificationEndsAt}
 				<span>· Ratifies on {fmtAbsolute(proposal.ratificationEndsAt)}</span>
 			{:else if proposal.status === 'withdrawn' && proposal.withdrawnAt}
@@ -104,6 +124,13 @@
 		<MarkdownView source={proposal.body} />
 	</section>
 
+	{#if proposal.linkedApplicationId}
+		<button class="view-application-btn" onclick={() => (applicationOpen = true)}>
+			<Icon icon="tabler:file-text" class="h-4 w-4" />
+			View Full Application
+		</button>
+	{/if}
+
 	<section class="vote-section">
 		<h2>
 			{#if proposal.status === 'deliberating'}
@@ -128,7 +155,8 @@
 			{#if proposal.result === 'approved'}
 				<p class="result result-pass">
 					✅ Approved
-					{#if proposal.status === 'ratifying'} — in 30-day ratification period{/if}
+					{#if proposal.status === 'ratifying'}
+						— in 30-day ratification period{/if}
 				</p>
 			{:else if proposal.result === 'rejected'}
 				<p class="result result-fail">❌ Rejected</p>
@@ -141,6 +169,11 @@
 
 		{#if proposal.userHasVoted && proposal.status === 'active'}
 			<p class="hint">You have already voted on this proposal.</p>
+		{:else if !isEligibleVoter && proposal.status === 'active'}
+			<p class="hint hint-locked">
+				<Icon icon="tabler:lock" class="h-4 w-4 shrink-0" />
+				{ineligibleReason}
+			</p>
 		{/if}
 
 		{#if inlineError}
@@ -152,11 +185,7 @@
 				{@const count = proposal.votesByChoice[choice] ?? 0}
 				{@const percent = pct(choice)}
 				<div class="tally-row">
-					<button
-						class="choice-btn"
-						disabled={!canVote}
-						onclick={() => (modalChoice = choice)}
-					>
+					<button class="choice-btn" disabled={!canVote} onclick={() => (modalChoice = choice)}>
 						{choice}
 					</button>
 					<div class="bar-wrap" aria-label={`${count} votes (${percent}%)`}>
@@ -200,6 +229,12 @@
 	onConfirm={submitVote}
 />
 
+<ApplicationModal
+	applicationId={proposal.linkedApplicationId}
+	open={applicationOpen}
+	onClose={() => (applicationOpen = false)}
+/>
+
 <style>
 	.detail-root {
 		display: flex;
@@ -240,6 +275,23 @@
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 255, 255, 0.06);
 		border-radius: 10px;
+	}
+	.view-application-btn {
+		align-self: flex-start;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.9);
+		padding: 0.5rem 0.9rem;
+		border-radius: 8px;
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.view-application-btn:hover {
+		background: rgba(255, 255, 255, 0.12);
 	}
 	.vote-section,
 	.voters-section {
@@ -422,5 +474,12 @@
 	.tag-pill {
 		background: rgba(99, 102, 241, 0.1);
 		color: rgba(199, 210, 254, 0.85);
+	}
+
+	.hint-locked {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		color: rgba(255, 255, 255, 0.6);
 	}
 </style>

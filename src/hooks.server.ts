@@ -7,6 +7,7 @@ import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { dev } from '$app/environment';
 import { hasPendingRetroactiveSteps } from '$lib/server/onboarding';
+import { recordLogin } from '$lib/server/participation';
 
 // Security headers middleware
 const securityHeaders: Handle = async ({ event, resolve }) => {
@@ -104,8 +105,24 @@ const authHandler: Handle = async ({ event, resolve }) => {
 				onboardingStartedAt: dbUser.onboardingStartedAt ?? null,
 				onboardingCompletedAt: dbUser.onboardingCompletedAt ?? null,
 				introWatchedAt: dbUser.introWatchedAt ?? null,
-				meetingSchedulingUrl: dbUser.meetingSchedulingUrl ?? null
+				meetingSchedulingUrl: dbUser.meetingSchedulingUrl ?? null,
+				membershipStatus:
+					(dbUser.membershipStatus as 'active' | 'standby' | 'exited' | null) ?? 'active',
+				membershipStatusSince: dbUser.membershipStatusSince ?? null,
+				standbyReason: dbUser.standbyReason ?? null,
+				exitReason: dbUser.exitReason ?? null,
+				offcoinMemberId: dbUser.offcoinMemberId ?? null,
+				offcoinXp: dbUser.offcoinXp ?? null,
+				offcoinLevel: dbUser.offcoinLevel ?? null,
+				offcoinSyncedAt: dbUser.offcoinSyncedAt ?? null,
+				lastParticipationAt: dbUser.lastParticipationAt ?? null,
+				lastParticipationSource: dbUser.lastParticipationSource ?? null
 			};
+
+			// Weakest participation signal, throttled so a browsing session costs
+			// one write rather than one per request. Deliberately not awaited —
+			// bookkeeping must never add latency to, or fail, a real request.
+			void recordLogin(dbUser.id, dbUser.lastParticipationAt ?? null);
 			event.locals.session = {
 				id: session.session.id,
 				userId: session.session.userId,
@@ -125,9 +142,36 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		event.locals.session = null;
 	}
 
+	// An exited member is not a member. `executeExit` deletes their sessions, but
+	// that is one best-effort step among several — if it fails, or a session is
+	// somehow issued afterwards, nothing else here would stop them: every gate
+	// below tests `locals.user`, not their membership. Dropping the identity is
+	// what makes `os.access` mean something rather than being a capability the
+	// tests describe and no code enforces.
+	if (event.locals.user?.membershipStatus === 'exited') {
+		event.locals.user = null;
+		event.locals.session = null;
+	}
+
 	// Redirect authenticated users away from login page
 	if (event.url.pathname === '/login' && event.locals.user) {
 		redirect(303, '/');
+	}
+
+	// Standby members get the reactivation screen instead of the desktop. They
+	// keep os.access precisely so this route exists — without it there is no way
+	// back short of email.
+	//
+	// `/api/` is deliberately exempt: the standby screen itself calls the
+	// reactivation endpoint, and API access is gated by `requireCapability`,
+	// which checks status. `/login` needs no exemption — the redirect above has
+	// already sent an authenticated caller to `/`.
+	if (
+		event.locals.user?.membershipStatus === 'standby' &&
+		event.url.pathname !== '/standby' &&
+		!event.url.pathname.startsWith('/api/')
+	) {
+		redirect(303, '/standby');
 	}
 
 	// Protect main desktop route - require authentication

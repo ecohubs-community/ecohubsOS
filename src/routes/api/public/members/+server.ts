@@ -3,7 +3,8 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { isNotNull } from 'drizzle-orm';
-import { getOffcoinClient } from '$lib/server/offcoin';
+import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { isAtLeastRole, parseGroupsJson, resolveRole } from '$lib/policy';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -29,11 +30,26 @@ export const GET: RequestHandler = async ({ request }) => {
 		const appUrl = env.VITE_PUBLIC_APP_URL || 'https://os.ecohubs.community';
 		const offcoin = getOffcoinClient();
 
-		// Fetch offcoin data for all members in parallel
+		// Decide who is published *before* asking Offcoin about them.
+		//
+		// Only members, stewards and admins appear. Trial members are people still
+		// finding their footing — the public list is a roster of the community,
+		// not of everyone who has an account. Exited members are excluded for the
+		// same reason, more strongly.
+		//
+		// Filtering first matters: each published member costs three Offcoin
+		// round-trips, and trial accounts are the larger group. Filtering after
+		// the fetch would spend most of those calls on rows about to be discarded.
+		const published = members.filter((member) => {
+			if (member.membershipStatus === 'exited') return false;
+			return isAtLeastRole(resolveRole(parseGroupsJson(member.groups)), 'member');
+		});
+
+		// Fetch offcoin data for all published members in parallel
 		const offcoinResults = await Promise.allSettled(
-			members.map(async (member) => {
+			published.map(async (member) => {
 				if (!member.puckstackUserId) return null;
-				const alias = `puckstack:${member.puckstackUserId}`;
+				const alias = memberAlias(member.puckstackUserId);
 				const [memberData, xpData, balanceData] = await Promise.all([
 					offcoin.members.get(alias),
 					offcoin.members.getXp(alias),
@@ -43,28 +59,34 @@ export const GET: RequestHandler = async ({ request }) => {
 					userId: member.id,
 					name: memberData.name,
 					xp: xpData.xp,
+					level: xpData.level,
 					eco: balanceData.balance
 				};
 			})
 		);
 
 		// Build offcoin lookup map
-		const offcoinMap = new Map<string, { name: string; xp: number; eco: number }>();
+		const offcoinMap = new Map<string, { name: string; xp: number; level: number; eco: number }>();
 		for (const result of offcoinResults) {
 			if (result.status === 'fulfilled' && result.value) {
 				offcoinMap.set(result.value.userId, {
 					name: result.value.name,
 					xp: result.value.xp,
+					level: result.value.level,
 					eco: result.value.eco
 				});
 			}
 		}
 
 		// Build response
-		const response = members.map((member) => {
+		const response = published.map((member) => {
 			const oc = offcoinMap.get(member.id);
-			const xp = oc?.xp ?? 0;
+			// Fall back to the stored snapshot when Offcoin is unreachable, so a
+			// transient outage shows a stale figure rather than zeroing everyone.
+			const xp = oc?.xp ?? member.offcoinXp ?? 0;
+			const level = oc?.level ?? member.offcoinLevel ?? 0;
 			const eco = oc?.eco ?? 0;
+			const role = resolveRole(parseGroupsJson(member.groups));
 
 			// Build display name with priority logic
 			let displayName: string;
@@ -89,7 +111,9 @@ export const GET: RequestHandler = async ({ request }) => {
 					location: member.location ?? null,
 					contribution: member.contribution ?? null,
 					xp,
+					level,
 					eco,
+					role,
 					showOnWebsite: true
 				};
 			} else {
@@ -101,7 +125,9 @@ export const GET: RequestHandler = async ({ request }) => {
 					location: null,
 					contribution: null,
 					xp,
+					level,
 					eco,
+					role,
 					showOnWebsite: false
 				};
 			}

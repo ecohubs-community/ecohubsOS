@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getOffcoinClient } from '$lib/server/offcoin';
+import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { NotFoundError } from '@offcoin/sdk';
 
 /**
@@ -20,7 +20,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	try {
 		const offcoin = getOffcoinClient();
-		const alias = `puckstack:${puckstackUserId}`;
+		const alias = memberAlias(puckstackUserId);
 
 		// Get member data
 		const member = await offcoin.members.get(alias);

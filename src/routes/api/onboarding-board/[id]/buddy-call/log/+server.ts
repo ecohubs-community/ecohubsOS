@@ -5,6 +5,7 @@ import { db } from '$lib/server/db';
 import { memberOnboarding } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { addEvent } from '$lib/server/member-onboarding/service';
+import { recordParticipation } from '$lib/server/participation';
 import { sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
 
@@ -35,6 +36,11 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 		`Buddy call held on ${callDate.toLocaleDateString()}${withWhomClean ? ` with ${withWhomClean}` : ''}`,
 		locals.user!.id
 	);
+
+	// A buddy call that actually happened is participation for the member — and
+	// it is backdated to the call date, not now, since a steward may log it days
+	// later. The forward-only rule means a late log cannot regress the timestamp.
+	if (row.userId) void recordParticipation(row.userId, 'buddy_call', callDate);
 
 	apiLogger.info({ onboardingId: row.id }, 'Buddy call logged');
 	return json({

@@ -64,6 +64,22 @@ export function deriveStage(
 	return 'accepted';
 }
 
+/**
+ * The name a person should be shown under: the one they set in My Profile,
+ * falling back to the Authentik account name.
+ *
+ * Authentik names come from the identity provider and are often formal or
+ * stale; `displayName` is what the person actually chose to be called. This is
+ * the name stewards see on the board and the one signed on outbound email, so
+ * it should be theirs.
+ */
+export function personDisplayName(u: {
+	displayName?: string | null;
+	name?: string | null;
+}): string {
+	return u.displayName?.trim() || u.name?.trim() || 'Unknown';
+}
+
 /** Append a timeline event. `actorUserId` null = system event. */
 export async function addEvent(
 	onboardingId: string,
@@ -183,7 +199,10 @@ export async function getEnrichedBoard(): Promise<OnboardingCard[]> {
 				.where(eq(memberOnboarding.id, row.id));
 			row.userId = matched.id;
 			await addEvent(row.id, 'logged_in', 'Member logged in (account detected)', null);
-			onboardingLogger.info({ onboardingId: row.id, email: row.email }, 'Linked onboarding to user');
+			onboardingLogger.info(
+				{ onboardingId: row.id, email: row.email },
+				'Linked onboarding to user'
+			);
 		}
 	}
 
@@ -196,21 +215,28 @@ export async function getEnrichedBoard(): Promise<OnboardingCard[]> {
 	const allNotes = await db
 		.select({ onboardingId: memberOnboardingNotes.onboardingId })
 		.from(memberOnboardingNotes)
-		.where(inArray(memberOnboardingNotes.onboardingId, rows.map((r) => r.id)));
+		.where(
+			inArray(
+				memberOnboardingNotes.onboardingId,
+				rows.map((r) => r.id)
+			)
+		);
 	for (const n of allNotes) {
 		noteCounts.set(n.onboardingId, (noteCounts.get(n.onboardingId) ?? 0) + 1);
 	}
 
 	const now = new Date();
 	return rows.map((row) => {
-		const linkedUser = row.userId ? usersById.get(row.userId) ?? null : null;
+		const linkedUser = row.userId ? (usersById.get(row.userId) ?? null) : null;
 		const stage = deriveStage(row, linkedUser, now);
 		const acceptedAt = row.createdAt ?? null;
-		const lastLoginAt = linkedUser ? lastLoginMap.get(linkedUser.id) ?? null : null;
+		const lastLoginAt = linkedUser ? (lastLoginMap.get(linkedUser.id) ?? null) : null;
 		return {
 			id: row.id,
 			email: row.email,
-			fullName: row.fullName,
+			// Once the member has an account, prefer the name they chose in My
+			// Profile over the one captured on their application form.
+			fullName: linkedUser ? personDisplayName(linkedUser) : row.fullName,
 			applicationId: row.applicationId,
 			userId: row.userId,
 			stage,

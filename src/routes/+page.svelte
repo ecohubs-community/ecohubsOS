@@ -4,7 +4,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { badges } from '$lib/badges.svelte';
-	import { APPS } from '$lib/data';
+	import { APPS, appSurfaceFor } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
 	import AllApps from '$lib/components/AllApps.svelte';
@@ -40,16 +40,21 @@
 	// Derived state for the active app object
 	let activeApp = $derived(APPS.find((a) => a.id === os.activeWindow));
 
+	// Policy context for app gating. Built once here and passed to
+	// appSurfaceFor so the dock and All Apps ask the same question.
+	let memberCtx = $derived({
+		groups: auth.userGroups,
+		status: auth.membershipStatus,
+		level: auth.offcoinLevel
+	});
+
 	// Dock apps: the normal (non-hidden) set, plus the Welcome app pinned to
 	// the front while the member hasn't watched the intro yet. Once watched it
 	// drops off the dock and lives only in All Apps for rewatching.
 	let dockApps = $derived(
 		auth.hasWatchedIntro
 			? APPS.filter((a) => !a.hidden)
-			: [
-					...APPS.filter((a) => a.id === 'member-welcome'),
-					...APPS.filter((a) => !a.hidden)
-				]
+			: [...APPS.filter((a) => a.id === 'member-welcome'), ...APPS.filter((a) => !a.hidden)]
 	);
 
 	// Date time logic
@@ -123,7 +128,7 @@
 				in:fly={{ y: 50, duration: 800, delay: 500 }}
 			>
 				{#each dockApps as app (app.id)}
-					{#if !app.groups || (data.user?.groups && app.groups.some( (g) => data.user.groups.includes(g) ))}
+					{#if appSurfaceFor(app, memberCtx) === 'open'}
 						{@const badgeCount = badges.getCount(app.id)}
 						<button
 							class="group relative flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-200 hover:bg-white/10"

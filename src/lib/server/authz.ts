@@ -1,8 +1,12 @@
 import { error } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
+import { ROLE_GROUPS, parseGroupsJson } from '$lib/policy';
 
-export const ADMIN_GROUP = 'EcoHubs Admin';
-export const STEWARD_GROUP = 'EcoHubs Steward';
+// Re-exported from `$lib/policy` so the group names have exactly one definition.
+// `$lib/server/membership.ts` is the richer gate (capabilities, status, member-
+// facing reasons); these remain for the many call sites that only need a role.
+export const ADMIN_GROUP = ROLE_GROUPS.admin;
+export const STEWARD_GROUP = ROLE_GROUPS.steward;
 
 /**
  * Parse the JSON-encoded group list off `locals.user`. Returns [] when there
@@ -10,13 +14,7 @@ export const STEWARD_GROUP = 'EcoHubs Steward';
  * across the existing /api/admin/* endpoints.
  */
 export function parseGroups(locals: RequestEvent['locals']): string[] {
-	if (!locals.user?.groups) return [];
-	try {
-		const parsed = JSON.parse(locals.user.groups as unknown as string);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+	return parseGroupsJson(locals.user?.groups as unknown as string | null);
 }
 
 export function isAdmin(locals: RequestEvent['locals']): boolean {
@@ -31,7 +29,9 @@ export function isStewardOrAdmin(locals: RequestEvent['locals']): boolean {
 /**
  * Require an authenticated EcoHubs Admin. Throws 401/403 otherwise.
  */
-export function requireAdmin(locals: RequestEvent['locals']): void {
+export function requireAdmin(
+	locals: RequestEvent['locals']
+): asserts locals is RequestEvent['locals'] & { user: NonNullable<RequestEvent['locals']['user']> } {
 	if (!locals.user) error(401, 'Unauthorized');
 	if (!isAdmin(locals)) error(403, 'Forbidden: Admin access required');
 }
@@ -39,7 +39,9 @@ export function requireAdmin(locals: RequestEvent['locals']): void {
 /**
  * Require an authenticated EcoHubs Steward OR Admin. Throws 401/403 otherwise.
  */
-export function requireStewardOrAdmin(locals: RequestEvent['locals']): void {
+export function requireStewardOrAdmin(
+	locals: RequestEvent['locals']
+): asserts locals is RequestEvent['locals'] & { user: NonNullable<RequestEvent['locals']['user']> } {
 	if (!locals.user) error(401, 'Unauthorized');
 	if (!isStewardOrAdmin(locals)) error(403, 'Forbidden: Steward or Admin access required');
 }

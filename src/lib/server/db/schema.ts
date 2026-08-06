@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 // BetterAuth user table with extended fields
 export const user = sqliteTable('user', {
@@ -68,7 +69,244 @@ export const user = sqliteTable('user', {
 
 	// Personal buddy-call scheduling URL (e.g. Cal.com / Calendly). Surfaced and
 	// editable only for stewards/admins; used to pre-fill the buddy-call invite email.
-	meetingSchedulingUrl: text('meeting_scheduling_url')
+	meetingSchedulingUrl: text('meeting_scheduling_url'),
+
+	// --- Membership status ---------------------------------------------------
+	// Orthogonal to *role*, which lives in Authentik groups (see $lib/policy).
+	// A member is `trial` by holding no role group; that is not a status.
+	// 'active' | 'standby' | 'exited'
+	membershipStatus: text('membership_status').notNull().default('active'),
+	membershipStatusSince: integer('membership_status_since', { mode: 'timestamp' }),
+	// Reason text captured when a member requests standby, and when they exit.
+	// Voters' reasons on a reactivation vote are deliberately NOT stored here —
+	// a rejected member is never told why.
+	standbyReason: text('standby_reason'),
+	exitReason: text('exit_reason'),
+
+	// --- Participation -------------------------------------------------------
+	// When this member last did something that counts as taking part. Drives the
+	// inactivity timers, which is why it is stored rather than derived: sessions
+	// are pruned, so `max(session.createdAt)` cannot answer "active in the last
+	// 12 months". Only ever moves forward.
+	lastParticipationAt: integer('last_participation_at', { mode: 'timestamp' }),
+	// What that most recent signal was — see PARTICIPATION_SOURCES.
+	lastParticipationSource: text('last_participation_source'),
+	// When we last asked Puckstack about this member's task activity. Throttles
+	// the sync: without it, a steward opening the review queue would fan out one
+	// HTTP call per member on every page load.
+	puckstackActivitySyncedAt: integer('puckstack_activity_synced_at', { mode: 'timestamp' }),
+
+	// --- Offcoin snapshot ----------------------------------------------------
+	// Cached so a gate never depends on a live Offcoin call. An outage must not
+	// silently demote the community, so reads fall back to these values.
+	offcoinMemberId: text('offcoin_member_id'),
+	offcoinXp: integer('offcoin_xp'),
+	offcoinLevel: integer('offcoin_level'),
+	offcoinSyncedAt: integer('offcoin_synced_at', { mode: 'timestamp' })
+});
+
+// Audit trail for every membership role/status transition. Append-only —
+// downgrades are proposed by a timer but always applied by a human, and this is
+// the record of who decided what, and why.
+export const membershipEvents = sqliteTable('membership_events', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	// Role is resolved from Authentik groups, so it is recorded here as text
+	// rather than referenced: 'trial' | 'member' | 'steward' | 'admin'.
+	fromRole: text('from_role'),
+	toRole: text('to_role'),
+	fromStatus: text('from_status'),
+	toStatus: text('to_status'),
+	reason: text('reason'),
+	// Null for system-applied transitions (e.g. the Offcoin level-up promotion).
+	actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+// Proposed membership downgrades awaiting a human decision.
+//
+// A timer elapsing creates a row here; it never changes a membership. Nothing
+// in this system removes someone's access without a steward or admin acting.
+export const membershipReviews = sqliteTable(
+	'membership_reviews',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		kind: text('kind').notNull(),
+		fromStatus: text('from_status').notNull(),
+		toStatus: text('to_status').notNull(),
+		// The evidence, snapshotted at proposal time so the queue still explains
+		// itself after the member acts again.
+		reason: text('reason').notNull(),
+		daysElapsed: integer('days_elapsed').notNull(),
+		thresholdDays: integer('threshold_days').notNull(),
+		// 'pending' | 'applied' | 'dismissed'
+		status: text('status').notNull().default('pending'),
+		resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+		resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+		resolutionNote: text('resolution_note'),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		// At most one pending review per member. Without this, every evaluator run
+		// would pile up a duplicate for the same elapsed timer.
+		uniquePending: uniqueIndex('membership_reviews_pending_unique')
+			.on(table.userId)
+			.where(sql`status = 'pending'`)
+	})
+);
+
+// Advance warnings sent before a membership timer elapses.
+//
+// Keyed by *cycle* rather than just member + mark: `cycleAnchor` is the
+// timestamp the countdown is measured from, so a member who goes quiet, is
+// warned, participates again, and later goes quiet once more gets a fresh set
+// of warnings — their new activity moves the anchor, making it a new cycle.
+export const membershipWarnings = sqliteTable(
+	'membership_warnings',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// Days before the threshold this warning represents (see POLICY.timers).
+		daysBefore: integer('days_before').notNull(),
+		// Start of the countdown this warning belongs to.
+		cycleAnchor: integer('cycle_anchor', { mode: 'timestamp' }).notNull(),
+		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		kind: text('kind').notNull(),
+		// True when this mark produced a draft for a steward to review; false when
+		// the mark was reached but a more urgent one superseded it. Deliberately
+		// not called "sent" — warnings are drafted into the member email queue, so
+		// whether one actually reached the member is that queue's business, not
+		// this table's.
+		drafted: integer('drafted', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		uniquePerCycle: uniqueIndex('membership_warnings_cycle_unique').on(
+			table.userId,
+			table.daysBefore,
+			table.cycleAnchor
+		)
+	})
+);
+
+// Disciplinary cases — "broke participation rules".
+//
+// A steward opens a case, which suspends the member to standby immediately.
+// That is protective and reversible; it is not the removal. Making it permanent
+// requires a community vote, which is the only thing that can trigger an exit.
+//
+// The evidence and the summary are separate on purpose. A case often involves
+// someone else who was harmed, and their account of it must not be broadcast to
+// the whole community — voters see `publicSummary`, stewards see `privateNotes`.
+export const membershipCases = sqliteTable('membership_cases', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	openedBy: text('opened_by').references(() => user.id, { onDelete: 'set null' }),
+	/** Shown to voters. Written to be readable without exposing anyone. */
+	publicSummary: text('public_summary').notNull(),
+	/** Stewards and admins only. Never rendered to the community or the subject. */
+	privateNotes: text('private_notes'),
+	/** The vote deciding it. Null only between opening and proposal creation. */
+	proposalId: text('proposal_id').references(() => proposals.id, { onDelete: 'set null' }),
+	// 'voting' | 'exited' | 'dismissed' | 'withdrawn' | 'needs_review'
+	status: text('status').notNull().default('voting'),
+	/** Status the member held before suspension, so a dismissal can restore it. */
+	previousStatus: text('previous_status').notNull(),
+	resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+	resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+// Outbound member email awaiting a human decision.
+//
+// The rule this table exists to enforce: **nothing reaches a member's inbox
+// without a steward choosing to send it.** The system drafts, a person reviews,
+// edits if the wording needs it, and sends — or dismisses it as unnecessary.
+//
+// A small number of transactional emails are exempt (the welcome mail when an
+// application is approved); those still send directly and never appear here.
+// See POLICY.emails.
+export const memberEmails = sqliteTable('member_emails', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Recipient address captured at draft time, so an exit cannot orphan it. */
+	email: text('email').notNull(),
+	/** Which template drafted this — see POLICY.emails.kinds. */
+	kind: text('kind').notNull(),
+	/** Editable before sending: delicate messages often need a human's wording. */
+	subject: text('subject').notNull(),
+	body: text('body').notNull(),
+	// 'pending' | 'sent' | 'dismissed' | 'failed'
+	status: text('status').notNull().default('pending'),
+	/** Case, proposal or review this was drafted for — for dedupe and context. */
+	relatedId: text('related_id'),
+	sentAt: integer('sent_at', { mode: 'timestamp' }),
+	sentBy: text('sent_by').references(() => user.id, { onDelete: 'set null' }),
+	/** Why a steward decided not to send it. */
+	dismissedReason: text('dismissed_reason'),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+// XP/ECO grants made by stewards and admins.
+//
+// The local half of a two-ledger record: Offcoin holds the balance, this holds
+// who gave it, to whom, and why. The transaction ids make the two reconcilable
+// — without them there is no way to ask "did this grant actually land?".
+export const rewardGrants = sqliteTable('reward_grants', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	recipientUserId: text('recipient_user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Who granted it. Never null — an unattributed grant is not auditable. */
+	actorUserId: text('actor_user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'restrict' }),
+	eco: integer('eco').notNull(),
+	xp: integer('xp').notNull(),
+	/** Why. Required — this is what makes the Discord post meaningful. */
+	reason: text('reason').notNull(),
+	/** Offcoin ledger ids, null when that half was zero or the call failed. */
+	offcoinEcoTxId: text('offcoin_eco_tx_id'),
+	offcoinXpTxId: text('offcoin_xp_tx_id'),
+	/** Set when the transparency post reached Discord. */
+	announcedAt: integer('announced_at', { mode: 'timestamp' }),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
 });
 
 // BetterAuth session table
@@ -175,32 +413,41 @@ export const proposals = sqliteTable('proposals', {
 	linkedBlogDraftId: text('linked_blog_draft_id').unique()
 });
 
-export const proposalVotes = sqliteTable('proposal_votes', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	proposalId: text('proposal_id')
-		.notNull()
-		.references(() => proposals.id, { onDelete: 'cascade' }),
-	userId: text('user_id')
-		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
-	choice: text('choice').notNull(),
-	reason: text('reason'),
-	votedAt: integer('voted_at', { mode: 'timestamp' })
-		.notNull()
-		.$defaultFn(() => new Date())
-}, (table) => ({
-	uniqueVotePerUser: uniqueIndex('proposal_votes_proposal_user_unique').on(
-		table.proposalId,
-		table.userId
-	)
-}));
+export const proposalVotes = sqliteTable(
+	'proposal_votes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		proposalId: text('proposal_id')
+			.notNull()
+			.references(() => proposals.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		choice: text('choice').notNull(),
+		reason: text('reason'),
+		votedAt: integer('voted_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		uniqueVotePerUser: uniqueIndex('proposal_votes_proposal_user_unique').on(
+			table.proposalId,
+			table.userId
+		)
+	})
+);
 
 export const applications = sqliteTable('applications', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
+	// 'membership' (the original application) | 'reactivation' (a standby member
+	// asking to come back). Both run through the same review + vote machinery,
+	// but they must stay distinguishable — see getMembershipVisibility, whose
+	// cutoff is anchored to the caller's own *membership* application.
+	type: text('type').notNull().default('membership'),
 	// Core identifying fields (kept for querying)
 	fullName: text('full_name').notNull(),
 	email: text('email').notNull(),

@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm';
 import { materialiseProposal } from '$lib/server/voting/materialise';
 import { votingLogger } from '$lib/server/logger';
 import { checkRateLimit, PROPOSAL_VOTE_RATE_LIMIT } from '$lib/server/rateLimit';
+import { requireCapability } from '$lib/server/membership';
+import { recordParticipation } from '$lib/server/participation';
 
 const REASON_MAX = 1_000;
 
@@ -19,9 +21,10 @@ function parseChoices(raw: string): string[] {
 }
 
 // POST /api/proposals/[id]/vote — cast a vote.
-// Eligibility: any authenticated user (no Offcoin/wallet dependency).
+// Eligibility: active members and above. Trial members can read the Voting app
+// but not vote; the 403 carries the policy's own explanation of why.
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-	if (!locals.user) error(401, 'Not authenticated');
+	requireCapability('proposal.vote', locals);
 	if (!params.id) error(400, 'Proposal ID required');
 
 	if (!checkRateLimit(PROPOSAL_VOTE_RATE_LIMIT, locals.user.id)) {
@@ -69,10 +72,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			})
 			.returning();
 
-		votingLogger.info(
-			{ proposalId: proposal.id, userId: locals.user.id, choice },
-			'vote cast'
-		);
+		votingLogger.info({ proposalId: proposal.id, userId: locals.user.id, choice }, 'vote cast');
+
+		// Voting is governance participation. Not awaited — bookkeeping must not
+		// be able to turn a recorded vote into a 500.
+		void recordParticipation(locals.user.id, 'vote');
 
 		return json({ vote });
 	} catch (err) {

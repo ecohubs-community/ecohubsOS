@@ -143,10 +143,7 @@ export const STAGE_ORDER: Stage[] = [
 ];
 
 /** True when an on-standby card's follow-up date has arrived (time to check in). */
-export function standbyFollowUpDue(
-	stage: Stage,
-	standbyUntil: string | null | undefined
-): boolean {
+export function standbyFollowUpDue(stage: Stage, standbyUntil: string | null | undefined): boolean {
 	if (stage !== 'standby' || !standbyUntil) return false;
 	const d = new Date(standbyUntil);
 	return !Number.isNaN(d.getTime()) && d.getTime() <= Date.now();
@@ -170,4 +167,64 @@ export function fmtRelative(iso: string | null | undefined): string {
 	if (diffDays === 1) return 'Yesterday';
 	if (diffDays < 7) return `${diffDays} days ago`;
 	return d.toLocaleDateString();
+}
+
+// --- Drafted member emails ---------------------------------------------------
+
+export interface DraftEmail {
+	id: string;
+	userId: string;
+	email: string;
+	displayName: string;
+	kind: string;
+	subject: string;
+	body: string;
+	relatedId: string | null;
+	createdAt: string | null;
+}
+
+/**
+ * Presentation per draft kind, plus the order they demand attention in.
+ *
+ * `urgency` sorts the queue: a suspension notice should not sit behind three
+ * "we've missed you" nudges, because the member it concerns is locked out and
+ * waiting to hear from a person.
+ */
+export const EMAIL_KIND_META: Record<
+	string,
+	{ label: string; icon: string; toneClass: string; urgency: number; hint: string }
+> = {
+	case_opened: {
+		label: 'Suspension notice',
+		icon: 'tabler:alert-triangle',
+		toneClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+		urgency: 0,
+		hint: 'They are locked out and have not been told why. Read this closely before sending.'
+	},
+	reactivation_outcome: {
+		label: 'Reactivation result',
+		icon: 'tabler:gavel',
+		toneClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+		urgency: 1,
+		hint: 'The vote has closed. They cannot see it, so this is how they find out.'
+	},
+	timer_warning: {
+		label: 'Inactivity nudge',
+		icon: 'tabler:clock-exclamation',
+		toneClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+		urgency: 2,
+		hint: 'Worth a glance — you may know why they have been quiet.'
+	}
+};
+
+export function emailKindMeta(kind: string) {
+	return (
+		EMAIL_KIND_META[kind] ?? {
+			label: kind,
+			icon: 'tabler:mail',
+			toneClass: 'bg-white/10 text-white/60 border-white/20',
+			urgency: 3,
+			hint: ''
+		}
+	);
 }

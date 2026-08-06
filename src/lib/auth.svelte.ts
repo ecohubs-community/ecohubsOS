@@ -1,3 +1,5 @@
+import { can, resolveRole, type Capability, type CapabilityResult } from '$lib/policy';
+
 export interface AuthUser {
 	id: string;
 	name: string;
@@ -25,6 +27,11 @@ export interface AuthUser {
 	meetingSchedulingUrl?: string | null;
 	// Welcome / intro video watched timestamp (ISO string) or null if unwatched
 	introWatchedAt: string | null;
+	// Membership status — orthogonal to role, which is derived from `groups`.
+	membershipStatus: 'active' | 'standby' | 'exited';
+	// Offcoin level snapshot. Drives the "unlocks at Level N" copy without a
+	// round trip; never itself an authorization decision.
+	offcoinLevel: number | null;
 }
 
 class AuthState {
@@ -83,6 +90,26 @@ class AuthState {
 	// steward-only profile fields (admins implicitly qualify too).
 	isSteward = $derived(this.user?.groups?.includes('EcoHubs Steward') ?? false);
 	isStewardOrAdmin = $derived(this.isAdmin || this.isSteward);
+
+	// Membership role and status. `role` is resolved from the Authentik groups —
+	// trial is the absence of a role group, not a stored value.
+	role = $derived(resolveRole(this.user?.groups ?? []));
+	membershipStatus = $derived(this.user?.membershipStatus ?? 'active');
+	offcoinLevel = $derived(this.user?.offcoinLevel ?? 0);
+	isActiveMember = $derived(this.membershipStatus === 'active');
+
+	/**
+	 * Client-side capability check. Same policy the server enforces with
+	 * `requireCapability`, so a control and its explanation cannot disagree —
+	 * but it is a UI affordance, never a security boundary.
+	 */
+	can(capability: Capability): CapabilityResult {
+		return can(capability, {
+			groups: this.user?.groups ?? [],
+			status: this.membershipStatus,
+			level: this.offcoinLevel
+		});
+	}
 
 	// Personal buddy-call scheduling URL
 	meetingSchedulingUrl = $derived(this.user?.meetingSchedulingUrl ?? null);
