@@ -64,6 +64,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 				name: u.name,
 				email: u.email,
 				groups: groups,
+				// Role is derived from groups on the client; status is not derivable,
+				// and a members list that cannot show standby or exited is misleading
+				// now that those states exist.
+				membershipStatus: (u.membershipStatus ?? 'active') as 'active' | 'standby' | 'exited',
 				lastLogin: u.updatedAt?.toISOString() || null, // Best proxy for now
 				onboardingStatus,
 				onboardingPending: pendingSteps,
@@ -96,6 +100,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 				name: app.fullName,
 				email: app.email,
 				groups: [],
+				membershipStatus: 'active' as const,
 				lastLogin: null,
 				onboardingStatus: 'Pending Login' as const,
 				onboardingPending: [] as string[],

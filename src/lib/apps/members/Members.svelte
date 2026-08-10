@@ -3,14 +3,43 @@
 	import { fade } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import OnboardingDetails from './OnboardingDetails.svelte';
+	import { resolveRole, ROLE_GROUPS, type Role } from '$lib/policy';
 
 	type OnboardingFilter = 'All' | 'Not Started' | 'In Progress' | 'Complete' | 'Pending Login';
+
+	/**
+	 * Role is the absence or presence of a group, so trial has no badge of its
+	 * own in `groups` — it has to be derived. Showing it matters: trial is the
+	 * level where the inactivity timer runs shortest.
+	 */
+	const ROLE_STYLE: Record<Role, string> = {
+		trial: 'border-amber-400/25 bg-amber-400/10 text-amber-300',
+		member: 'border-white/15 bg-white/5 text-white/70',
+		steward: 'border-teal-400/30 bg-teal-400/10 text-teal-300',
+		admin: 'border-blue-400/30 bg-blue-400/10 text-blue-300'
+	};
+	const ROLE_LABEL: Record<Role, string> = {
+		trial: 'Trial',
+		member: 'Member',
+		steward: 'Steward',
+		admin: 'Admin'
+	};
+
+	/** One icon per manageable group, so the toggles fit on a single line. */
+	const GROUP_ICON: Record<string, string> = {
+		[ROLE_GROUPS.steward]: 'tabler:shield-check',
+		'EcoHubs Blog': 'tabler:article',
+		'EcoHubs Newsletter': 'tabler:mail',
+		'EcoHubs Blueprint': 'tabler:map-2',
+		'EcoHubs Social': 'tabler:share'
+	};
 
 	interface Member {
 		id: string;
 		name: string;
 		email: string;
 		groups: string[];
+		membershipStatus?: 'active' | 'standby' | 'exited';
 		lastLogin: string | null;
 		onboardingStatus: 'Complete' | 'In Progress' | 'Not Started' | 'Pending Login';
 		onboardingProgress: string;
@@ -218,23 +247,23 @@
 				<thead>
 					<tr class="text-solar-400/80 border-b border-white/10">
 						<th class="px-4 py-3 font-medium">Member</th>
-						<th class="px-4 py-3 font-medium">Groups</th>
-						<th class="px-4 py-3 font-medium">Role &amp; access</th>
+						<th class="px-4 py-3 font-medium">Access</th>
 						<th class="px-4 py-3 font-medium">Wallet</th>
-						<th class="px-4 py-3 font-medium">Intro Video</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">Intro Video</th>
 						<th class="px-4 py-3 font-medium">Onboarding</th>
-						<th class="px-4 py-3 font-medium">Last Login</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">Last Login</th>
 						<!-- <th class="px-4 py-3 text-right font-medium">XP</th>
 						<th class="px-4 py-3 text-right font-medium">ECO</th> -->
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-white/5">
 					{#each filteredMembers as member}
+						{@const role = resolveRole(member.groups)}
 						<tr class="group transition-colors hover:bg-white/5">
-							<td class="px-4 py-3">
+							<td class="px-4 py-2">
 								<div class="flex items-center gap-3">
 									<div
-										class="bg-solar-800 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/10"
+										class="bg-solar-800 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/10"
 									>
 										{#if member.avatarUrl}
 											<img
@@ -248,36 +277,44 @@
 											>
 										{/if}
 									</div>
-									<div class="flex flex-col">
-										<span class="text-solar-100 font-medium">{member.name}</span>
-										<span class="text-solar-400/60 text-xs">{member.email}</span>
+									<div class="min-w-0">
+										<div class="flex items-center gap-2">
+											<span class="text-solar-100 truncate font-medium">{member.name}</span>
+											{#if !member.pendingLogin}
+												<span
+													class="shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium {ROLE_STYLE[
+														role
+													]}"
+												>
+													{ROLE_LABEL[role]}
+												</span>
+											{/if}
+											{#if member.membershipStatus === 'standby'}
+												<span
+													class="shrink-0 rounded border border-orange-400/25 bg-orange-400/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-300"
+												>
+													Standby
+												</span>
+											{:else if member.membershipStatus === 'exited'}
+												<span
+													class="shrink-0 rounded border border-red-400/25 bg-red-400/10 px-1.5 py-0.5 text-[10px] font-medium text-red-300"
+												>
+													Exited
+												</span>
+											{/if}
+										</div>
+										<span class="text-solar-400/60 truncate text-xs">{member.email}</span>
 									</div>
 								</div>
 							</td>
-							<td class="px-4 py-3">
-								<div class="flex flex-wrap gap-1">
-									{#each member.groups as group}
-										{#if group === 'EcoHubs Admin'}
-											<span
-												class="rounded border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400"
-											>
-												Admin
-											</span>
-										{:else}
-											<span
-												class="text-solar-300 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium"
-											>
-												{group}
-											</span>
-										{/if}
-									{/each}
-								</div>
-							</td>
-							<td class="px-4 py-3">
+							<td class="px-4 py-2">
 								{#if member.pendingLogin}
 									<span class="text-xs text-white/20">--</span>
 								{:else}
-									<div class="flex flex-wrap gap-1">
+									<!-- Icon-only, so five toggles sit on one line instead of wrapping
+									     and doubling every row's height. The label lives in the tooltip;
+									     a lit chip means the member holds that group. -->
+									<div class="flex items-center gap-1">
 										{#each manageableGroups as g (g.group)}
 											{@const held = holdsGroup(member, g.group)}
 											{@const busy = groupBusy[`${member.id}:${g.group}`]}
@@ -285,26 +322,30 @@
 												type="button"
 												onclick={() => toggleGroup(member, g.group)}
 												disabled={busy}
-												class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50
+												aria-label={held ? `Remove ${g.label} access` : `Grant ${g.label} access`}
+												aria-pressed={held}
+												class="flex h-6 w-6 items-center justify-center rounded-md border transition-colors disabled:opacity-50
 													{held
 													? g.kind === 'role'
-														? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
-														: 'border-indigo-400/30 bg-indigo-400/10 text-indigo-300 hover:bg-indigo-400/20'
-													: 'border-white/10 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'}"
-												title={held ? `Remove ${g.label} access` : `Grant ${g.label} access`}
+														? 'border-teal-400/30 bg-teal-400/15 text-teal-300 hover:bg-teal-400/25'
+														: 'border-indigo-400/30 bg-indigo-400/15 text-indigo-300 hover:bg-indigo-400/25'
+													: 'border-white/10 bg-white/5 text-white/25 hover:bg-white/10 hover:text-white/60'}"
+												title={held ? `${g.label} — click to remove` : `Grant ${g.label} access`}
 											>
 												{#if busy}
-													<Icon icon="tabler:loader-2" class="h-3 w-3 animate-spin" />
+													<Icon icon="tabler:loader-2" class="h-3.5 w-3.5 animate-spin" />
 												{:else}
-													<Icon icon={held ? 'tabler:check' : 'tabler:plus'} class="h-3 w-3" />
+													<Icon
+														icon={GROUP_ICON[g.group] ?? 'tabler:circle-dashed'}
+														class="h-3.5 w-3.5"
+													/>
 												{/if}
-												{g.label}
 											</button>
 										{/each}
 									</div>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="px-4 py-2">
 								{#if member.walletAddress}
 									<div class="flex items-center gap-1">
 										<span class="font-mono text-xs text-white/60"
@@ -326,7 +367,7 @@
 									<span class="text-xs text-white/20">--</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="px-4 py-2">
 								{#if member.pendingLogin}
 									<span class="text-xs text-white/20">--</span>
 								{:else if member.introWatchedAt}
@@ -346,7 +387,7 @@
 									</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3">
+							<td class="px-4 py-2">
 								<div class="flex items-center gap-2">
 									<span
 										class={`rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusColor(member.onboardingStatus)}`}
