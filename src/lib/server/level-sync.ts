@@ -102,14 +102,25 @@ export async function syncOffcoinLevels(
 				belowMemberLevel: role !== 'trial' && xpData.level < POLICY.levels.memberFromLevel
 			});
 
-			if (!dryRun) {
-				await saveOffcoinSnapshot(u.id, {
+			// Count the write, not the read. saveOffcoinSnapshot swallows database
+			// errors by design — right for the request-path callers, wrong here,
+			// where reporting a sync that never landed is the whole failure mode
+			// this endpoint would be trusted to rule out.
+			if (dryRun) {
+				result.synced++;
+			} else {
+				const written = await saveOffcoinSnapshot(u.id, {
 					memberId: xpData.memberId,
 					xp: xpData.xp,
 					level: xpData.level
 				});
+				if (written) {
+					result.synced++;
+				} else {
+					result.members.pop();
+					result.failed.push({ email: u.email, error: 'Snapshot could not be written' });
+				}
 			}
-			result.synced++;
 		} catch (err) {
 			if (err instanceof NotFoundError) {
 				result.notFoundInOffcoin.push({ email: u.email });

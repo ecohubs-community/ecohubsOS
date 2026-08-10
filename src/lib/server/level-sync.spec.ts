@@ -75,19 +75,18 @@ describe('syncing', () => {
 	});
 
 	it('records an unknown alias without failing the run', async () => {
-		const u = await seedUser(db, { email: 'ghost@example.com' });
+		await seedUser(db, { email: 'ghost@example.com' });
 		members.getXp.mockRejectedValue(new NotFound('no such member'));
 
 		const result = await syncOffcoinLevels(null);
 
 		expect(result.notFoundInOffcoin.map((r) => r.email)).toContain('ghost@example.com');
 		expect(result.failed).toHaveLength(0);
-		void u;
 	});
 
 	it('keeps going when one member errors', async () => {
 		const bad = await seedUser(db, { email: 'bad@example.com' });
-		const good = await seedUser(db, { email: 'good@example.com' });
+		await seedUser(db, { email: 'good@example.com' });
 		members.getXp.mockImplementation(async (alias: string) =>
 			alias.includes(bad.puckstackUserId!)
 				? Promise.reject(new Error('offcoin down'))

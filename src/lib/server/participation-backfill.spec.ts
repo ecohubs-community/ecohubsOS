@@ -127,3 +127,41 @@ describe('re-running', () => {
 		expect(second.seededMembers.map((m) => m.userId)).not.toContain(u.id);
 	});
 });
+
+describe('a concurrent write during the run', () => {
+	it('does not report a seed that the guard actually blocked', async () => {
+		// The race: the row is read with no timestamp, and a real signal lands
+		// before the UPDATE. The forward-only guard then matches nothing — and a
+		// zero-row UPDATE does not throw, so without checking what was written this
+		// would report work it never did.
+		//
+		// Simulated by handing the function a stale read of a row that already
+		// holds a newer timestamp, which is precisely the state the race produces.
+		const u = await seedUser(db, { lastParticipationAt: daysAgo(1) });
+		await addSession(u.id, daysAgo(200));
+
+		const rows = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		const stale = { ...rows[0], lastParticipationAt: null };
+
+		const realSelect = db.select.bind(db);
+		const spy = vi
+			.spyOn(db, 'select')
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			.mockImplementationOnce((() => ({ from: async () => [stale] })) as any);
+
+		let result;
+		try {
+			result = await backfillParticipation(null);
+		} finally {
+			spy.mockRestore();
+			void realSelect;
+		}
+
+		expect(result.seededMembers.map((m) => m.userId)).not.toContain(u.id);
+		expect(result.alreadyRecorded).toBeGreaterThan(0);
+
+		// And the real timestamp is untouched — the point of the guard.
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(Math.round((Date.now() - after.lastParticipationAt!.getTime()) / DAY)).toBe(1);
+	});
+});

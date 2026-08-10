@@ -80,10 +80,13 @@ export const GET: RequestHandler = async ({ request }) => {
 		}
 
 		// This endpoint already pays for a full sweep of live figures, so it is the
-		// cheapest place to refresh the cache the membership gates read. Not
-		// awaited on the response path — the roster should not get slower to keep
-		// a cache warm — but not fire-and-forget either, since an unhandled
-		// rejection would take the process down.
+		// cheapest place to refresh the cache the membership gates read.
+		//
+		// Awaited, and the cost is worth stating rather than hiding: this handler
+		// has just made three Offcoin round-trips per published member, so a local
+		// write each is noise beside what it already spent. Doing it here also
+		// keeps the failure visible in the request that caused it, which a
+		// detached job would not.
 		await Promise.allSettled(
 			[...offcoinMap.entries()].map(([userId, oc]) =>
 				saveOffcoinSnapshot(userId, { xp: oc.xp, level: oc.level })

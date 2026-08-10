@@ -30,19 +30,23 @@ export interface OffcoinSnapshot {
 /**
  * Persist a snapshot already fetched from Offcoin.
  *
- * Best-effort and never throws: every caller is serving a request that has
- * already succeeded, and failing it because a cache write did not land would
- * turn a working page into an error. A stale cache is the lesser problem — the
- * next fetch refreshes it.
+ * Never throws: every request-path caller is serving a response that has already
+ * succeeded, and failing it because a cache write did not land would turn a
+ * working page into an error. A stale cache is the lesser problem — the next
+ * fetch refreshes it.
+ *
+ * Returns whether the write landed, so callers that *are* the operation — an
+ * admin sync reporting what it did — can tell a silent failure from a success
+ * instead of counting both the same.
  */
 export async function saveOffcoinSnapshot(
 	userId: string,
 	snapshot: OffcoinSnapshot
-): Promise<void> {
+): Promise<boolean> {
 	// Guard against writing nonsense into a column the gates trust. Offcoin
 	// levels start at 0, so 0 is a real value — but NaN and negatives are not.
-	if (!Number.isFinite(snapshot.level) || !Number.isFinite(snapshot.xp)) return;
-	if (snapshot.level < 0 || snapshot.xp < 0) return;
+	if (!Number.isFinite(snapshot.level) || !Number.isFinite(snapshot.xp)) return false;
+	if (snapshot.level < 0 || snapshot.xp < 0) return false;
 
 	try {
 		await db
@@ -55,7 +59,9 @@ export async function saveOffcoinSnapshot(
 				updatedAt: new Date()
 			})
 			.where(eq(userTable.id, userId));
+		return true;
 	} catch (err) {
 		offcoinLogger.error({ err, userId }, 'Could not persist Offcoin snapshot');
+		return false;
 	}
 }

@@ -100,18 +100,24 @@ export async function backfillParticipation(
 			continue;
 		}
 
-		result.seeded++;
-		result.seededMembers.push({
+		const entry = {
 			userId: u.id,
 			name: u.name,
 			email: u.email,
 			lastLoginAt: lastLoginAt.toISOString()
-		});
+		};
 
-		if (dryRun) continue;
+		if (dryRun) {
+			result.seeded++;
+			result.seededMembers.push(entry);
+			continue;
+		}
 
 		try {
-			await db
+			// `.returning()` because a zero-row UPDATE does not throw: if the guard
+			// below excludes this member, the call succeeds having written nothing,
+			// and counting that as seeded would report work that never happened.
+			const written = await db
 				.update(userTable)
 				.set({
 					lastParticipationAt: lastLoginAt,
@@ -121,17 +127,28 @@ export async function backfillParticipation(
 				.where(
 					and(
 						eq(userTable.id, u.id),
-						// Forward-only, same guard recordParticipation uses: a real signal
-						// arriving mid-run must win over this reconstruction.
+						// Forward-only, the same guard recordParticipation uses. A real
+						// signal arriving mid-run wins whenever it is more recent; when it
+						// is older, the login is still the truer answer to "last active",
+						// so taking the later of the two is right in both directions.
 						or(
 							isNull(userTable.lastParticipationAt),
 							lt(userTable.lastParticipationAt, lastLoginAt)
 						)
 					)
-				);
+				)
+				.returning({ id: userTable.id });
+
+			if (written.length > 0) {
+				result.seeded++;
+				result.seededMembers.push(entry);
+			} else {
+				// A concurrent write got there first with something at least as
+				// recent. Not a failure — the member has a better timestamp than the
+				// one being reconstructed.
+				result.alreadyRecorded++;
+			}
 		} catch (err) {
-			result.seeded--;
-			result.seededMembers.pop();
 			result.failed.push({
 				email: u.email,
 				error: err instanceof Error ? err.message : 'Unknown error'

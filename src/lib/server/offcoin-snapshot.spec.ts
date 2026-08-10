@@ -68,6 +68,14 @@ describe('saveOffcoinSnapshot', () => {
 	});
 
 	it('never throws — a cache write must not fail the request it rode in on', async () => {
-		await expect(saveOffcoinSnapshot('no-such-user', { xp: 1, level: 1 })).resolves.toBeUndefined();
+		await expect(saveOffcoinSnapshot('no-such-user', { xp: 1, level: 1 })).resolves.not.toThrow();
+	});
+
+	it('reports whether the write landed, so an admin sync can tell', async () => {
+		// The request-path callers ignore this; the level sync counts on it, and
+		// reporting a sync that never happened is the failure it exists to rule out.
+		const u = await seedUser(db);
+		expect(await saveOffcoinSnapshot(u.id, { xp: 5, level: 1 })).toBe(true);
+		expect(await saveOffcoinSnapshot(u.id, { xp: Number.NaN, level: 1 })).toBe(false);
 	});
 });
