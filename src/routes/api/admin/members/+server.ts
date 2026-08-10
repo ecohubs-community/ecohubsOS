@@ -1,8 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { user, applications } from '$lib/server/db/schema';
-import { desc, isNotNull } from 'drizzle-orm';
+import { user, applications, session } from '$lib/server/db/schema';
+import { desc, isNotNull, max } from 'drizzle-orm';
 import { completionRequiredSubstepIds } from '$lib/onboarding/stepManager';
 import { daysSinceParticipation } from '$lib/server/participation';
 
@@ -25,6 +25,32 @@ export const GET: RequestHandler = async ({ locals }) => {
 		});
 
 		const userEmails = new Set(allUsers.map((u) => u.email.toLowerCase()));
+
+		// Last login, from the session table rather than `user.updatedAt`.
+		//
+		// updatedAt was only ever a proxy, and a poor one: *any* write moves it —
+		// a profile edit, a group change, participation bookkeeping. The membership
+		// backfill made that plain by stamping ten accounts at once, so the column
+		// read "logged in today" for people who had not logged in at all.
+		//
+		// A session row is created when someone actually signs in, so max(created_at)
+		// is the real thing. Null means no session on record — including members
+		// whose sessions were revoked on exit, which is the truthful answer.
+		const lastSessions = await db
+			.select({ userId: session.userId, at: max(session.createdAt) })
+			.from(session)
+			.groupBy(session.userId);
+		const lastLoginByUser = new Map<string, Date | null>(
+			lastSessions.map((r) => [
+				r.userId,
+				// max() bypasses drizzle's timestamp decoding, so revive the raw value.
+				r.at === null || r.at === undefined
+					? null
+					: r.at instanceof Date
+						? r.at
+						: new Date(Number(r.at) * 1000)
+			])
+		);
 
 		const members = allUsers.map((u) => {
 			// Parse groups if stored as string
@@ -68,7 +94,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 				// and a members list that cannot show standby or exited is misleading
 				// now that those states exist.
 				membershipStatus: (u.membershipStatus ?? 'active') as 'active' | 'standby' | 'exited',
-				lastLogin: u.updatedAt?.toISOString() || null, // Best proxy for now
+				lastLogin: lastLoginByUser.get(u.id)?.toISOString() ?? null,
 				onboardingStatus,
 				onboardingPending: pendingSteps,
 				onboardingProgress: u.onboardingProgress,
