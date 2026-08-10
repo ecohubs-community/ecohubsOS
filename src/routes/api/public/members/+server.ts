@@ -5,6 +5,7 @@ import { user } from '$lib/server/db/schema';
 import { isNotNull } from 'drizzle-orm';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { isAtLeastRole, parseGroupsJson, resolveRole } from '$lib/policy';
+import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -77,6 +78,17 @@ export const GET: RequestHandler = async ({ request }) => {
 				});
 			}
 		}
+
+		// This endpoint already pays for a full sweep of live figures, so it is the
+		// cheapest place to refresh the cache the membership gates read. Not
+		// awaited on the response path — the roster should not get slower to keep
+		// a cache warm — but not fire-and-forget either, since an unhandled
+		// rejection would take the process down.
+		await Promise.allSettled(
+			[...offcoinMap.entries()].map(([userId, oc]) =>
+				saveOffcoinSnapshot(userId, { xp: oc.xp, level: oc.level })
+			)
+		);
 
 		// Build response
 		const response = published.map((member) => {
