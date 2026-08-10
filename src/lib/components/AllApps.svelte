@@ -63,23 +63,13 @@
 	}
 
 	/**
-	 * Open an app, or — when it is locked behind a grant the member could ask
-	 * for — open the feedback widget prefilled with that request instead of
-	 * dropping them into a tool they cannot use.
+	 * Open the app. A locked one opens too — Window renders the explanation and
+	 * the request button rather than the tool.
+	 *
+	 * This used to jump straight to the feedback widget, which was quicker and
+	 * left the member with a form and no statement of what was locked or why.
 	 */
 	function openApp(appId: string) {
-		const app = APPS.find((a) => a.id === appId);
-		if (app && appSurfaceFor(app, memberCtx) === 'locked') {
-			os.closeAllApps();
-			os.openFeedback({
-				subject: `Access request: ${app.name}`,
-				message:
-					`I'd like access to ${app.name}.\n\n` +
-					`What I'd like to contribute:\n\n` +
-					`(${lockedReason(app)})`
-			});
-			return;
-		}
 		os.openApp(appId);
 	}
 
@@ -179,11 +169,11 @@
 				<p>No apps found</p>
 			</div>
 		{:else}
-			<div class="flex flex-wrap gap-3 md:gap-6">
+			<div class="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-4 lg:grid-cols-7">
 				{#each filteredApps as { app, surface } (app.id)}
 					{@const locked = surface === 'locked'}
 					<button
-						class="group flex w-20 flex-col items-center gap-2 rounded-xl p-3 transition-all duration-200 hover:bg-white/10 md:w-24"
+						class="group flex flex-col items-center gap-2 rounded-xl p-2 transition-all duration-200 hover:bg-white/10 md:p-3"
 						onclick={() => openApp(app.id)}
 						title={locked ? lockedReason(app) : app.description}
 					>

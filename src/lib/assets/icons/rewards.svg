@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <!-- Gold, matching the amber the app already uses for ECO -->
+    <linearGradient id="rewardsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fde047;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b45309;stop-opacity:1" />
+    </linearGradient>
+    <!-- Indigo for the XP spark, the same family as the other app icons -->
+    <linearGradient id="rewardsXpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a5b4fc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4338ca;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Ribbon tails, behind the medal -->
+  <path d="M9 15.5L7.2 21l2.9-1.5 1.1 1.6" fill="url(#rewardsXpGrad)" stroke="#312e81" stroke-width="0.75" stroke-linejoin="round"/>
+  <path d="M15 15.5L16.8 21l-2.9-1.5-1.1 1.6" fill="url(#rewardsXpGrad)" stroke="#312e81" stroke-width="0.75" stroke-linejoin="round"/>
+
+  <!-- Medal -->
+  <circle cx="12" cy="10" r="6.2" fill="url(#rewardsGrad)" stroke="#92400e" stroke-width="1"/>
+  <circle cx="12" cy="10" r="4.4" fill="none" stroke="#fef3c7" stroke-width="0.5" opacity="0.6"/>
+
+  <!-- Star: the recognition itself -->
+  <path d="M12 6.7l1.35 2.73 3.02.44-2.18 2.13.51 3-2.7-1.42-2.7 1.42.51-3-2.18-2.13 3.02-.44z"
+        fill="#fef3c7" stroke="#92400e" stroke-width="0.5" stroke-linejoin="round"/>
+
+  <!-- XP spark -->
+  <path d="M18.6 3.2l.62 1.38 1.38.62-1.38.62-.62 1.38-.62-1.38L16.6 5.2l1.38-.62z"
+        fill="#c7d2fe" stroke="#4338ca" stroke-width="0.5" stroke-linejoin="round"/>
+</svg>

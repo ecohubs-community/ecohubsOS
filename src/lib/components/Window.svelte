@@ -1,7 +1,10 @@
 <script lang="ts">
+	import LockedApp from '$lib/components/LockedApp.svelte';
+	import { appSurfaceFor } from '$lib/data';
 	import { fade, scale } from 'svelte/transition';
 	import { elasticOut } from 'svelte/easing';
 	import { os } from '$lib/os.svelte';
+	import { auth } from '$lib/auth.svelte';
 	import Icon from '@iconify/svelte';
 
 	import type { AppDefinition } from '$lib/data';
@@ -9,6 +12,12 @@
 	import HelpSection from '$lib/components/HelpSection.svelte';
 
 	let { app }: { app: AppDefinition } = $props();
+
+	let memberCtx = $derived({
+		groups: auth.userGroups,
+		status: auth.membershipStatus,
+		level: auth.offcoinLevel
+	});
 
 	let fullscreen = $state(false);
 	// Only honour fullscreen for apps that opt in.
@@ -95,7 +104,15 @@
 		</div>
 
 		<div class="relative flex-1 overflow-auto p-0" tabindex="0" role="dialog">
-			{#if app.isInternalApp && app.component}
+			<!-- Checked here rather than at the call site so every route in — dock,
+			     All Apps, deep link — lands on the same explanation.
+			     Anything that is not `open` renders LockedApp, `hidden` included:
+			     the dock and All Apps filter those out, but os.openApp() is callable
+			     with any id and this component should not depend on its callers
+			     having filtered first. -->
+			{#if appSurfaceFor(app, memberCtx) !== 'open'}
+				<LockedApp {app} />
+			{:else if app.isInternalApp && app.component}
 				{@const App = app.component}
 				<div class="h-full flex-1 overflow-auto">
 					<App />

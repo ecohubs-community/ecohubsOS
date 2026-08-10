@@ -28,6 +28,7 @@ import BlueprintFavicon from './assets/icons/blueprint.svg';
 import PuckstackFavicon from './assets/icons/puckstack.svg';
 import NewsletterFavicon from './assets/icons/newsletter.svg';
 import MembersFavicon from './assets/icons/members.svg';
+import RewardsFavicon from './assets/icons/rewards.svg';
 import AdminLogsFavicon from './assets/icons/admin-logs.svg';
 import FeedbackFavicon from './assets/icons/feedback.svg';
 
@@ -301,7 +302,7 @@ export const APPS: AppDefinition[] = [
 	{
 		id: 'rewards',
 		name: 'Grant Rewards',
-		icon: MembersFavicon,
+		icon: RewardsFavicon,
 		category: 'ops',
 		isInternalApp: true,
 		component: RewardsGrant,
