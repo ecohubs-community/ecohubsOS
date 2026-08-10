@@ -43,88 +43,98 @@ export type Role = 'trial' | 'member' | 'steward' | 'admin';
 export type MembershipStatus = 'active' | 'standby' | 'exited';
 
 export const ROLE_GROUPS = {
-  member:  'EcoHubs Member',
-  steward: 'EcoHubs Steward',
-  admin:   'EcoHubs Admin'
+	member: 'EcoHubs Member',
+	steward: 'EcoHubs Steward',
+	admin: 'EcoHubs Admin'
 } as const;
 
 export type Capability =
-  | 'os.access' | 'proposal.create' | 'proposal.vote'
-  | 'blog.write' | 'newsletter.write' | 'social.post' | 'blueprint.admin'
-  | 'buddy.host' | 'rewards.grant' | 'onboarding.manage' | 'membership.exit'
-  | 'admin.apps';
+	| 'os.access'
+	| 'proposal.create'
+	| 'proposal.vote'
+	| 'blog.write'
+	| 'newsletter.write'
+	| 'social.post'
+	| 'blueprint.admin'
+	| 'buddy.host'
+	| 'rewards.grant'
+	| 'onboarding.manage'
+	| 'membership.exit'
+	| 'admin.apps';
 
 export const POLICY = {
-  /** Level thresholds. THE tuning surface — change here, whole OS follows. */
-  levels: {
-    memberFromLevel: 1,     // trial → member (auto, on Offcoin level-up webhook)
-    stewardMinLevel: 3,     // eligible to *request* steward
-    adminMinLevel: 3
-  },
+	/** Level thresholds. THE tuning surface — change here, whole OS follows. */
+	levels: {
+		memberFromLevel: 1, // trial → member (auto, on Offcoin level-up webhook)
+		stewardMinLevel: 3, // eligible to *request* steward
+		adminMinLevel: 3
+	},
 
-  /** Inactivity timers in days; null disables a timer. */
-  timers: {
-    trialToStandby: 90,
-    standbyToExited: 365,
-    memberToExited: 365,
-    warnBeforeDays: [14, 7]
-  },
+	/** Inactivity timers in days; null disables a timer. */
+	timers: {
+		trialToStandby: 90,
+		standbyToExited: 365,
+		memberToExited: 365,
+		warnBeforeDays: [14, 7]
+	},
 
-  /** Reward-granting guardrails — XP grants are now a privilege-escalation path. */
-  grants: {
-    maxXpPerGrant: 100,
-    maxXpPerStewardPerDay: 500,      // same caps for stewards and admins
-    maxEcoPerGrant: 500,
-    allowSelfGrant: false,
-    allowNegative: false             // no subtractXp exists anyway; also blocks subtractTokens
-  },
+	/** Reward-granting guardrails — XP grants are now a privilege-escalation path. */
+	grants: {
+		maxXpPerGrant: 100,
+		maxXpPerStewardPerDay: 500, // same caps for stewards and admins
+		maxEcoPerGrant: 500,
+		allowSelfGrant: false,
+		allowNegative: false // no subtractXp exists anyway; also blocks subtractTokens
+	},
 
-  /** Reactivation from standby (§7). */
-  reactivation: {
-    proposalType: 'operational',     // already exactly 3-day vote, majority, no ratification
-    cooldownDays: 30,                // after a rejected request
-    zeroVotesResult: 'needs_review'  // override — silence must not auto-reject a member
-  },
+	/** Reactivation from standby (§7). */
+	reactivation: {
+		proposalType: 'operational', // already exactly 3-day vote, majority, no ratification
+		cooldownDays: 30, // after a rejected request
+		zeroVotesResult: 'needs_review' // override — silence must not auto-reject a member
+	},
 
-  /** The gate table. `grant` = additive Authentik group, for "can request access to…". */
-  capabilities: {
-    'os.access':         { minRole: 'trial',   statuses: ['active', 'standby'] },
-    'proposal.vote':     { minRole: 'member',  statuses: ['active'] },
-    'proposal.create':   { minRole: 'steward', statuses: ['active'] },
-    'voting.view':       { minRole: 'trial',   statuses: ['active'] },  // trial = read-only
-    'blog.write':        { minRole: 'member',  statuses: ['active'], grant: 'EcoHubs Blog' },
-    'newsletter.write':  { minRole: 'member',  statuses: ['active'], grant: 'EcoHubs Newsletter' },
-    'blueprint.admin':   { minRole: 'member',  statuses: ['active'], grant: 'EcoHubs Blueprint' },
-    'social.post':       { minRole: 'member',  statuses: ['active'], grant: 'EcoHubs Social' },
-    'buddy.host':        { minRole: 'member',  statuses: ['active'] },
-    'rewards.grant':     { minRole: 'steward', statuses: ['active'] },
-    'onboarding.manage': { minRole: 'steward', statuses: ['active'] },
-    'membership.exit':   { minRole: 'steward', statuses: ['active'] },
-    'admin.apps':        { minRole: 'admin',   statuses: ['active'] }
-  }
+	/** The gate table. `grant` = additive Authentik group, for "can request access to…". */
+	capabilities: {
+		'os.access': { minRole: 'trial', statuses: ['active', 'standby'] },
+		'proposal.vote': { minRole: 'member', statuses: ['active'] },
+		'proposal.create': { minRole: 'steward', statuses: ['active'] },
+		'voting.view': { minRole: 'trial', statuses: ['active'] }, // trial = read-only
+		'blog.write': { minRole: 'member', statuses: ['active'], grant: 'EcoHubs Blog' },
+		'newsletter.write': { minRole: 'member', statuses: ['active'], grant: 'EcoHubs Newsletter' },
+		'blueprint.admin': { minRole: 'member', statuses: ['active'], grant: 'EcoHubs Blueprint' },
+		'social.post': { minRole: 'member', statuses: ['active'], grant: 'EcoHubs Social' },
+		'buddy.host': { minRole: 'member', statuses: ['active'] },
+		'rewards.grant': { minRole: 'steward', statuses: ['active'] },
+		'onboarding.manage': { minRole: 'steward', statuses: ['active'] },
+		'membership.exit': { minRole: 'steward', statuses: ['active'] },
+		'admin.apps': { minRole: 'admin', statuses: ['active'] }
+	}
 } as const;
 ```
 
 `os.access` includes `standby` because standby members need a route in to request reactivation —
 but the shell they get is the gated reactivation screen, not the desktop (§7).
 
-**Invariant:** `membershipStatus` must be checked *before* role resolution. Because trial is the
+**Invariant:** `membershipStatus` must be checked _before_ role resolution. Because trial is the
 absence of a role, an exited member whose groups were removed would otherwise resolve to `trial`
 and get trial-level OS access.
 
-### The resolver returns *why*, not a boolean
+### The resolver returns _why_, not a boolean
 
 ```ts
 export type CapabilityResult =
-  | { allowed: true }
-  | { allowed: false;
-      reason: 'needs_role' | 'needs_status' | 'needs_grant';
-      requiredRole: Role;
-      unlockAtLevel: number | null;
-      currentLevel: number;
-      message: string };
+	| { allowed: true }
+	| {
+			allowed: false;
+			reason: 'needs_role' | 'needs_status' | 'needs_grant';
+			requiredRole: Role;
+			unlockAtLevel: number | null;
+			currentLevel: number;
+			message: string;
+	  };
 
-export function resolveRole(groups: string[]): Role;   // admin > steward > member > trial
+export function resolveRole(groups: string[]): Role; // admin > steward > member > trial
 export function can(cap: Capability, ctx: MemberContext): CapabilityResult;
 ```
 
@@ -133,11 +143,11 @@ export function can(cap: Capability, ctx: MemberContext): CapabilityResult;
 The three-tier visibility requirement (hidden / locked-with-request / accessible) falls straight
 out of the `reason` field:
 
-| `reason` | Meaning | UI |
-| --- | --- | --- |
-| `needs_role` | below the role minimum (e.g. trial) | **hidden** from dock *and* All Apps |
-| `needs_grant` | right role, missing the additive grant | **visible, locked**, "Request access" button |
-| `needs_status` | standby / exited | visible, locked, explains the status |
+| `reason`       | Meaning                                | UI                                           |
+| -------------- | -------------------------------------- | -------------------------------------------- |
+| `needs_role`   | below the role minimum (e.g. trial)    | **hidden** from dock _and_ All Apps          |
+| `needs_grant`  | right role, missing the additive grant | **visible, locked**, "Request access" button |
+| `needs_status` | standby / exited                       | visible, locked, explains the status         |
 
 So a trial member never sees the Newsletter app; a member sees it locked with an invitation to
 request. `AppDefinition.groups` becomes `requires?: Capability` and app gating flows through the
@@ -209,7 +219,7 @@ silently with no error surfaced. Therefore:
 ### Puckstack
 
 `POST /contributions/counts` returns `{unreadNotifications, tasksNeedingReview, openTasks}` —
-*pending work*, not history, so it can't answer "has this member done anything in 3 months".
+_pending work_, not history, so it can't answer "has this member done anything in 3 months".
 Needs adding on their side: `POST /contributions/activity {workspaceSlug, email}` →
 `{lastTaskCompletedAt, lastCommentAt, tasksCompleted30d}`. Meanwhile XP deltas are a good proxy —
 tasks award XP and the webhook fires immediately.
@@ -245,7 +255,7 @@ New internal app, `rewards.grant` (steward + admin).
   grant promoted X to Member" when `permissionsGranted > 0` or the level crossed the threshold.
   `sendDiscordMessage({ channelId })` already accepts an override, so this needs **no change to
   `discord.ts`** — just a new `DISCORD_REWARDS_CHANNEL_ID` env var for the new channel.
-- Post *after* the Offcoin call succeeds, store the returned message id, and never let a Discord
+- Post _after_ the Offcoin call succeeds, store the returned message id, and never let a Discord
   failure roll back a successful grant (log and surface instead).
 
 ---
@@ -255,10 +265,10 @@ New internal app, `rewards.grant` (steward + admin).
 **Feedback is a FAB widget, not a dock app** — `os.openFeedback()` at `$lib/os.svelte.ts:159`,
 rendered by `$lib/components/FeedbackWidget.svelte`. Two separate things carry the name:
 
-| Thing | Where | Rename to |
-| --- | --- | --- |
-| Member-facing widget heading + FAB label | `FeedbackWidget.svelte:118`, `:110` | "Feedback & Requests" / "Feedback / Request" |
-| Admin review app (`feedback-admin`, admin-only) | `src/lib/data.ts:285` | "Feedback & Requests" |
+| Thing                                           | Where                               | Rename to                                    |
+| ----------------------------------------------- | ----------------------------------- | -------------------------------------------- |
+| Member-facing widget heading + FAB label        | `FeedbackWidget.svelte:118`, `:110` | "Feedback & Requests" / "Feedback / Request" |
+| Admin review app (`feedback-admin`, admin-only) | `src/lib/data.ts:285`               | "Feedback & Requests"                        |
 
 Work needed:
 
@@ -300,7 +310,7 @@ steward-gated and would reject a standby member).
 ### ⚠️ Three things that break if not handled
 
 **1. Zero votes currently auto-reject.** `resolve.ts` returns `'rejected'` when `total === 0`
-("no mandate; status quo holds"). Correct for a policy proposal — *wrong for a person*: a member
+("no mandate; status quo holds"). Correct for a policy proposal — _wrong for a person_: a member
 who did nothing wrong gets refused because nobody voted in three days. Reactivation needs the
 `zeroVotesResult: 'needs_review'` override, routing to a steward decision instead.
 
@@ -347,7 +357,7 @@ the Members app, with Members as the primary route for long-standing members.
 remove the Discord role, `showOnWebsite = false`, membership event.
 
 Group removal alone is not enough: with trial defined as the absence of a role, an exited member
-would log straight back in *as a trial member*. Hence both the DB status check (fast, ours,
+would log straight back in _as a trial member_. Hence both the DB status check (fast, ours,
 reversible) and Authentik deactivation (cuts external SSO apps too).
 
 **Three new helpers needed**: `setAuthentikUserActive()` (only group add/remove exist today),
@@ -355,35 +365,43 @@ Listmonk unsubscribe (`listmonk.ts` has only `subscribeToNewsletter`), and Disco
 (`discord.ts` has only `sendDiscordMessage` — but `discord/callback/+server.ts:154` shows the
 role-assignment call shape to invert). Discord role removal, not a server kick.
 
-### ⚠️ Re-application cannot reset XP
+### ✅ Re-application resets XP — resolved
 
-Returning members should "start over with 0 ECO/XP and trial membership". Trial membership and 0
-ECO are achievable (`subtractTokens` reverses cleanly). **0 XP is not possible** — there is no
-`subtractXp` and no member-delete in the SDK. Two options:
+Returning members should "start over with 0 ECO/XP and trial membership". This was blocked:
+there is no `subtractXp`, so 0 XP was unreachable.
 
-- Mint a **new** Offcoin member for the returning person (fresh `ecohubs:${newUserId}` alias),
-  leaving the old member record orphaned. Works today, loses continuity.
-- Ask Offcoin for an XP reset or member-delete endpoint.
+Resolved by adding `DELETE /api/v1/members/:alias` to Offcoin (SDK 0.0.12 `members.delete()`) and
+calling it from `executeExit` as its final step. The member row and its whole history cascade
+away, so a returning person's alias resolves to nothing and `ensureMember` creates a fresh member
+at 0.
 
-Worth resolving before Phase 9, since it also affects whether `offcoinMemberId` is stable per
-person or per membership episode.
+Two constraints that came out of wiring it:
+
+- **Deletion must run after the Discord step.** The Discord user id is not stored locally — it
+  lives as a `discord:<id>` alias on the Offcoin member — so deleting first destroys the only
+  record of which Discord account to strip.
+- **The local snapshot is cleared unconditionally**, whether or not the delete succeeded.
+  `can()` reads `offcoinLevel`, so a stale value would gate a returning trial member as though
+  they still held the level they left with.
+
+`offcoinMemberId` is therefore per _membership episode_, not per person.
 
 ---
 
 ## 8. Phases
 
-| # | Phase | Size |
-| --- | --- | --- |
-| 0 | Decisions (see §10) | — |
-| 1 | `policy.ts` + status/role foundation + Member group backfill | M |
-| 2 | Offcoin hardening: snapshot, fail-open, alias `ecohubs:` — **then** workspace switch | S–M |
-| 3 | Enforce + explain: gates, three-tier app visibility, Discord propose modal | M |
-| 4 | Offcoin webhook → auto-promotion | S |
-| 5 | Rewards app + audit table + Discord transparency channel | M |
-| 6 | Access requests: `openFeedback` prefill, `LockedApp`, feedback `kind`, renames | S–M |
-| 7 | Participation tracking (partly blocked on Puckstack) | M |
-| 8 | Timer transitions — flag for human confirm, never auto-execute | L |
-| 9 | Standby/exit service + Member Onboarding & Members actions | L |
+| #   | Phase                                                                                | Size |
+| --- | ------------------------------------------------------------------------------------ | ---- |
+| 0   | Decisions (see §10)                                                                  | —    |
+| 1   | `policy.ts` + status/role foundation + Member group backfill                         | M    |
+| 2   | Offcoin hardening: snapshot, fail-open, alias `ecohubs:` — **then** workspace switch | S–M  |
+| 3   | Enforce + explain: gates, three-tier app visibility, Discord propose modal           | M    |
+| 4   | Offcoin webhook → auto-promotion                                                     | S    |
+| 5   | Rewards app + audit table + Discord transparency channel                             | M    |
+| 6   | Access requests: `openFeedback` prefill, `LockedApp`, feedback `kind`, renames       | S–M  |
+| 7   | Participation tracking (partly blocked on Puckstack)                                 | M    |
+| 8   | Timer transitions — flag for human confirm, never auto-execute                       | L    |
+| 9   | Standby/exit service + Member Onboarding & Members actions                           | L    |
 
 Phase 2 before 3 is deliberate: never ship gates that read a fail-closed level, and never switch
 workspaces while that's true.

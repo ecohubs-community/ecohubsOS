@@ -27,6 +27,7 @@ import {
 	setAuthentikUserActive
 } from '$lib/server/authentik';
 import { unsubscribeFromNewsletter } from '$lib/server/listmonk';
+import { NotFoundError } from '@offcoin/sdk';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { removeDiscordMemberRole } from '$lib/server/discord';
 import { apiLogger } from '$lib/server/logger';
@@ -40,6 +41,8 @@ export interface ExitResult {
 	sessionsRevoked: number;
 	newsletterUnsubscribed: boolean;
 	discordRoleRemoved: boolean;
+	/** True also when there was nothing to delete — the end state is what matters. */
+	offcoinMemberDeleted: boolean;
 	/** Anything that did not complete, for the caller to surface. */
 	warnings: string[];
 }
@@ -64,6 +67,7 @@ export async function executeExit(
 		sessionsRevoked: 0,
 		newsletterUnsubscribed: false,
 		discordRoleRemoved: false,
+		offcoinMemberDeleted: false,
 		warnings: []
 	};
 
@@ -161,6 +165,53 @@ export async function executeExit(
 		apiLogger.error({ err, userId }, 'Discord role removal failed on exit');
 		result.warnings.push('Discord role removal failed');
 	}
+
+	// 6. Offcoin, and it has to be last: step 5 reads the Discord id out of this
+	//    member's aliases, so deleting it earlier would take the only record of
+	//    which Discord account to strip.
+	//
+	//    Deleting rather than zeroing, because there is no `subtractXp` — and a
+	//    surviving member is not merely untidy. Re-application is meant to be "a
+	//    very new entry" at trial level, but the alias is derived from the
+	//    Puckstack user id, so someone who re-applies and reconnects the same
+	//    account resolves to their old member, and the level webhook promotes
+	//    them past trial on arrival.
+	if (member.puckstackUserId) {
+		try {
+			await getOffcoinClient().members.delete(memberAlias(member.puckstackUserId));
+			result.offcoinMemberDeleted = true;
+		} catch (err) {
+			// Already gone is the outcome we wanted.
+			if (err instanceof NotFoundError) {
+				result.offcoinMemberDeleted = true;
+			} else {
+				apiLogger.error({ err, userId }, 'Offcoin member deletion failed on exit');
+				result.warnings.push(
+					'Offcoin balance not cleared — re-application would resume the old level'
+				);
+			}
+		}
+	} else {
+		// Never connected Offcoin, so there is nothing to delete and the end state
+		// is already the one we want. Reporting false here would read as unfinished
+		// cleanup for a member who never had an Offcoin record.
+		result.offcoinMemberDeleted = true;
+	}
+
+	// Drop the local snapshot whichever way that went. It describes a member that
+	// should no longer exist, and `can()` reads `offcoinLevel` — leaving it set
+	// would let a returning trial member be gated as though they still held the
+	// level they left with.
+	await db
+		.update(userTable)
+		.set({
+			offcoinMemberId: null,
+			offcoinXp: null,
+			offcoinLevel: null,
+			offcoinSyncedAt: null,
+			updatedAt: new Date()
+		})
+		.where(eq(userTable.id, userId));
 
 	apiLogger.info({ userId, actorUserId, warnings: result.warnings.length }, 'Membership exited');
 	return result;

@@ -41,7 +41,7 @@ export interface BackfillResult {
 	 * holds it reflects *when* they enrolled, not what they have contributed —
 	 * the people in this list are not necessarily newer or less active.
 	 */
-	addedMembers: { email: string; name: string }[];
+	addedMembers: { userId: string; email: string; name: string }[];
 	/** Failed, with the reason. Reported rather than thrown, so one bad row
 	 *  cannot abandon the rest of the run half-done. */
 	failed: { email: string; error: string }[];
@@ -98,7 +98,7 @@ export async function backfillMemberGroup(
 
 		if (dryRun) {
 			result.added++;
-			result.addedMembers.push({ email: u.email, name: u.name });
+			result.addedMembers.push({ userId: u.id, email: u.email, name: u.name });
 			continue;
 		}
 
@@ -128,7 +128,7 @@ export async function backfillMemberGroup(
 			});
 
 			result.added++;
-			result.addedMembers.push({ email: u.email, name: u.name });
+			result.addedMembers.push({ userId: u.id, email: u.email, name: u.name });
 		} catch (err) {
 			const error = err instanceof Error ? err.message : 'Unknown error';
 			apiLogger.error({ err, userId: u.id }, 'Member group backfill failed for user');

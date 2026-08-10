@@ -27,10 +27,12 @@ const discord = vi.hoisted(() => ({
 }));
 vi.mock('$lib/server/discord', () => discord);
 
+class NotFound extends Error {}
+vi.mock('@offcoin/sdk', () => ({ NotFoundError: NotFound }));
+
+const offcoinMembers = vi.hoisted(() => ({ get: vi.fn(), delete: vi.fn() }));
 const offcoin = vi.hoisted(() => ({
-	getOffcoinClient: vi.fn(() => ({
-		members: { get: vi.fn(async () => ({ aliases: ['puckstack:ws:ps1', 'discord:12345'] })) }
-	})),
+	getOffcoinClient: vi.fn(),
 	memberAlias: vi.fn((id: string) => `puckstack:ws:${id}`)
 }));
 vi.mock('$lib/server/offcoin', () => offcoin);
@@ -44,6 +46,9 @@ beforeEach(() => {
 	authentik.setAuthentikUserActive.mockResolvedValue(undefined);
 	listmonk.unsubscribeFromNewsletter.mockResolvedValue(true);
 	discord.removeDiscordMemberRole.mockResolvedValue(true);
+	offcoinMembers.get.mockResolvedValue({ aliases: ['puckstack:ws:ps1', 'discord:12345'] });
+	offcoinMembers.delete.mockResolvedValue({ deleted: true });
+	offcoin.getOffcoinClient.mockReturnValue({ members: offcoinMembers });
 });
 
 describe('executeExit', () => {
@@ -153,5 +158,83 @@ describe('executeExit', () => {
 		const result = await executeExit('nobody', 'reason', null);
 		expect(result.statusSet).toBe(false);
 		expect(result.warnings).toContain('User not found');
+	});
+});
+
+describe('clearing the Offcoin economy', () => {
+	it('deletes the member, so re-application really starts from zero', async () => {
+		// Without this the alias — derived from the Puckstack user id — resolves to
+		// the old member on re-application, and the level webhook promotes them
+		// past trial on arrival.
+		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		const result = await executeExit(u.id, 'Left', null);
+
+		expect(offcoinMembers.delete).toHaveBeenCalledWith('puckstack:ws:ps1');
+		expect(result.offcoinMemberDeleted).toBe(true);
+	});
+
+	it('reads the Discord id before deleting, not after', async () => {
+		// The Discord user id is only stored as an alias on the Offcoin member, so
+		// deleting first would destroy the means of stripping the Discord role.
+		const order: string[] = [];
+		offcoinMembers.get.mockImplementation(async () => {
+			order.push('get');
+			return { aliases: ['puckstack:ws:ps1', 'discord:12345'] };
+		});
+		offcoinMembers.delete.mockImplementation(async () => {
+			order.push('delete');
+			return { deleted: true };
+		});
+
+		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		await executeExit(u.id, 'Left', null);
+
+		expect(order).toEqual(['get', 'delete']);
+		expect(discord.removeDiscordMemberRole).toHaveBeenCalledWith('12345');
+	});
+
+	it('clears the local level snapshot, which gates a returning member', async () => {
+		const u = await seedUser(db, { puckstackUserId: 'ps1', offcoinXp: 900, offcoinLevel: 4 });
+		await executeExit(u.id, 'Left', null);
+
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(after.offcoinLevel).toBeNull();
+		expect(after.offcoinXp).toBeNull();
+		expect(after.offcoinMemberId).toBeNull();
+	});
+
+	it('treats an already-deleted member as done', async () => {
+		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		offcoinMembers.delete.mockRejectedValue(new NotFound('gone'));
+
+		const result = await executeExit(u.id, 'Left', null);
+
+		expect(result.offcoinMemberDeleted).toBe(true);
+		expect(result.warnings).toHaveLength(0);
+	});
+
+	it('warns rather than failing when Offcoin is unreachable', async () => {
+		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		offcoinMembers.delete.mockRejectedValue(new Error('connection reset'));
+
+		const result = await executeExit(u.id, 'Left', null);
+
+		expect(result.statusSet).toBe(true);
+		expect(result.offcoinMemberDeleted).toBe(false);
+		expect(result.warnings.join(' ')).toContain('resume the old level');
+		// The snapshot still goes: it describes a member that should not exist.
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(after.offcoinLevel).toBeNull();
+	});
+
+	it('skips Offcoin entirely for a member who never connected', async () => {
+		const u = await seedUser(db, { puckstackUserId: null });
+		const result = await executeExit(u.id, 'Left', null);
+
+		expect(offcoinMembers.delete).not.toHaveBeenCalled();
+		expect(result.statusSet).toBe(true);
+		// Nothing to delete is the end state we wanted, not unfinished cleanup —
+		// the flag documents itself that way, so it has to agree.
+		expect(result.offcoinMemberDeleted).toBe(true);
 	});
 });

@@ -183,6 +183,39 @@ describe('who may receive', () => {
 		expect(members.addTokens).not.toHaveBeenCalled();
 	});
 
+	it('refuses NaN, the one amount every other check lets through', async () => {
+		// NaN <= 0, NaN > max and the daily-cap comparison are all false, so
+		// without an explicit guard it reaches Offcoin with the amount intact.
+		const { actor, recipient } = await pair();
+
+		const result = await grantReward({
+			recipientUserId: recipient.id,
+			actorUserId: actor.id,
+			eco: Number.NaN,
+			reason: REASON
+		});
+
+		expect(result.ok).toBe(false);
+		expect(members.addTokens).not.toHaveBeenCalled();
+		expect(await grantsBy(actor.id)).toHaveLength(0);
+	});
+
+	it('refuses an infinite amount via the per-grant ceiling', async () => {
+		// Reachable, unlike NaN: JSON.parse turns 1e400 into Infinity, which
+		// passes the route's typeof check.
+		const { actor, recipient } = await pair();
+
+		const result = await grantReward({
+			recipientUserId: recipient.id,
+			actorUserId: actor.id,
+			eco: Number.POSITIVE_INFINITY,
+			reason: REASON
+		});
+
+		expect(result.error).toContain('cannot exceed');
+		expect(members.addTokens).not.toHaveBeenCalled();
+	});
+
 	it('refuses a self-grant before touching Offcoin', async () => {
 		const actor = await seedUser(db, { puckstackUserId: 'ps-a' });
 
