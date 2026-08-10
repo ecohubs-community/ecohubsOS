@@ -16,7 +16,7 @@ import { POLICY, type MembershipStatus, type Role } from '$lib/policy';
 const DAY_MS = 86_400_000;
 
 /** The transitions a timer can propose. Promotions are never proposed here. */
-export type ReviewKind = 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited';
+export type ReviewKind = 'trial_to_standby' | 'member_to_standby' | 'standby_to_exited';
 
 export interface MembershipSnapshot {
 	userId: string;
@@ -93,12 +93,15 @@ export function evaluateMembership(
 		);
 	}
 
+	// Members fall to standby, not straight out. Exiting an established member
+	// on a timer alone skips the one state they can ask their way back from, and
+	// the standby clock still ends the membership a year later if they do not.
 	return evaluateElapsed(
 		member,
-		'member_to_exited',
-		'exited',
+		'member_to_standby',
+		'standby',
 		member.lastParticipationAt,
-		POLICY.timers.memberToExited,
+		POLICY.timers.memberToStandby,
 		now,
 		(days) => `No participation for ${days} days`
 	);
@@ -147,7 +150,7 @@ export function daysUntilTransition(
 			? [member.membershipStatusSince, POLICY.timers.standbyToExited]
 			: [
 					member.lastParticipationAt,
-					member.role === 'trial' ? POLICY.timers.trialToStandby : POLICY.timers.memberToExited
+					member.role === 'trial' ? POLICY.timers.trialToStandby : POLICY.timers.memberToStandby
 				];
 
 	if (!since || !threshold) return null;

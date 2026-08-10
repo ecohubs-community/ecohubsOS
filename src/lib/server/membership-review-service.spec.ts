@@ -52,16 +52,16 @@ describe('materialising reviews', () => {
 
 	it('queues one when a member has been idle past the threshold', async () => {
 		await seedUser(db, {
-			lastParticipationAt: daysAgo(POLICY.timers.memberToExited + 1)
+			lastParticipationAt: daysAgo(POLICY.timers.memberToStandby + 1)
 		});
 		expect(await materialiseMembershipReviews()).toBe(1);
 
 		const pending = await listPendingReviews();
-		expect(pending[0]).toMatchObject({ kind: 'member_to_exited', toStatus: 'exited' });
+		expect(pending[0]).toMatchObject({ kind: 'member_to_standby', toStatus: 'standby' });
 	});
 
 	it('is free to re-run — no duplicates for the same elapsed timer', async () => {
-		await seedUser(db, { lastParticipationAt: daysAgo(POLICY.timers.memberToExited + 1) });
+		await seedUser(db, { lastParticipationAt: daysAgo(POLICY.timers.memberToStandby + 1) });
 		expect(await materialiseMembershipReviews()).toBe(1);
 		expect(await materialiseMembershipReviews()).toBe(0);
 		expect(await listPendingReviews()).toHaveLength(1);
@@ -69,9 +69,25 @@ describe('materialising reviews', () => {
 });
 
 describe('resolving a review', () => {
+	/** A member idle past the threshold — proposes standby. */
 	async function queueOne() {
 		const u = await seedUser(db, {
-			lastParticipationAt: daysAgo(POLICY.timers.memberToExited + 1)
+			lastParticipationAt: daysAgo(POLICY.timers.memberToStandby + 1)
+		});
+		await materialiseMembershipReviews();
+		const [review] = await listPendingReviews();
+		return { user: u, review };
+	}
+
+	/**
+	 * A standby member past the standby clock — the only route to `exited` now
+	 * that active members fall to standby first.
+	 */
+	async function queueExit() {
+		const u = await seedUser(db, {
+			membershipStatus: 'standby',
+			membershipStatusSince: daysAgo(POLICY.timers.standbyToExited + 1),
+			lastParticipationAt: daysAgo(POLICY.timers.standbyToExited + 1)
 		});
 		await materialiseMembershipReviews();
 		const [review] = await listPendingReviews();
@@ -79,7 +95,7 @@ describe('resolving a review', () => {
 	}
 
 	it('applying an exit runs the full offboarding, not just a status flag', async () => {
-		const { user, review } = await queueOne();
+		const { user, review } = await queueExit();
 		const steward = await seedUser(db);
 
 		const result = await resolveReview(review.id, 'apply', steward.id);
@@ -98,7 +114,7 @@ describe('resolving a review', () => {
 			warnings: ['Authentik access was not fully revoked']
 		});
 
-		const { review } = await queueOne();
+		const { review } = await queueExit();
 		const steward = await seedUser(db);
 		const result = await resolveReview(review.id, 'apply', steward.id);
 

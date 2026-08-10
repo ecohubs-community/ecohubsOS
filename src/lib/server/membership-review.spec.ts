@@ -99,7 +99,7 @@ describe('trial → standby', () => {
 });
 
 describe('member → exited', () => {
-	const threshold = POLICY.timers.memberToExited;
+	const threshold = POLICY.timers.memberToStandby;
 
 	it('proposes exit only after the longer member threshold', () => {
 		expect(
@@ -107,7 +107,7 @@ describe('member → exited', () => {
 		).toBeNull();
 		expect(
 			evaluateMembership(snapshot({ lastParticipationAt: daysAgo(threshold) }), NOW)
-		).toMatchObject({ kind: 'member_to_exited', toStatus: 'exited' });
+		).toMatchObject({ kind: 'member_to_standby', toStatus: 'standby' });
 	});
 
 	it('does not apply the short trial timer to a full member', () => {
@@ -124,7 +124,7 @@ describe('member → exited', () => {
 		for (const role of ['steward', 'admin'] as const) {
 			expect(
 				evaluateMembership(snapshot({ role, lastParticipationAt: daysAgo(threshold) }), NOW)
-			).toMatchObject({ kind: 'member_to_exited' });
+			).toMatchObject({ kind: 'member_to_standby' });
 		}
 	});
 });
@@ -261,5 +261,56 @@ describe('the evaluator never promotes or applies', () => {
 
 	it('proposes nothing for a member who participated today', () => {
 		expect(evaluateMembership(snapshot({ lastParticipationAt: NOW }), NOW)).toBeNull();
+	});
+});
+
+describe('nobody is exited straight from active', () => {
+	// The chain is trial → standby → exited and member → standby → exited, so
+	// every ending is preceded by a state the member can ask their way out of.
+	it('proposes standby for an idle member, not exit', () => {
+		const proposal = evaluateMembership(
+			{
+				userId: 'u1',
+				role: 'member',
+				status: 'active',
+				lastParticipationAt: daysAgo(POLICY.timers.memberToStandby + 1),
+				membershipStatusSince: null
+			},
+			NOW
+		);
+		expect(proposal).toMatchObject({ kind: 'member_to_standby', toStatus: 'standby' });
+	});
+
+	it('gives an established member longer than a trial member', () => {
+		expect(POLICY.timers.memberToStandby).toBeGreaterThan(POLICY.timers.trialToStandby);
+	});
+
+	it('says nothing about a member inside the window', () => {
+		expect(
+			evaluateMembership(
+				{
+					userId: 'u1',
+					role: 'member',
+					status: 'active',
+					lastParticipationAt: daysAgo(POLICY.timers.memberToStandby - 1),
+					membershipStatusSince: null
+				},
+				NOW
+			)
+		).toBeNull();
+	});
+
+	it('only the standby clock ends a membership', () => {
+		const proposal = evaluateMembership(
+			{
+				userId: 'u1',
+				role: 'member',
+				status: 'standby',
+				lastParticipationAt: daysAgo(900),
+				membershipStatusSince: daysAgo(POLICY.timers.standbyToExited + 1)
+			},
+			NOW
+		);
+		expect(proposal).toMatchObject({ kind: 'standby_to_exited', toStatus: 'exited' });
 	});
 });
