@@ -194,11 +194,22 @@ export const POLICY = {
 		adminMinLevel: 3
 	},
 
-	/** Inactivity timers, in days. Downgrades are only ever *proposed* to a human. */
+	/**
+	 * Inactivity timers, in days. Downgrades are only ever *proposed* to a human.
+	 *
+	 * Nobody is exited straight from active. Both roles fall to standby first,
+	 * and only the standby clock ends a membership — so every exit is preceded
+	 * by a reversible state the member can ask their way out of. A member who
+	 * drifts away therefore has 6 months, then a further 12, before anything is
+	 * final.
+	 */
 	timers: {
+		/** Trial → standby. Shortest, because trial is the probationary state. */
 		trialToStandby: 90,
+		/** Member → standby. Longer: an established member is given more room. */
+		memberToStandby: 180,
+		/** Standby → exited. Measures time *in standby*, not inactivity. */
 		standbyToExited: 365,
-		memberToExited: 365,
 		warnBeforeDays: [14, 7] as readonly number[]
 	},
 

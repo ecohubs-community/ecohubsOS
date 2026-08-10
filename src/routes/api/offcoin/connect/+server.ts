@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { NotFoundError } from '@offcoin/sdk';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
@@ -33,7 +34,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Verify the wallet address matches the authenticated user
-	if (!locals.user.walletAddress || walletAddress.toLowerCase() !== locals.user.walletAddress.toLowerCase()) {
+	if (
+		!locals.user.walletAddress ||
+		walletAddress.toLowerCase() !== locals.user.walletAddress.toLowerCase()
+	) {
 		error(403, 'Wallet address does not match authenticated user');
 	}
 
@@ -65,6 +69,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					updatedAt: new Date()
 				})
 				.where(eq(user.id, locals.user.id));
+
+			// Linking is the first moment their level is knowable, and the figures
+			// were just fetched above — so seed the snapshot rather than waiting for
+			// a webhook that may not fire for months.
+			await saveOffcoinSnapshot(locals.user.id, {
+				memberId: member.id,
+				xp: xpData.xp,
+				level: xpData.level
+			});
 			offcoinLogger.info(
 				{ userId: locals.user.id, puckstackUserId },
 				'Persisted puckstackUserId to user record'
@@ -91,7 +104,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 	} catch (err) {
 		if (err instanceof NotFoundError) {
-			error(404, 'No Offcoin member found with this Puckstack ID. Please ensure you have created a Puckstack account first.');
+			error(
+				404,
+				'No Offcoin member found with this Puckstack ID. Please ensure you have created a Puckstack account first.'
+			);
 		}
 		offcoinLogger.error({ err }, 'Offcoin connection error');
 		error(500, 'Failed to connect to Offcoin');

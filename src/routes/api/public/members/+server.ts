@@ -5,6 +5,7 @@ import { user } from '$lib/server/db/schema';
 import { isNotNull } from 'drizzle-orm';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { isAtLeastRole, parseGroupsJson, resolveRole } from '$lib/policy';
+import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -77,6 +78,20 @@ export const GET: RequestHandler = async ({ request }) => {
 				});
 			}
 		}
+
+		// This endpoint already pays for a full sweep of live figures, so it is the
+		// cheapest place to refresh the cache the membership gates read.
+		//
+		// Awaited, and the cost is worth stating rather than hiding: this handler
+		// has just made three Offcoin round-trips per published member, so a local
+		// write each is noise beside what it already spent. Doing it here also
+		// keeps the failure visible in the request that caused it, which a
+		// detached job would not.
+		await Promise.allSettled(
+			[...offcoinMap.entries()].map(([userId, oc]) =>
+				saveOffcoinSnapshot(userId, { xp: oc.xp, level: oc.level })
+			)
+		);
 
 		// Build response
 		const response = published.map((member) => {
