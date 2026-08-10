@@ -182,9 +182,28 @@ webhook owns it, so an admin cannot hand out or withdraw membership by hand
 (`group-grants.spec.ts` asserts this). Reversing a mis-scoped backfill means:
 
 1. Remove the group in Authentik for each affected account.
-2. Clear the local mirror, which is what gates the current session —
-   `UPDATE user SET groups = '[]' WHERE id = ?`. It otherwise refreshes only on
-   their next OIDC login.
+2. Remove it from the local mirror, which is what gates the live session — it
+   otherwise refreshes only on their next OIDC login. Remove the one entry
+   rather than clearing the column: `groups` also holds Steward, Admin and the
+   four tool grants, so `SET groups = '[]'` would strip rights the backfill
+   never touched.
+
+```sql
+-- one affected userId from the real run's addedMembers
+UPDATE user
+SET groups = (
+  SELECT json_group_array(value)
+  FROM json_each(user.groups)
+  WHERE value <> 'EcoHubs Member'
+)
+WHERE id = :userId
+  AND groups IS NOT NULL
+  AND EXISTS (SELECT 1 FROM json_each(user.groups) WHERE value = 'EcoHubs Member');
+```
+
+The guards make it safe to re-run and a no-op on rows with a null or
+Member-free `groups`. Verified against the real column shape, including
+accounts holding Steward alongside Member.
 
 **Keep the output of the real run, not the dry run.** They can differ — group
 membership may change between the two calls — and only the real run records what
