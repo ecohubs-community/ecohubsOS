@@ -142,7 +142,7 @@ export const membershipReviews = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		// 'trial_to_standby' | 'member_to_standby' | 'standby_to_exited'
 		kind: text('kind').notNull(),
 		fromStatus: text('from_status').notNull(),
 		toStatus: text('to_status').notNull(),
@@ -188,7 +188,7 @@ export const membershipWarnings = sqliteTable(
 		daysBefore: integer('days_before').notNull(),
 		// Start of the countdown this warning belongs to.
 		cycleAnchor: integer('cycle_anchor', { mode: 'timestamp' }).notNull(),
-		// 'trial_to_standby' | 'member_to_exited' | 'standby_to_exited'
+		// 'trial_to_standby' | 'member_to_standby' | 'standby_to_exited'
 		kind: text('kind').notNull(),
 		// True when this mark produced a draft for a steward to review; false when
 		// the mark was reached but a more urgent one superseded it. Deliberately

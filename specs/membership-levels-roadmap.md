@@ -74,7 +74,7 @@ export const POLICY = {
 	timers: {
 		trialToStandby: 90,
 		standbyToExited: 365,
-		memberToExited: 365,
+		memberToStandby: 180,
 		warnBeforeDays: [14, 7]
 	},
 
