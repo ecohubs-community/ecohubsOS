@@ -84,6 +84,7 @@ CREATE TABLE user (
   puckstack_activity_synced_at INTEGER,
   offcoin_member_id TEXT,
   offcoin_xp INTEGER,
+  offcoin_eco INTEGER,
   offcoin_level INTEGER,
   offcoin_synced_at INTEGER
 );

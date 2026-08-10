@@ -85,4 +85,22 @@ describe('saveOffcoinSnapshot', () => {
 		expect(await saveOffcoinSnapshot(u.id, { xp: 5, level: 1 })).toBe(true);
 		expect(await saveOffcoinSnapshot(u.id, { xp: Number.NaN, level: 1 })).toBe(false);
 	});
+
+	it('caches ECO when the caller has it, and leaves it alone when not', async () => {
+		// Optional because not every call site fetches a balance — the members list
+		// showed a random placeholder before this column existed.
+		const u = await seedUser(db);
+
+		await saveOffcoinSnapshot(u.id, { xp: 10, level: 1, eco: 250 });
+		expect((await read(u.id)).offcoinEco).toBe(250);
+
+		await saveOffcoinSnapshot(u.id, { xp: 20, level: 1 });
+		expect((await read(u.id)).offcoinEco).toBe(250);
+	});
+
+	it('refuses a nonsensical ECO the same way as a bad level', async () => {
+		const u = await seedUser(db, { offcoinEco: 100 });
+		expect(await saveOffcoinSnapshot(u.id, { xp: 1, level: 1, eco: -5 })).toBe(false);
+		expect((await read(u.id)).offcoinEco).toBe(100);
+	});
 });

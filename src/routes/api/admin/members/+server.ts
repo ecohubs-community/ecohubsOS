@@ -100,8 +100,12 @@ export const GET: RequestHandler = async ({ locals }) => {
 				onboardingProgress: u.onboardingProgress,
 				onboardingStartedAt: u.onboardingStartedAt?.toISOString() || null,
 				onboardingCompletedAt: u.onboardingCompletedAt?.toISOString() || null,
-				xp: Math.floor(Math.random() * 5000), // Placeholder
-				eco: Math.floor(Math.random() * 1000), // Placeholder,
+				// The cached Offcoin snapshot, refreshed by the level sync and by any
+				// page that fetches live figures. Null means never synced, which the
+				// UI shows as "--" rather than as a zero the member has not earned.
+				xp: u.offcoinXp,
+				eco: u.offcoinEco,
+				level: u.offcoinLevel,
 				avatarUrl: u.image,
 				walletAddress: u.walletAddress || null,
 				introWatchedAt: u.introWatchedAt?.toISOString() ?? null,
@@ -133,8 +137,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 				onboardingProgress: '',
 				onboardingStartedAt: null,
 				onboardingCompletedAt: null,
-				xp: 0,
-				eco: 0,
+				xp: null,
+				eco: null,
+				level: null,
 				avatarUrl: null,
 				walletAddress: null,
 				introWatchedAt: null,

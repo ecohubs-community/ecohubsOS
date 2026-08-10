@@ -33,6 +33,7 @@ export interface LevelSyncRow {
 	role: Role;
 	xp: number;
 	level: number;
+	eco: number;
 	/** Previous cached level, or null when this is the first reading. */
 	previousLevel: number | null;
 	/**
@@ -88,7 +89,13 @@ export async function syncOffcoinLevels(
 		}
 
 		try {
-			const xpData = await offcoin.members.getXp(memberAlias(u.puckstackUserId));
+			const alias = memberAlias(u.puckstackUserId);
+			// Balance alongside level: this is the one run that visits every member,
+			// so fetching both here spares a second sweep for the members list.
+			const [xpData, balanceData] = await Promise.all([
+				offcoin.members.getXp(alias),
+				offcoin.members.getBalance(alias)
+			]);
 			const role = resolveRole(parseGroupsJson(u.groups));
 
 			result.members.push({
@@ -98,6 +105,7 @@ export async function syncOffcoinLevels(
 				role,
 				xp: xpData.xp,
 				level: xpData.level,
+				eco: balanceData.balance,
 				previousLevel: u.offcoinLevel ?? null,
 				belowMemberLevel: role !== 'trial' && xpData.level < POLICY.levels.memberFromLevel
 			});
@@ -112,7 +120,8 @@ export async function syncOffcoinLevels(
 				const written = await saveOffcoinSnapshot(u.id, {
 					memberId: xpData.memberId,
 					xp: xpData.xp,
-					level: xpData.level
+					level: xpData.level,
+					eco: balanceData.balance
 				});
 				if (written) {
 					result.synced++;

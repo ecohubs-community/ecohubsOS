@@ -25,6 +25,8 @@ export interface OffcoinSnapshot {
 	memberId?: string | null;
 	xp: number;
 	level: number;
+	/** Token balance. Optional: not every caller has fetched it. */
+	eco?: number;
 }
 
 /**
@@ -47,6 +49,9 @@ export async function saveOffcoinSnapshot(
 	// levels start at 0, so 0 is a real value — but NaN and negatives are not.
 	if (!Number.isFinite(snapshot.level) || !Number.isFinite(snapshot.xp)) return false;
 	if (snapshot.level < 0 || snapshot.xp < 0) return false;
+	// ECO is optional, so an absent one is fine — a nonsensical one is not.
+	const eco = snapshot.eco;
+	if (eco !== undefined && (!Number.isFinite(eco) || eco < 0)) return false;
 
 	try {
 		// `.returning()` because a zero-row UPDATE does not throw — a deleted or
@@ -58,6 +63,7 @@ export async function saveOffcoinSnapshot(
 			.set({
 				...(snapshot.memberId ? { offcoinMemberId: snapshot.memberId } : {}),
 				offcoinXp: snapshot.xp,
+				...(eco !== undefined ? { offcoinEco: eco } : {}),
 				offcoinLevel: snapshot.level,
 				offcoinSyncedAt: new Date(),
 				updatedAt: new Date()

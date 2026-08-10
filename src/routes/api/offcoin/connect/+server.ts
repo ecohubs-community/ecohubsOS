@@ -41,6 +41,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(403, 'Wallet address does not match authenticated user');
 	}
 
+	// The Puckstack id comes from the request body and nothing above proves it
+	// belongs to the caller. Without this check three accounts ended up sharing
+	// one link, and the link decides where a grant lands, whose member an exit
+	// deletes, and which level the gates read — so a wrong one is not a display
+	// problem, it is someone else's economy.
+	//
+	// The database now enforces this too; the check exists so the caller gets an
+	// explanation rather than a constraint violation.
+	const alreadyLinked = await db.query.user.findFirst({
+		where: eq(user.puckstackUserId, puckstackUserId)
+	});
+	if (alreadyLinked && alreadyLinked.id !== locals.user.id) {
+		offcoinLogger.warn(
+			{ userId: locals.user.id, puckstackUserId, heldBy: alreadyLinked.id },
+			'Refused a Puckstack link already held by another account'
+		);
+		error(409, 'That Puckstack account is already linked to another member');
+	}
+
 	try {
 		const offcoin = getOffcoinClient();
 		const alias = memberAlias(puckstackUserId);
