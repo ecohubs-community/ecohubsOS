@@ -24,6 +24,13 @@
 	let denial = $derived(result && !result.allowed ? result : null);
 
 	/**
+	 * An app can also be out of reach through `app.groups` alone, which produces
+	 * no CapabilityDenied to quote. Falling back to `app.description` there would
+	 * present a sales pitch as if it were the reason, so say the plain thing.
+	 */
+	let explanation = $derived(denial?.message ?? 'This app is not available on your account.');
+
+	/**
 	 * Only a grant is worth asking for, which is exactly what `isRequestable`
 	 * decides — reused rather than restated, so the button and the policy cannot
 	 * drift apart. A capability withheld for role or membership status is reached
@@ -37,7 +44,7 @@
 			message:
 				`I'd like access to ${app.name}.\n\n` +
 				`What I'd like to contribute:\n\n` +
-				`(Currently locked: ${denial?.message ?? app.description})`
+				`(Currently locked: ${explanation})`
 		});
 	}
 </script>
@@ -52,7 +59,7 @@
 	<h2 class="text-solar-100 mb-2 text-lg font-medium">{app.name} is locked</h2>
 
 	<p class="text-solar-300/80 max-w-md text-sm leading-relaxed">
-		{denial?.message ?? app.description}
+		{explanation}
 	</p>
 
 	{#if requestable}

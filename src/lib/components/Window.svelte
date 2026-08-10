@@ -105,8 +105,12 @@
 
 		<div class="relative flex-1 overflow-auto p-0" tabindex="0" role="dialog">
 			<!-- Checked here rather than at the call site so every route in — dock,
-			     All Apps, deep link — lands on the same explanation. -->
-			{#if appSurfaceFor(app, memberCtx) === 'locked'}
+			     All Apps, deep link — lands on the same explanation.
+			     Anything that is not `open` renders LockedApp, `hidden` included:
+			     the dock and All Apps filter those out, but os.openApp() is callable
+			     with any id and this component should not depend on its callers
+			     having filtered first. -->
+			{#if appSurfaceFor(app, memberCtx) !== 'open'}
 				<LockedApp {app} />
 			{:else if app.isInternalApp && app.component}
 				{@const App = app.component}
