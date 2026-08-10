@@ -10,14 +10,19 @@ credentials, the Authentik tenant, the Offcoin dashboard — it says so.
 
 ## What ships
 
-| Repo      | Branch                           | Commits | Pushed?         |
-| --------- | -------------------------------- | ------- | --------------- |
-| offcoin   | `feat/grant-reason-and-activity` | 4       | **no upstream** |
-| puckstack | `fix/eco-xp-ratio-duplication`   | 8       | **no upstream** |
-| ecohubsOS | `feat/membership-policy`         | 31      | 1 unpushed      |
+| Repo      | Merged as                           | State                         |
+| --------- | ----------------------------------- | ----------------------------- |
+| offcoin   | `mediakular/offcoin` PR #2          | **merged** — `main` @ db96880 |
+| puckstack | `mediakular/puckstack` PR #2        | **merged** — `main` @ 175a60a |
+| ecohubsOS | `ecohubs-community/ecohubsOS` PR #3 | **merged** — plus PR #4 open  |
 
-All three are clean working trees and none is behind `main`, so each merges
-fast-forward.
+Verify the deployed revision by SHA rather than by branch name — a branch moves,
+and this table is a snapshot. `git rev-parse origin/main` in each repo before
+you deploy it.
+
+> An earlier revision of this table claimed offcoin and puckstack had no
+> upstream. That was wrong: it read "no local tracking branch" as "never
+> pushed". Both were pushed and merged.
 
 ---
 
@@ -88,7 +93,8 @@ Two hard dependencies, both found while reviewing this branch:
 - [ ] Apply (the `-bail` flag is required — see the file header for why):
 
 ```bash
-sqlite3 -bail <production.db> < drizzle/0002_membership_policy.sql
+PROD_DB=/path/to/production.db
+sqlite3 -bail "$PROD_DB" < drizzle/0002_membership_policy.sql
 ```
 
 - [ ] Verify: `PRAGMA table_info(user);` shows 42 columns
@@ -123,7 +129,9 @@ applications and 32 proposals preserved and defaults backfilled.
 - [ ] Dry run:
 
 ```bash
-curl -X POST https://<host>/api/admin/membership-backfill -H 'Content-Type: application/json' -H 'Cookie: <admin session>' -d '{"dryRun":true}'
+HOST=https://os.ecohubs.community
+SESSION='<paste the admin session cookie>'
+curl -X POST "$HOST/api/admin/membership-backfill" -H 'Content-Type: application/json' -H "Cookie: $SESSION" -d '{"dryRun":true}'
 ```
 
 - [ ] **Read `addedMembers` before the real run.** It lists who would be granted
@@ -160,8 +168,24 @@ and unused by `main`, so leaving them in place while running the old app is
 also safe if a restore is worse than the alternative.
 
 **The backfill does not roll back either.** It adds people to an Authentik
-group; reverting the app leaves them there. Harmless — `main` does not read
-role groups for gating.
+group and mirrors that into `user.groups`; reverting the app leaves both in
+place.
+
+This is _not_ harmless any more. `main` now contains `policy.ts` and nine
+endpoints calling `requireCapability`, so `EcoHubs Member` grants real
+authority — voting, buddy calls, requestable tool access. An over-broad
+backfill therefore leaves people holding rights a rollback does not remove.
+
+To undo one: `POST /api/admin/groups` with
+`{ userId, group: "EcoHubs Member", action: "remove" }`, which updates
+Authentik and the local mirror together. The dry run's `addedMembers` is the
+record of exactly who to reverse — keep its output.
+
+Reward grants are the one thing that genuinely cannot be reversed:
+`POLICY.grants.allowNegative` is false and Offcoin has no `subtractXp` at all.
+A wrong grant is corrected by granting the difference elsewhere, not by
+clawing back. `reward_grants` holds both Offcoin transaction ids for
+reconciliation.
 
 ### Roll back if
 
@@ -178,8 +202,9 @@ role groups for gating.
 
 - **No staging environment.** Every check above is production-first; the
   migration rehearsal against a copy of the live DB is the substitute.
-- **No CI.** The suites were run locally: offcoin 120, puckstack 15, ecohubsOS
-  310, all green, 0 type errors in all three.
+- **No CI.** The suites were run locally, per repo — these are three separate
+  totals, not addends: offcoin 120, puckstack 15, ecohubsOS 316. All green,
+  0 type errors in all three.
 - **Timers are lazy, not scheduled.** Reviews and warnings materialise when a
   steward opens the queue. Nothing fires unless someone looks, which is
   deliberate — there is no scheduler in this stack.

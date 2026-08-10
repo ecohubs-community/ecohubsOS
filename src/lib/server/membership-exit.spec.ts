@@ -233,5 +233,8 @@ describe('clearing the Offcoin economy', () => {
 
 		expect(offcoinMembers.delete).not.toHaveBeenCalled();
 		expect(result.statusSet).toBe(true);
+		// Nothing to delete is the end state we wanted, not unfinished cleanup —
+		// the flag documents itself that way, so it has to agree.
+		expect(result.offcoinMemberDeleted).toBe(true);
 	});
 });

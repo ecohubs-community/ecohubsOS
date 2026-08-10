@@ -191,6 +191,11 @@ export async function executeExit(
 				);
 			}
 		}
+	} else {
+		// Never connected Offcoin, so there is nothing to delete and the end state
+		// is already the one we want. Reporting false here would read as unfinished
+		// cleanup for a member who never had an Offcoin record.
+		result.offcoinMemberDeleted = true;
 	}
 
 	// Drop the local snapshot whichever way that went. It describes a member that
