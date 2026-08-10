@@ -176,10 +176,25 @@ endpoints calling `requireCapability`, so `EcoHubs Member` grants real
 authority — voting, buddy calls, requestable tool access. An over-broad
 backfill therefore leaves people holding rights a rollback does not remove.
 
-To undo one: `POST /api/admin/groups` with
-`{ userId, group: "EcoHubs Member", action: "remove" }`, which updates
-Authentik and the local mirror together. The dry run's `addedMembers` is the
-record of exactly who to reverse — keep its output.
+**There is no in-app undo for this group, by design.** `EcoHubs Member` is
+deliberately absent from the `/api/admin/groups` allowlist — the level-up
+webhook owns it, so an admin cannot hand out or withdraw membership by hand
+(`group-grants.spec.ts` asserts this). Reversing a mis-scoped backfill means:
+
+1. Remove the group in Authentik for each affected account.
+2. Clear the local mirror, which is what gates the current session —
+   `UPDATE user SET groups = '[]' WHERE id = ?`. It otherwise refreshes only on
+   their next OIDC login.
+
+**Keep the output of the real run, not the dry run.** They can differ — group
+membership may change between the two calls — and only the real run records what
+was actually granted. `addedMembers` carries `userId`, `email` and `name`, which
+is what both steps above need.
+
+> Worth deciding before you need it: making membership admin-manageable would
+> give this a one-call undo, at the cost of letting an admin grant membership
+> without the level. That is a real trade against the webhook-owns-it design,
+> so it is left as-is rather than changed under deploy pressure.
 
 Reward grants are the one thing that genuinely cannot be reversed:
 `POLICY.grants.allowNegative` is false and Offcoin has no `subtractXp` at all.
