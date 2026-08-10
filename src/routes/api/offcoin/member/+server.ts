@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { NotFoundError } from '@offcoin/sdk';
 
 /**
@@ -30,6 +31,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			offcoin.members.getXp(alias),
 			offcoin.members.getBalance(alias)
 		]);
+
+		// The figures are already in hand, so keep them. Without this the gates
+		// read a null level for anyone who has never had a webhook or a grant.
+		await saveOffcoinSnapshot(locals.user.id, {
+			memberId: member.id,
+			xp: xpData.xp,
+			level: xpData.level
+		});
 
 		return json({
 			success: true,
