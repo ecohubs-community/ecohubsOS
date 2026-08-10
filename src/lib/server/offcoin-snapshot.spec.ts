@@ -71,6 +71,13 @@ describe('saveOffcoinSnapshot', () => {
 		await expect(saveOffcoinSnapshot('no-such-user', { xp: 1, level: 1 })).resolves.not.toThrow();
 	});
 
+	it('reports false for a user that is not there, rather than a phantom write', async () => {
+		// A zero-row UPDATE succeeds silently, so without checking what was written
+		// this would tell the level sync it cached a level for someone who does not
+		// exist.
+		expect(await saveOffcoinSnapshot('no-such-user', { xp: 1, level: 1 })).toBe(false);
+	});
+
 	it('reports whether the write landed, so an admin sync can tell', async () => {
 		// The request-path callers ignore this; the level sync counts on it, and
 		// reporting a sync that never happened is the failure it exists to rule out.

@@ -49,7 +49,11 @@ export async function saveOffcoinSnapshot(
 	if (snapshot.level < 0 || snapshot.xp < 0) return false;
 
 	try {
-		await db
+		// `.returning()` because a zero-row UPDATE does not throw — a deleted or
+		// unknown user id succeeds having written nothing. Returning true there
+		// would tell the level sync it persisted a level it never did, which is
+		// the one thing that endpoint is trusted to rule out.
+		const written = await db
 			.update(userTable)
 			.set({
 				...(snapshot.memberId ? { offcoinMemberId: snapshot.memberId } : {}),
@@ -58,8 +62,9 @@ export async function saveOffcoinSnapshot(
 				offcoinSyncedAt: new Date(),
 				updatedAt: new Date()
 			})
-			.where(eq(userTable.id, userId));
-		return true;
+			.where(eq(userTable.id, userId))
+			.returning({ id: userTable.id });
+		return written.length > 0;
 	} catch (err) {
 		offcoinLogger.error({ err, userId }, 'Could not persist Offcoin snapshot');
 		return false;
