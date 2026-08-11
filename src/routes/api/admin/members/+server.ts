@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { requireCapability } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user, applications, session } from '$lib/server/db/schema';
@@ -7,16 +8,13 @@ import { completionRequiredSubstepIds } from '$lib/onboarding/stepManager';
 import { daysSinceParticipation } from '$lib/server/participation';
 
 export const GET: RequestHandler = async ({ locals }) => {
-	// Authentication check
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
-	// Authorization check: Must be 'EcoHubs Admin'
-	const userGroups = locals.user.groups ? JSON.parse(locals.user.groups as unknown as string) : [];
-	if (!userGroups.includes('EcoHubs Admin')) {
-		error(403, 'Forbidden: Admin access required');
-	}
+	// This route returns every member's email, level, balance and login history,
+	// so it gates on the policy rather than re-deriving one. The hand-rolled
+	// group check it replaces read the same group but knew nothing about
+	// membership status, so a standby admin still passed it — `admin.apps`
+	// requires `active`, and that difference is the whole reason for having one
+	// place where the rule lives.
+	requireCapability('admin.apps', locals);
 
 	try {
 		// Fetch all users
