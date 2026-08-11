@@ -7,6 +7,7 @@ import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { offcoinLogger } from '$lib/server/logger';
+import { resolvePuckstackIdentity } from '$lib/server/puckstack-identity';
 
 /**
  * Whether a driver error is the unique index on `puckstack_user_id` refusing a
@@ -19,13 +20,14 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * Connect a wallet address to an Offcoin member via Puckstack User ID
+ * Connect a wallet address to the caller's Offcoin member.
  *
  * Flow:
- * 1. Look up Offcoin member by puckstack:<userId> alias
- * 2. If found, add wallet:<walletAddress> alias to the member
- * 3. Persist puckstackUserId to user DB record (for cross-device persistence)
- * 4. Return member data including XP, level, and token balance
+ * 1. Resolve the caller's Puckstack user id from their session email
+ * 2. Look up the Offcoin member by the puckstack:<userId> alias
+ * 3. If found, add wallet:<walletAddress> alias to the member
+ * 4. Persist puckstackUserId to user DB record (for cross-device persistence)
+ * 5. Return member data including XP, level, and token balance
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Verify user is authenticated
@@ -33,11 +35,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(401, 'Not authenticated');
 	}
 
-	const { puckstackUserId, walletAddress } = await request.json();
-
-	if (!puckstackUserId || typeof puckstackUserId !== 'string') {
-		error(400, 'Puckstack User ID is required');
-	}
+	const { walletAddress } = await request.json();
 
 	if (!walletAddress || typeof walletAddress !== 'string') {
 		error(400, 'Wallet address is required');
@@ -51,14 +49,42 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(403, 'Wallet address does not match authenticated user');
 	}
 
-	// The Puckstack id comes from the request body and nothing above proves it
-	// belongs to the caller. Without this check three accounts ended up sharing
-	// one link, and the link decides where a grant lands, whose member an exit
-	// deletes, and which level the gates read — so a wrong one is not a display
-	// problem, it is someone else's economy.
+	// The Puckstack id is resolved here, never accepted from the caller.
 	//
-	// The database now enforces this too; the check exists so the caller gets an
-	// explanation rather than a constraint violation.
+	// It used to arrive in the request body, and nothing proved it belonged to
+	// whoever sent it — the id is visible in the workspace, so any member could
+	// name another's and, while it was still unlinked, attach their own wallet to
+	// that person's Offcoin member. The link decides where a grant lands, whose
+	// member an exit deletes and which level the gates read, so that was not a
+	// display problem, it was someone else's economy.
+	//
+	// A stored id came from this same resolution (or the Puckstack signup step,
+	// which uses it too), so it is already Puckstack's answer rather than a
+	// claim, and needs no second round trip.
+	let puckstackUserId = locals.user.puckstackUserId;
+	if (!puckstackUserId) {
+		const identity = await resolvePuckstackIdentity(
+			locals.user.email,
+			locals.user.puckstackInviteToken ?? undefined
+		);
+
+		if (identity.kind === 'invitation') {
+			// Puckstack has never seen this address. `resolvePuckstackIdentity` has
+			// just minted the join link they need, so this is a next step rather
+			// than a dead end.
+			error(409, 'Join the EcoHubs Puckstack workspace first, then connect.');
+		}
+		if (identity.kind === 'error') {
+			error(identity.status, `Could not confirm your Puckstack account: ${identity.message}`);
+		}
+
+		puckstackUserId = identity.userId;
+	}
+
+	// Defence in depth. Resolution is by email and emails are unique per account,
+	// so two accounts should never reach the same id — but the database enforces
+	// this and a caller deserves an explanation rather than a constraint
+	// violation.
 	const alreadyLinked = await db.query.user.findFirst({
 		where: eq(user.puckstackUserId, puckstackUserId)
 	});
@@ -138,6 +164,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		return json({
 			success: true,
+			// The client no longer supplies this, so it has to be told what the
+			// server resolved — it keys the member refresh on it.
+			puckstackUserId,
 			member: {
 				id: member.id,
 				name: member.name,

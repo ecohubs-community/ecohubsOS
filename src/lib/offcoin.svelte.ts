@@ -90,24 +90,18 @@ class OffcoinState {
 	 * Initialize from server-provided puckstackUserId.
 	 * Called on page load with data from +page.server.ts.
 	 *
-	 * Handles two migration scenarios:
-	 * 1. New device: server has puckstackUserId but localStorage doesn't → bootstrap from server
-	 * 2. Existing user: localStorage has puckstackUserId but server doesn't → migrate to server
+	 * The server is authoritative: it resolves the Puckstack id from the
+	 * member's email, so localStorage is only a cache that makes the first
+	 * paint instant.
 	 */
 	initFromServer(serverPuckstackUserId: string | null | undefined): void {
 		if (this._initialized) return;
 		this._initialized = true;
 
-		// Case 1: Already connected via localStorage
-		if (this.isConnected && this.puckstackUserId) {
-			// Migrate localStorage → server if server doesn't have it yet
-			if (!serverPuckstackUserId) {
-				this._migrateToServer(this.puckstackUserId);
-			}
-			return;
-		}
+		// Already connected from the cache — nothing to bootstrap.
+		if (this.isConnected && this.puckstackUserId) return;
 
-		// Case 2: Server has puckstackUserId but localStorage doesn't → bootstrap from server
+		// Server has the id but this device does not → bootstrap from server
 		if (serverPuckstackUserId) {
 			this.puckstackUserId = serverPuckstackUserId;
 			this.isConnected = true;
@@ -134,23 +128,13 @@ class OffcoinState {
 	}
 
 	/**
-	 * Migrate puckstackUserId from localStorage to server DB (one-time, fire-and-forget).
-	 * For existing users who connected Offcoin before server-side persistence was added.
+	 * Connect the caller's wallet to their Offcoin member.
+	 *
+	 * The Puckstack id is deliberately not a parameter: the server resolves it
+	 * from the session's email, because an id supplied here was a claim anyone
+	 * could make about anyone.
 	 */
-	private _migrateToServer(puckstackUserId: string): void {
-		fetch('/api/offcoin/migrate', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ puckstackUserId })
-		}).catch(() => {
-			// Silently fail — will retry on next page load
-		});
-	}
-
-	/**
-	 * Connect wallet to Offcoin via Puckstack User ID
-	 */
-	async connect(puckstackUserId: string, walletAddress: string): Promise<boolean> {
+	async connect(walletAddress: string): Promise<boolean> {
 		this.isLoading = true;
 		this.error = null;
 
@@ -158,7 +142,7 @@ class OffcoinState {
 			const response = await fetch('/api/offcoin/connect', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ puckstackUserId, walletAddress })
+				body: JSON.stringify({ walletAddress })
 			});
 
 			const data = await response.json();
@@ -170,12 +154,12 @@ class OffcoinState {
 
 			// Save connection
 			this.member = data.member;
-			this.puckstackUserId = puckstackUserId;
+			this.puckstackUserId = data.puckstackUserId;
 			this.isConnected = true;
 
 			saveConnection({
 				memberId: data.member.id,
-				puckstackUserId,
+				puckstackUserId: data.puckstackUserId,
 				connectedAt: new Date().toISOString()
 			});
 
