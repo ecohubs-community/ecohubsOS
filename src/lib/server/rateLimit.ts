@@ -71,7 +71,7 @@ export function getRemainingRequests(config: RateLimitConfig, identifier: string
 export const AUTH_RATE_LIMIT: RateLimitConfig = {
 	name: 'auth',
 	windowMs: 15 * 60 * 1000, // 15 minutes
-	maxRequests: 30 // 30 auth attempts per 15 minutes
+	maxRequests: 10 // 10 auth attempts per 15 minutes
 };
 
 export const API_RATE_LIMIT: RateLimitConfig = {

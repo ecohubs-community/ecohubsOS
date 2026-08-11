@@ -8,7 +8,6 @@ import { getMembershipVisibility } from '$lib/server/membership-visibility';
 import { env } from '$env/dynamic/private';
 import { isValidEmail, isValidLength, MAX_LENGTHS, sanitizeString } from '$lib/server/validation';
 import { apiLogger } from '$lib/server/logger';
-import { clientIp } from '$lib/server/client-ip';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { newApplicationMessage } from '$lib/server/discord-templates';
 import { createSystemProposal } from '$lib/server/voting/system-proposal';
@@ -160,8 +159,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 // POST - Submit new application (external, requires API key)
-export const POST: RequestHandler = async (event) => {
-	const { request } = event;
+export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 	const apiKey = request.headers.get('x-api-key');
 	const expectedApiKey = env.APPLICATIONS_API_KEY;
 
@@ -176,7 +174,8 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	// Rate limiting
-	if (!checkRateLimit(clientIp(event))) {
+	const clientIp = getClientAddress();
+	if (!checkRateLimit(clientIp)) {
 		return json(
 			{ success: false, message: 'Too many submissions. Please try again later.' },
 			{ status: 429 }

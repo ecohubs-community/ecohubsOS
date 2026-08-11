@@ -126,7 +126,7 @@ describe('predefined rate limit configs', () => {
 	it('AUTH_RATE_LIMIT has expected values', () => {
 		expect(AUTH_RATE_LIMIT.name).toBe('auth');
 		expect(AUTH_RATE_LIMIT.windowMs).toBe(15 * 60 * 1000); // 15 minutes
-		expect(AUTH_RATE_LIMIT.maxRequests).toBe(30);
+		expect(AUTH_RATE_LIMIT.maxRequests).toBe(10);
 	});
 
 	it('API_RATE_LIMIT has expected values', () => {
