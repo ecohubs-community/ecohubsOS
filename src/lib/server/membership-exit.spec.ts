@@ -194,12 +194,16 @@ describe('clearing the Offcoin economy', () => {
 	});
 
 	it('clears the local level snapshot, which gates a returning member', async () => {
-		const u = await seedUser(db, { offcoinXp: 900, offcoinLevel: 4 });
+		const u = await seedUser(db, { offcoinXp: 900, offcoinEco: 250, offcoinLevel: 4 });
 		await executeExit(u.id, 'Left', null);
 
 		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
 		expect(after.offcoinLevel).toBeNull();
 		expect(after.offcoinXp).toBeNull();
+		// The balance goes too. The Offcoin member it described has been deleted,
+		// so a figure left behind here is a claim about tokens that no longer
+		// exist — and the members table would show it as a real balance.
+		expect(after.offcoinEco).toBeNull();
 		expect(after.offcoinMemberId).toBeNull();
 	});
 
