@@ -113,12 +113,6 @@ class OSState {
 
 	constructor() {}
 
-	async logout() {
-		await fetch('/api/auth/logout', { method: 'POST' });
-		// The server will redirect to /login
-		window.location.href = '/login';
-	}
-
 	openApp(appId: string, deepLink?: unknown) {
 		this.showAllApps = false; // Close All Apps modal when opening an app
 		if (deepLink !== undefined) {
