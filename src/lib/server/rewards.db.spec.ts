@@ -49,7 +49,7 @@ function grantsBy(actorUserId: string) {
 
 async function pair() {
 	const actor = await seedUser(db);
-	const recipient = await seedUser(db, { puckstackUserId: 'ps-r' });
+	const recipient = await seedUser(db);
 	return { actor, recipient };
 }
 
@@ -155,7 +155,7 @@ describe('a grant that only half completes', () => {
 describe('who may receive', () => {
 	it('refuses a member who has left', async () => {
 		const actor = await seedUser(db);
-		const gone = await seedUser(db, { puckstackUserId: 'ps-x', membershipStatus: 'exited' });
+		const gone = await seedUser(db, { membershipStatus: 'exited' });
 
 		const result = await grantReward({
 			recipientUserId: gone.id,
@@ -217,7 +217,7 @@ describe('who may receive', () => {
 	});
 
 	it('refuses a self-grant before touching Offcoin', async () => {
-		const actor = await seedUser(db, { puckstackUserId: 'ps-a' });
+		const actor = await seedUser(db);
 
 		const result = await grantReward({
 			recipientUserId: actor.id,

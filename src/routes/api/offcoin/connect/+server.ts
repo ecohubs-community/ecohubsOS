@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json, error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
@@ -7,6 +7,16 @@ import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { offcoinLogger } from '$lib/server/logger';
+
+/**
+ * Whether a driver error is the unique index on `puckstack_user_id` refusing a
+ * second claim. better-sqlite3 reports these on `code`; the message is not
+ * stable enough to match on.
+ */
+function isUniqueViolation(err: unknown): boolean {
+	const code = (err as { code?: unknown })?.code;
+	return typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT_UNIQUE');
+}
 
 /**
  * Connect a wallet address to an Offcoin member via Puckstack User ID
@@ -88,26 +98,43 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					updatedAt: new Date()
 				})
 				.where(eq(user.id, locals.user.id));
-
-			// Linking is the first moment their level is knowable, and the figures
-			// were just fetched above — so seed the snapshot rather than waiting for
-			// a webhook that may not fire for months.
-			await saveOffcoinSnapshot(locals.user.id, {
-				memberId: member.id,
-				xp: xpData.xp,
-				level: xpData.level
-			});
-			offcoinLogger.info(
-				{ userId: locals.user.id, puckstackUserId },
-				'Persisted puckstackUserId to user record'
-			);
 		} catch (dbErr) {
+			// The 409 above is a check-then-act: two requests can both pass it and
+			// only one can win the unique index. Losing that race means the link is
+			// held by someone else, so this is the same refusal — reported as one.
+			// Swallowing it and returning success told the loser their link had
+			// landed when the row still points at another account.
+			if (isUniqueViolation(dbErr)) {
+				offcoinLogger.warn(
+					{ err: dbErr, userId: locals.user.id, puckstackUserId },
+					'Lost the race for a Puckstack link'
+				);
+				error(409, 'That Puckstack account is already linked to another member');
+			}
+
 			offcoinLogger.error(
 				{ err: dbErr, userId: locals.user.id, puckstackUserId },
 				'Failed to persist puckstackUserId to DB (non-fatal)'
 			);
 			// Non-fatal: connection still works via localStorage, will retry next connect
 		}
+
+		// Linking is the first moment their level is knowable, and the figures were
+		// just fetched above — so seed the snapshot rather than waiting for a
+		// webhook that may not fire for months. `saveOffcoinSnapshot` never throws
+		// and reports its own failures, so it sits outside the catch above.
+		await saveOffcoinSnapshot(locals.user.id, {
+			memberId: member.id,
+			xp: xpData.xp,
+			level: xpData.level,
+			// Already fetched for the response below; persisting it costs nothing
+			// and spares a newly linked member a null balance until the next sync.
+			eco: balanceData.balance
+		});
+		offcoinLogger.info(
+			{ userId: locals.user.id, puckstackUserId },
+			'Persisted puckstackUserId to user record'
+		);
 
 		return json({
 			success: true,
@@ -122,6 +149,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		});
 	} catch (err) {
+		// A refusal we already decided on — the 409 for a link held by someone
+		// else. Without this it would be relabelled as a 500 and the caller would
+		// be told the integration is broken rather than what actually happened.
+		if (isHttpError(err)) throw err;
+
 		if (err instanceof NotFoundError) {
 			error(
 				404,

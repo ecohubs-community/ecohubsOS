@@ -360,12 +360,26 @@
 										>
 											L{member.level}
 										</span>
-										<span class="font-mono text-[11px] text-amber-300/90" title="ECO balance">
-											{(member.eco ?? 0).toLocaleString()}
+										<!-- Each figure is nullable on its own: a member linked before the ECO
+										     column existed has a level and no balance. `?? 0` here would report an
+										     unavailable value as an earned one, which is the same lie the null
+										     level above is careful not to tell. -->
+										<span
+											class="font-mono text-[11px] {member.eco === null
+												? 'text-white/20'
+												: 'text-amber-300/90'}"
+											title={member.eco === null ? 'No ECO balance synced yet' : 'ECO balance'}
+										>
+											{member.eco === null ? '--' : member.eco.toLocaleString()}
 										</span>
 										<span class="text-white/15">/</span>
-										<span class="font-mono text-[11px] text-green-300/90" title="XP">
-											{(member.xp ?? 0).toLocaleString()}
+										<span
+											class="font-mono text-[11px] {member.xp === null
+												? 'text-white/20'
+												: 'text-green-300/90'}"
+											title={member.xp === null ? 'No XP synced yet' : 'XP'}
+										>
+											{member.xp === null ? '--' : member.xp.toLocaleString()}
 										</span>
 									</div>
 								{/if}
