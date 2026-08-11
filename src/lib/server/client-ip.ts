@@ -8,8 +8,14 @@
  * behind a proxy is the *proxy* for every member — one shared rate-limit bucket
  * for the whole community, which is exactly how logout came to 429.
  *
- * So we resolve it here instead, with working defaults and the same variable
- * names as overrides.
+ * So we resolve it here instead, with working defaults and `CLIENT_IP_*`
+ * overrides.
+ *
+ * Those names deliberately do **not** match adapter-node's. Sharing them would
+ * mean configuring this helper also reconfigures `getClientAddress()` to return
+ * a *header-derived* value — and the trusted-peer check below would then be
+ * reading an address the caller supplied, which is the whole thing it exists to
+ * avoid. adapter-node's own `ADDRESS_HEADER` must stay unset; this replaces it.
  *
  * The load-bearing rule is that **a forwarding header is only evidence when it
  * comes from a proxy we put there ourselves**. Anyone can send
@@ -24,11 +30,19 @@ import { env } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
 import { apiLogger } from '$lib/server/logger';
 
-/** Overridden by `ADDRESS_HEADER`. */
+/** Overridden by `CLIENT_IP_HEADER`. */
 const DEFAULT_ADDRESS_HEADER = 'x-forwarded-for';
 
 /**
- * Overridden by `XFF_DEPTH`: the number of trusted proxies in front of the app.
+ * A valid HTTP field name (RFC 7230 token). `Headers.get` throws a `TypeError`
+ * on anything else, so an operator's typo in `CLIENT_IP_HEADER` would take down
+ * every endpoint this guards.
+ */
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+/**
+ * Overridden by `CLIENT_IP_PROXY_DEPTH`: the number of trusted proxies in front
+ * of the app.
  *
  * The depth is counted from the *right* of the chain, because only the entries
  * your own proxies appended are trustworthy — everything to their left was sent
@@ -45,18 +59,35 @@ const DEFAULT_XFF_DEPTH = 1;
 const UNKNOWN = 'unknown';
 
 function xffDepth(): number {
-	const raw = env.XFF_DEPTH;
+	const raw = env.CLIENT_IP_PROXY_DEPTH;
 	if (!raw) return DEFAULT_XFF_DEPTH;
 
 	const parsed = Number(raw);
 	if (!Number.isInteger(parsed) || parsed < 1) {
 		apiLogger.warn(
-			{ XFF_DEPTH: raw, using: DEFAULT_XFF_DEPTH },
-			'XFF_DEPTH must be a positive integer; falling back to the default'
+			{ CLIENT_IP_PROXY_DEPTH: raw, using: DEFAULT_XFF_DEPTH },
+			'CLIENT_IP_PROXY_DEPTH must be a positive integer; falling back to the default'
 		);
 		return DEFAULT_XFF_DEPTH;
 	}
 	return parsed;
+}
+
+/**
+ * The header to read, guaranteed safe to pass to `Headers.get`.
+ */
+function addressHeader(): string {
+	const configured = env.CLIENT_IP_HEADER?.trim().toLowerCase();
+	if (!configured) return DEFAULT_ADDRESS_HEADER;
+
+	if (!HEADER_NAME.test(configured)) {
+		apiLogger.warn(
+			{ CLIENT_IP_HEADER: env.CLIENT_IP_HEADER, using: DEFAULT_ADDRESS_HEADER },
+			'CLIENT_IP_HEADER is not a valid header name; falling back to the default'
+		);
+		return DEFAULT_ADDRESS_HEADER;
+	}
+	return configured;
 }
 
 /**
@@ -131,7 +162,7 @@ export function clientIp(event: Pick<RequestEvent, 'request' | 'getClientAddress
 	// forwarding headers, if any, are ignored.
 	if (!isTrustedPeer(peer)) return peer ?? UNKNOWN;
 
-	const header = (env.ADDRESS_HEADER || DEFAULT_ADDRESS_HEADER).toLowerCase();
+	const header = addressHeader();
 	const raw = event.request.headers.get(header);
 	if (!raw) return peer ?? UNKNOWN;
 
