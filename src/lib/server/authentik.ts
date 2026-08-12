@@ -145,6 +145,71 @@ export async function createAuthentikInvitation(
 }
 
 // ---------------------------------------------------------------------------
+// RP-initiated logout (OIDC front-channel).
+//
+// Signing out of the OS only destroys the *local* session. Authentik keeps its
+// own, on its own domain, so the next "Sign in with Authentik" is answered
+// silently and the member appears never to have left — which reads as a broken
+// logout button, and on a shared machine is worse than that.
+//
+// This ends the Authentik session too, so logout means logout. It signs the
+// member out of every application behind the same SSO, which is the intent.
+// ---------------------------------------------------------------------------
+
+/** Discovery is stable for the life of the process; one fetch is enough. */
+let endSessionEndpoint: string | null = null;
+
+async function getEndSessionEndpoint(): Promise<string | null> {
+	if (endSessionEndpoint) return endSessionEndpoint;
+
+	const issuerUrl = env.AUTHENTIK_ISSUER_URL;
+	if (!issuerUrl) {
+		authentikLogger.error('AUTHENTIK_ISSUER_URL is not configured');
+		return null;
+	}
+
+	try {
+		const res = await fetch(`${issuerUrl.replace(/\/+$/, '')}/.well-known/openid-configuration`);
+		if (!res.ok) {
+			authentikLogger.error({ status: res.status }, 'OIDC discovery failed');
+			return null;
+		}
+		const doc = (await res.json()) as { end_session_endpoint?: string };
+		if (!doc.end_session_endpoint) {
+			authentikLogger.error('OIDC discovery has no end_session_endpoint');
+			return null;
+		}
+		endSessionEndpoint = doc.end_session_endpoint;
+		return endSessionEndpoint;
+	} catch (err) {
+		authentikLogger.error({ err }, 'Could not read OIDC discovery');
+		return null;
+	}
+}
+
+/**
+ * Where to send the browser to end the Authentik session, or null when that
+ * cannot be determined — the caller should still complete the local sign-out
+ * rather than leaving the member logged in because discovery was unreachable.
+ *
+ * `id_token_hint` is what lets Authentik skip its "are you sure?" confirmation
+ * and honour `post_logout_redirect_uri`. Without it the member still gets
+ * logged out, but has to click through a page and may not land back here.
+ */
+export async function buildSsoLogoutUrl(
+	idToken: string | null,
+	postLogoutRedirectUri: string
+): Promise<string | null> {
+	const endpoint = await getEndSessionEndpoint();
+	if (!endpoint) return null;
+
+	const url = new URL(endpoint);
+	url.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);
+	if (idToken) url.searchParams.set('id_token_hint', idToken);
+	return url.toString();
+}
+
+// ---------------------------------------------------------------------------
 // Admin API helpers (groups + users) — used for in-app group assignment.
 // Requires AUTHENTIK_INVITATION_BOT_API_TOKEN to have group/user read +
 // group-membership write scope.
