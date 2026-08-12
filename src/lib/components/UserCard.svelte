@@ -36,11 +36,33 @@
 
 	async function handleLogout() {
 		isLoadingLogout = true;
+
+		// Ask where to end the Authentik session *before* signing out — the id
+		// token is looked up by user id, and after sign-out there is no session to
+		// look it up with.
+		//
+		// Clearing only the local session left Authentik's own session alive, so
+		// the next "Sign in with Authentik" was answered silently and the member
+		// appeared never to have logged out at all.
+		let ssoLogoutUrl: string | null = null;
+		try {
+			const res = await fetch('/api/sso-logout');
+			if (res.ok) ssoLogoutUrl = (await res.json()).url ?? null;
+		} catch {
+			// Fall through to a local-only logout.
+		}
+
 		try {
 			await authClient.signOut();
 			auth.clearUser();
 		} catch {
 			// Ignore errors
+		}
+
+		// A full page navigation, not `goto` — the destination is another origin.
+		if (ssoLogoutUrl) {
+			window.location.href = ssoLogoutUrl;
+			return;
 		}
 		goto('/login');
 	}
