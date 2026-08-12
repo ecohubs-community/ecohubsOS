@@ -45,8 +45,9 @@
 		onboardingProgress: string;
 		onboardingStartedAt: string | null;
 		onboardingCompletedAt: string | null;
-		xp: number;
-		eco: number;
+		xp: number | null;
+		eco: number | null;
+		level: number | null;
 		avatarUrl: string | null;
 		walletAddress: string | null;
 		introWatchedAt: string | null;
@@ -221,7 +222,7 @@
 
 			<!-- Onboarding filter tabs -->
 			<div class="mb-4 flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
-				{#each FILTERS as filter}
+				{#each FILTERS as filter (filter)}
 					{@const count =
 						filter === 'All'
 							? members.length
@@ -257,7 +258,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-white/5">
-					{#each filteredMembers as member}
+					{#each filteredMembers as member (member.id)}
 						{@const role = resolveRole(member.groups)}
 						<tr class="group transition-colors hover:bg-white/5">
 							<td class="px-4 py-2">
@@ -342,6 +343,44 @@
 												{/if}
 											</button>
 										{/each}
+									</div>
+								{/if}
+							</td>
+							<td class="px-4 py-2">
+								{#if member.pendingLogin || member.level === null}
+									<!-- Null is "never synced", not level 0. Offcoin accounts start at 0, so a
+									     zero here would state something about the member we never looked up. -->
+									<span class="text-xs text-white/20" title="No Offcoin figures synced yet">--</span
+									>
+								{:else}
+									<div class="flex items-center gap-1.5 whitespace-nowrap">
+										<span
+											class="rounded border border-violet-400/25 bg-violet-400/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-300"
+											title="Offcoin level"
+										>
+											L{member.level}
+										</span>
+										<!-- Each figure is nullable on its own: a member linked before the ECO
+										     column existed has a level and no balance. `?? 0` here would report an
+										     unavailable value as an earned one, which is the same lie the null
+										     level above is careful not to tell. -->
+										<span
+											class="font-mono text-[11px] {member.eco === null
+												? 'text-white/20'
+												: 'text-amber-300/90'}"
+											title={member.eco === null ? 'No ECO balance synced yet' : 'ECO balance'}
+										>
+											{member.eco === null ? '--' : member.eco.toLocaleString()}
+										</span>
+										<span class="text-white/15">/</span>
+										<span
+											class="font-mono text-[11px] {member.xp === null
+												? 'text-white/20'
+												: 'text-green-300/90'}"
+											title={member.xp === null ? 'No XP synced yet' : 'XP'}
+										>
+											{member.xp === null ? '--' : member.xp.toLocaleString()}
+										</span>
 									</div>
 								{/if}
 							</td>

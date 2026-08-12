@@ -35,7 +35,10 @@ export const user = sqliteTable('user', {
 	safeRoleStatus: text('safe_role_status'),
 
 	// Offcoin / Puckstack connection
-	puckstackUserId: text('puckstack_user_id'),
+	// Unique: one Offcoin member per account. Without this three accounts shared
+	// one link, so grants, exits and level gates all followed the wrong member.
+	// Nullable, and SQLite treats NULLs as distinct, so unlinked accounts are fine.
+	puckstackUserId: text('puckstack_user_id').unique(),
 	// Active Puckstack invitation token while onboarding is in progress.
 	// Persisted across sessions so the verify step still works when the
 	// user closes the PuckstackSignup window between handleJoin and accept.
@@ -101,6 +104,7 @@ export const user = sqliteTable('user', {
 	// silently demote the community, so reads fall back to these values.
 	offcoinMemberId: text('offcoin_member_id'),
 	offcoinXp: integer('offcoin_xp'),
+	offcoinEco: integer('offcoin_eco'),
 	offcoinLevel: integer('offcoin_level'),
 	offcoinSyncedAt: integer('offcoin_synced_at', { mode: 'timestamp' })
 });

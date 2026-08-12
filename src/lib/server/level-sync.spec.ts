@@ -18,7 +18,7 @@ vi.mock('$lib/server/db', () => ({ db }));
 class NotFound extends Error {}
 vi.mock('@offcoin/sdk', () => ({ NotFoundError: NotFound }));
 
-const members = vi.hoisted(() => ({ getXp: vi.fn() }));
+const members = vi.hoisted(() => ({ getXp: vi.fn(), getBalance: vi.fn() }));
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
 	memberAlias: (id: string) => `puckstack:ws:${id}`
@@ -32,6 +32,7 @@ const asTrial = JSON.stringify([]);
 beforeEach(() => {
 	vi.clearAllMocks();
 	members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 0, level: 0 });
+	members.getBalance.mockResolvedValue({ balance: 0 });
 });
 
 describe('syncing', () => {
@@ -105,6 +106,7 @@ describe('the report', () => {
 		// The question this run exists to answer.
 		const u = await seedUser(db, { groups: asMember });
 		members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 0, level: 0 });
+		members.getBalance.mockResolvedValue({ balance: 0 });
 
 		const result = await syncOffcoinLevels(null, true);
 
