@@ -33,7 +33,8 @@ vi.mock('@offcoin/sdk', () => ({ NotFoundError: NotFound }));
 const offcoinMembers = vi.hoisted(() => ({ get: vi.fn(), delete: vi.fn() }));
 const offcoin = vi.hoisted(() => ({
 	getOffcoinClient: vi.fn(),
-	memberAlias: vi.fn((id: string) => `puckstack:ws:${id}`)
+	memberAlias: vi.fn((id: string) => `puckstack:ws:${id}`),
+	withMemberAlias: vi.fn((id: string, op: (alias: string) => unknown) => op(`puckstack:ws:${id}`))
 }));
 vi.mock('$lib/server/offcoin', () => offcoin);
 

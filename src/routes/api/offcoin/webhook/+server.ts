@@ -7,7 +7,7 @@ import { db } from '$lib/server/db';
 import { user as userTable, membershipEvents } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { POLICY, ROLE_GROUPS, resolveRole } from '$lib/policy';
-import { memberAlias, getOffcoinClient } from '$lib/server/offcoin';
+import { parsePuckstackUserId, getOffcoinClient } from '$lib/server/offcoin';
 import {
 	getAuthentikGroupByName,
 	getAuthentikUserByEmail,
@@ -114,14 +114,15 @@ async function findUserForMember(memberId: string) {
 		return null;
 	}
 
-	// Match the alias we would build ourselves, so a member belonging to a
-	// different Puckstack workspace can never resolve to one of our accounts.
+	// Accept either alias shape. Reading only the scoped one lost every member
+	// Puckstack created before it started scoping — the first XP event for them
+	// resolved to no local user, so the snapshot was never written and the
+	// level-up that should have promoted them was dropped on the floor. The
+	// workspace check still lives in `parsePuckstackUserId`, so a member of
+	// another workspace is rejected exactly as before.
 	const puckstackUserId = aliases
-		.map((alias) => {
-			const parts = alias.split(':');
-			return parts.length === 3 && parts[0] === 'puckstack' ? parts[2] : null;
-		})
-		.find((id): id is string => id !== null && aliases.includes(memberAlias(id)));
+		.map(parsePuckstackUserId)
+		.find((id): id is string => id !== null);
 
 	if (!puckstackUserId) return null;
 

@@ -22,7 +22,7 @@ import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
 import { NotFoundError } from '@offcoin/sdk';
 import { POLICY, parseGroupsJson, resolveRole, type Role } from '$lib/policy';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { offcoinLogger } from '$lib/server/logger';
 
@@ -89,13 +89,20 @@ export async function syncOffcoinLevels(
 		}
 
 		try {
-			const alias = memberAlias(u.puckstackUserId);
 			// Balance alongside level: this is the one run that visits every member,
 			// so fetching both here spares a second sweep for the members list.
-			const [xpData, balanceData] = await Promise.all([
-				offcoin.members.getXp(alias),
-				offcoin.members.getBalance(alias)
-			]);
+			//
+			// Both inside the alias fallback, not just the level read: they have to
+			// describe the same member, so a fallback to the legacy alias must take
+			// the balance with it rather than leave it pointed at an alias that
+			// resolved to nothing.
+			const { xpData, balanceData } = await withMemberAlias(u.puckstackUserId, async (alias) => {
+				const [xpData, balanceData] = await Promise.all([
+					offcoin.members.getXp(alias),
+					offcoin.members.getBalance(alias)
+				]);
+				return { xpData, balanceData };
+			});
 			const role = resolveRole(parseGroupsJson(u.groups));
 
 			result.members.push({

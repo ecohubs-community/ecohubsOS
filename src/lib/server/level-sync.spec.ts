@@ -21,7 +21,10 @@ vi.mock('@offcoin/sdk', () => ({ NotFoundError: NotFound }));
 const members = vi.hoisted(() => ({ getXp: vi.fn(), getBalance: vi.fn() }));
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
-	memberAlias: (id: string) => `puckstack:ws:${id}`
+	memberAlias: (id: string) => `puckstack:ws:${id}`,
+	// The alias fallback has its own tests in offcoin.spec.ts; here it just has
+	// to hand the operation the alias it would have used.
+	withMemberAlias: (id: string, op: (alias: string) => unknown) => op(`puckstack:ws:${id}`)
 }));
 
 const { syncOffcoinLevels } = await import('./level-sync');

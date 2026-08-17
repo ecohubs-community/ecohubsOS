@@ -10,9 +10,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const members = vi.hoisted(() => ({ get: vi.fn(), getXp: vi.fn(), getBalance: vi.fn(), addAlias: vi.fn() }));
+// Controllable so a test can drive the legacy-alias path. Which alias wins is
+// covered in offcoin.spec.ts; what matters here is that the route threads
+// whichever one resolved through every Offcoin call instead of rebuilding it.
+const withMemberAlias = vi.hoisted(() =>
+	vi.fn((id: string, op: (alias: string) => unknown) => op(`puckstack:ws:${id}`))
+);
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
-	memberAlias: (id: string) => `puckstack:ws:${id}`
+	memberAlias: (id: string) => `puckstack:ws:${id}`,
+	withMemberAlias
 }));
 
 const snapshot = vi.hoisted(() => ({ saveOffcoinSnapshot: vi.fn(async () => true) }));
@@ -56,6 +63,11 @@ const call = (args: any) => (POST as any)(args);
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	// Explicit: `clearAllMocks` clears recorded calls but leaves a
+	// `mockImplementation` from a previous test in place.
+	withMemberAlias.mockImplementation((id: string, op: (alias: string) => unknown) =>
+		op(`puckstack:ws:${id}`)
+	);
 	members.get.mockResolvedValue({ id: 'oc-1', name: 'Me', aliases: [] });
 	members.getXp.mockResolvedValue({ xp: 900, level: 5 });
 	members.getBalance.mockResolvedValue({ balance: 10 });
@@ -127,6 +139,26 @@ describe('resolving whose account to link', () => {
 			status: 502
 		});
 		expect(members.addAlias).not.toHaveBeenCalled();
+	});
+});
+
+describe('every Offcoin call uses the alias that resolved', () => {
+	// The member read, the wallet write and both figure reads have to describe
+	// one member. Rebuilding the alias per call would let a fallback attach the
+	// wallet to the member that resolved while reading XP from one that did not
+	// — and the wallet write is the half that does not undo itself.
+	it.each([
+		['the scoped alias', 'puckstack:ws:ps-mine'],
+		['the legacy alias', 'puckstack:ps-mine']
+	])('threads %s through all four operations', async (_label, alias) => {
+		withMemberAlias.mockImplementation((_id: string, op: (a: string) => unknown) => op(alias));
+
+		await call({ request: request(), locals: locals() });
+
+		expect(members.get).toHaveBeenCalledWith(alias);
+		expect(members.addAlias).toHaveBeenCalledWith(alias, `wallet:${WALLET}`);
+		expect(members.getXp).toHaveBeenCalledWith(alias);
+		expect(members.getBalance).toHaveBeenCalledWith(alias);
 	});
 });
 

@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { isNotNull } from 'drizzle-orm';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { isAtLeastRole, parseGroupsJson, resolveRole } from '$lib/policy';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { env } from '$env/dynamic/private';
@@ -50,12 +50,17 @@ export const GET: RequestHandler = async ({ request }) => {
 		const offcoinResults = await Promise.allSettled(
 			published.map(async (member) => {
 				if (!member.puckstackUserId) return null;
-				const alias = memberAlias(member.puckstackUserId);
-				const [memberData, xpData, balanceData] = await Promise.all([
-					offcoin.members.get(alias),
-					offcoin.members.getXp(alias),
-					offcoin.members.getBalance(alias)
-				]);
+				const { memberData, xpData, balanceData } = await withMemberAlias(
+					member.puckstackUserId,
+					async (alias) => {
+						const memberData = await offcoin.members.get(alias);
+						const [xpData, balanceData] = await Promise.all([
+							offcoin.members.getXp(alias),
+							offcoin.members.getBalance(alias)
+						]);
+						return { memberData, xpData, balanceData };
+					}
+				);
 				return {
 					userId: member.id,
 					name: memberData.name,

@@ -68,6 +68,15 @@ class OffcoinState {
 	// Derived values for easy access
 	xp = $derived(this.member?.xp ?? 0);
 	level = $derived(this.member?.level ?? 0);
+	/**
+	 * Whether the figures above are Offcoin's or just the fallbacks.
+	 *
+	 * A failed refresh leaves `member` null while `isConnected` stays true, and
+	 * every reader coalesces that to 0 — so a member whose lookup broke was shown
+	 * "Lvl 0" as though it were their level. Callers that display the numbers
+	 * check this first; the gates keep using the server-side snapshot.
+	 */
+	hasMemberData = $derived(this.member !== null);
 	eco = $derived(this.member?.eco ?? 0);
 	role = $derived(this.member?.role ?? 'Member');
 	name = $derived(this.member?.name ?? 'Anonymous');
@@ -187,9 +196,23 @@ class OffcoinState {
 			if (response.ok) {
 				const data = await response.json();
 				this.member = data.member;
+				this.error = null;
+			} else if (response.status === 404) {
+				// A definitive answer: no Offcoin member resolves for this account.
+				// Anything we are still holding describes a member that is not
+				// theirs, so it is dropped — this is the case that used to surface
+				// as a confident "Lvl 0" instead of "we could not read this".
+				this.member = null;
+				this.error = 'No Offcoin member is linked to this account.';
+			} else {
+				// Deliberately keeps whatever we last read. A 500 or a dropped
+				// connection says nothing about the member, and blanking a card that
+				// is showing figures we genuinely fetched would make a passing blip
+				// look like a lost account.
+				this.error = 'Could not load your Offcoin XP right now.';
 			}
 		} catch {
-			// Silently fail refresh
+			this.error = 'Could not load your Offcoin XP right now.';
 		} finally {
 			this.isLoading = false;
 		}

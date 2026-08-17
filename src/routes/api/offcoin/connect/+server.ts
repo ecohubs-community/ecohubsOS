@@ -1,6 +1,6 @@
 import { json, error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { NotFoundError } from '@offcoin/sdk';
 import { db } from '$lib/server/db';
@@ -98,22 +98,30 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	try {
 		const offcoin = getOffcoinClient();
-		const alias = memberAlias(puckstackUserId);
 
-		// Get member by Puckstack alias
-		const member = await offcoin.members.get(alias);
+		const { member, xpData, balanceData } = await withMemberAlias(
+			puckstackUserId,
+			async (alias) => {
+				// Get member by Puckstack alias
+				const member = await offcoin.members.get(alias);
 
-		// Add wallet alias if not already present
-		const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
-		if (!member.aliases?.includes(walletAlias)) {
-			await offcoin.members.addAlias(alias, walletAlias);
-		}
+				// Add wallet alias if not already present. Safe inside the retry:
+				// this only runs once `members.get` has confirmed the alias, so a
+				// fallback never leaves a wallet attached to a member we then
+				// abandoned.
+				const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
+				if (!member.aliases?.includes(walletAlias)) {
+					await offcoin.members.addAlias(alias, walletAlias);
+				}
 
-		// Get XP/level and token balance in parallel
-		const [xpData, balanceData] = await Promise.all([
-			offcoin.members.getXp(alias),
-			offcoin.members.getBalance(alias)
-		]);
+				// Get XP/level and token balance in parallel
+				const [xpData, balanceData] = await Promise.all([
+					offcoin.members.getXp(alias),
+					offcoin.members.getBalance(alias)
+				]);
+				return { member, xpData, balanceData };
+			}
+		);
 
 		// Persist puckstackUserId to user DB record for cross-device persistence
 		try {

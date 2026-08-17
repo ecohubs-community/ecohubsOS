@@ -14,10 +14,18 @@ import * as schema from './db/schema';
 const { db } = createTestDb();
 vi.mock('$lib/server/db', () => ({ db }));
 
+class NotFound extends Error {}
+vi.mock('@offcoin/sdk', () => ({ NotFoundError: NotFound }));
+
 const members = vi.hoisted(() => ({ addTokens: vi.fn(), addXp: vi.fn() }));
+// Controllable so the tests can drive resolution failure, which is what decides
+// whether a grant is refused before either non-idempotent call goes out. The
+// two-alias fallback behind it is covered in offcoin.spec.ts.
+const resolveMemberAlias = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
-	memberAlias: (id: string) => `puckstack:ws:${id}`
+	memberAlias: (id: string) => `puckstack:ws:${id}`,
+	resolveMemberAlias
 }));
 
 const discord = vi.hoisted(() => ({ sendDiscordMessage: vi.fn(async () => true) }));
@@ -29,6 +37,7 @@ const REASON = 'Ran the community call all quarter';
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	resolveMemberAlias.mockImplementation(async (id: string) => `puckstack:ws:${id}`);
 	members.addTokens.mockResolvedValue({ transactionId: 'eco-tx' });
 	members.addXp.mockResolvedValue({
 		transactionId: 'xp-tx',
@@ -134,6 +143,43 @@ describe('a grant that only half completes', () => {
 			offcoinXpTxId: 'xp-tx'
 		});
 		expect(await xpGrantedToday(actor.id)).toBe(15);
+	});
+
+	it('sends nothing when no alias resolves, and says the record is missing', async () => {
+		const { actor, recipient } = await pair();
+		resolveMemberAlias.mockRejectedValue(new NotFound('Member not found'));
+
+		const result = await grantReward({
+			recipientUserId: recipient.id,
+			actorUserId: actor.id,
+			eco: 10,
+			reason: REASON
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain('no Offcoin record');
+		expect(members.addTokens).not.toHaveBeenCalled();
+		expect(members.addXp).not.toHaveBeenCalled();
+		expect(await grantsBy(actor.id)).toHaveLength(0);
+	});
+
+	it('distinguishes an outage from a missing member', async () => {
+		// Both refuse the grant, but only one is a statement about the member.
+		// Telling a steward "no Offcoin record" during an outage sends them off to
+		// repair a link that was never broken.
+		const { actor, recipient } = await pair();
+		resolveMemberAlias.mockRejectedValue(new Error('connection reset'));
+
+		const result = await grantReward({
+			recipientUserId: recipient.id,
+			actorUserId: actor.id,
+			eco: 10,
+			reason: REASON
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain('unreachable');
+		expect(members.addTokens).not.toHaveBeenCalled();
 	});
 
 	it('writes nothing when Offcoin refuses the first call', async () => {
