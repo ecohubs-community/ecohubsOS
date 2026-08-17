@@ -197,14 +197,19 @@ class OffcoinState {
 				const data = await response.json();
 				this.member = data.member;
 				this.error = null;
+			} else if (response.status === 404) {
+				// A definitive answer: no Offcoin member resolves for this account.
+				// Anything we are still holding describes a member that is not
+				// theirs, so it is dropped — this is the case that used to surface
+				// as a confident "Lvl 0" instead of "we could not read this".
+				this.member = null;
+				this.error = 'No Offcoin member is linked to this account.';
 			} else {
-				// Recorded rather than swallowed. A 404 here means the alias did not
-				// resolve, which is precisely the case that used to surface as a
-				// confident "Lvl 0" instead of "we could not read this".
-				this.error =
-					response.status === 404
-						? 'No Offcoin member is linked to this account.'
-						: 'Could not load your Offcoin XP right now.';
+				// Deliberately keeps whatever we last read. A 500 or a dropped
+				// connection says nothing about the member, and blanking a card that
+				// is showing figures we genuinely fetched would make a passing blip
+				// look like a lost account.
+				this.error = 'Could not load your Offcoin XP right now.';
 			}
 		} catch {
 			this.error = 'Could not load your Offcoin XP right now.';

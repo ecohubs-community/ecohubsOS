@@ -17,6 +17,7 @@ import { rewardGrants, user as userTable } from '$lib/server/db/schema';
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { POLICY } from '$lib/policy';
 import { getOffcoinClient, resolveMemberAlias } from '$lib/server/offcoin';
+import { NotFoundError } from '@offcoin/sdk';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { recordParticipation } from '$lib/server/participation';
 import { apiLogger } from '$lib/server/logger';
@@ -136,7 +137,16 @@ export async function grantReward(input: GrantInput): Promise<GrantResult> {
 		alias = await resolveMemberAlias(recipient.puckstackUserId);
 	} catch (err) {
 		apiLogger.error({ err, recipientId: recipient.id }, 'Offcoin member could not be resolved');
-		return { ok: false, error: 'This member has no Offcoin record' };
+		// Only a NotFoundError is a statement about the member. Reporting an
+		// outage as "no Offcoin record" sends a steward off to fix a link that
+		// was never broken, and invites them to create a duplicate member.
+		return {
+			ok: false,
+			error:
+				err instanceof NotFoundError
+					? 'This member has no Offcoin record'
+					: 'Offcoin is unreachable — the grant was not sent. Try again shortly.'
+		};
 	}
 
 	let ecoTxId: string | null = null;
