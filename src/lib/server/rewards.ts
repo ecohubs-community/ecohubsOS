@@ -16,7 +16,7 @@ import { db } from '$lib/server/db';
 import { rewardGrants, user as userTable } from '$lib/server/db/schema';
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { POLICY } from '$lib/policy';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, resolveMemberAlias } from '$lib/server/offcoin';
 import { sendDiscordMessage } from '$lib/server/discord';
 import { recordParticipation } from '$lib/server/participation';
 import { apiLogger } from '$lib/server/logger';
@@ -127,8 +127,17 @@ export async function grantReward(input: GrantInput): Promise<GrantResult> {
 		return { ok: false, error: 'This member has left the community' };
 	}
 
-	const alias = memberAlias(recipient.puckstackUserId);
 	const offcoin = getOffcoinClient();
+
+	// Settled up front rather than per call: the two grants below are not
+	// idempotent, so the alias must not still be in question once ECO has moved.
+	let alias: string;
+	try {
+		alias = await resolveMemberAlias(recipient.puckstackUserId);
+	} catch (err) {
+		apiLogger.error({ err, recipientId: recipient.id }, 'Offcoin member could not be resolved');
+		return { ok: false, error: 'This member has no Offcoin record' };
+	}
 
 	let ecoTxId: string | null = null;
 	let xpTxId: string | null = null;

@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { NotFoundError } from '@offcoin/sdk';
 
@@ -34,16 +34,25 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	try {
 		const offcoin = getOffcoinClient();
-		const alias = memberAlias(puckstackUserId);
 
-		// Get member data
-		const member = await offcoin.members.get(alias);
-
-		// Get XP/level and token balance in parallel
-		const [xpData, balanceData] = await Promise.all([
-			offcoin.members.getXp(alias),
-			offcoin.members.getBalance(alias)
-		]);
+		// The whole read is wrapped, not just the first call: all three must
+		// address the same member, so a fallback has to take the balance and XP
+		// with it rather than leaving them pointed at an alias that resolved to
+		// nothing.
+		const { member, xpData, balanceData } = await withMemberAlias(
+			puckstackUserId,
+			async (alias) => {
+				// Sequential: `members.get` is the cheap probe that tells us this
+				// alias resolves. Firing all three at once would send two doomed
+				// requests per member on the fallback path.
+				const member = await offcoin.members.get(alias);
+				const [xpData, balanceData] = await Promise.all([
+					offcoin.members.getXp(alias),
+					offcoin.members.getBalance(alias)
+				]);
+				return { member, xpData, balanceData };
+			}
+		);
 
 		// The figures are already in hand, so keep them. Without this the gates
 		// read a null level for anyone who has never had a webhook or a grant.

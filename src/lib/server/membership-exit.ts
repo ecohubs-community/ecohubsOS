@@ -28,7 +28,7 @@ import {
 } from '$lib/server/authentik';
 import { unsubscribeFromNewsletter } from '$lib/server/listmonk';
 import { NotFoundError } from '@offcoin/sdk';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { removeDiscordMemberRole } from '$lib/server/discord';
 import { apiLogger } from '$lib/server/logger';
 
@@ -178,7 +178,9 @@ export async function executeExit(
 	//    them past trial on arrival.
 	if (member.puckstackUserId) {
 		try {
-			await getOffcoinClient().members.delete(memberAlias(member.puckstackUserId));
+			await withMemberAlias(member.puckstackUserId, (alias) =>
+				getOffcoinClient().members.delete(alias)
+			);
 			result.offcoinMemberDeleted = true;
 		} catch (err) {
 			// Already gone is the outcome we wanted.
@@ -220,7 +222,7 @@ export async function executeExit(
 /** Read the Discord user id back out of the member's Offcoin aliases. */
 async function findDiscordUserId(puckstackUserId: string | null): Promise<string | null> {
 	if (!puckstackUserId) return null;
-	const member = await getOffcoinClient().members.get(memberAlias(puckstackUserId));
+	const member = await withMemberAlias(puckstackUserId, (a) => getOffcoinClient().members.get(a));
 	const alias = (member.aliases ?? []).find((a: string) => a.startsWith('discord:'));
 	return alias ? alias.slice('discord:'.length) : null;
 }

@@ -22,7 +22,7 @@ import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
 import { NotFoundError } from '@offcoin/sdk';
 import { POLICY, parseGroupsJson, resolveRole, type Role } from '$lib/policy';
-import { getOffcoinClient, memberAlias } from '$lib/server/offcoin';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
 import { offcoinLogger } from '$lib/server/logger';
 
@@ -88,7 +88,9 @@ export async function syncOffcoinLevels(
 		}
 
 		try {
-			const xpData = await offcoin.members.getXp(memberAlias(u.puckstackUserId));
+			const xpData = await withMemberAlias(u.puckstackUserId, (alias) =>
+				offcoin.members.getXp(alias)
+			);
 			const role = resolveRole(parseGroupsJson(u.groups));
 
 			result.members.push({

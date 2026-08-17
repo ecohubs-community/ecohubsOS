@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const members = vi.hoisted(() => ({ get: vi.fn(), getXp: vi.fn(), getBalance: vi.fn() }));
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
-	memberAlias: (id: string) => `puckstack:ws:${id}`
+	memberAlias: (id: string) => `puckstack:ws:${id}`,
+	withMemberAlias: (id: string, op: (alias: string) => unknown) => op(`puckstack:ws:${id}`)
 }));
 
 const snapshot = vi.hoisted(() => ({ saveOffcoinSnapshot: vi.fn(async () => true) }));

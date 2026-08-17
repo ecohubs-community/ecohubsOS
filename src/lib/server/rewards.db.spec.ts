@@ -17,7 +17,10 @@ vi.mock('$lib/server/db', () => ({ db }));
 const members = vi.hoisted(() => ({ addTokens: vi.fn(), addXp: vi.fn() }));
 vi.mock('$lib/server/offcoin', () => ({
 	getOffcoinClient: () => ({ members }),
-	memberAlias: (id: string) => `puckstack:ws:${id}`
+	memberAlias: (id: string) => `puckstack:ws:${id}`,
+	// Resolved up front in the real thing so a fallback cannot re-credit ECO;
+	// the fallback itself is covered in offcoin.spec.ts.
+	resolveMemberAlias: async (id: string) => `puckstack:ws:${id}`
 }));
 
 const discord = vi.hoisted(() => ({ sendDiscordMessage: vi.fn(async () => true) }));
