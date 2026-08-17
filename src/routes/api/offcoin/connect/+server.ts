@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json, error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
@@ -7,15 +7,27 @@ import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { offcoinLogger } from '$lib/server/logger';
+import { resolvePuckstackIdentity } from '$lib/server/puckstack-identity';
 
 /**
- * Connect a wallet address to an Offcoin member via Puckstack User ID
+ * Whether a driver error is the unique index on `puckstack_user_id` refusing a
+ * second claim. better-sqlite3 reports these on `code`; the message is not
+ * stable enough to match on.
+ */
+function isUniqueViolation(err: unknown): boolean {
+	const code = (err as { code?: unknown })?.code;
+	return typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT_UNIQUE');
+}
+
+/**
+ * Connect a wallet address to the caller's Offcoin member.
  *
  * Flow:
- * 1. Look up Offcoin member by puckstack:<userId> alias
- * 2. If found, add wallet:<walletAddress> alias to the member
- * 3. Persist puckstackUserId to user DB record (for cross-device persistence)
- * 4. Return member data including XP, level, and token balance
+ * 1. Resolve the caller's Puckstack user id from their session email
+ * 2. Look up the Offcoin member by the puckstack:<userId> alias
+ * 3. If found, add wallet:<walletAddress> alias to the member
+ * 4. Persist puckstackUserId to user DB record (for cross-device persistence)
+ * 5. Return member data including XP, level, and token balance
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Verify user is authenticated
@@ -23,11 +35,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(401, 'Not authenticated');
 	}
 
-	const { puckstackUserId, walletAddress } = await request.json();
-
-	if (!puckstackUserId || typeof puckstackUserId !== 'string') {
-		error(400, 'Puckstack User ID is required');
-	}
+	const { walletAddress } = await request.json();
 
 	if (!walletAddress || typeof walletAddress !== 'string') {
 		error(400, 'Wallet address is required');
@@ -39,6 +47,53 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		walletAddress.toLowerCase() !== locals.user.walletAddress.toLowerCase()
 	) {
 		error(403, 'Wallet address does not match authenticated user');
+	}
+
+	// The Puckstack id is resolved here, never accepted from the caller.
+	//
+	// It used to arrive in the request body, and nothing proved it belonged to
+	// whoever sent it — the id is visible in the workspace, so any member could
+	// name another's and, while it was still unlinked, attach their own wallet to
+	// that person's Offcoin member. The link decides where a grant lands, whose
+	// member an exit deletes and which level the gates read, so that was not a
+	// display problem, it was someone else's economy.
+	//
+	// A stored id came from this same resolution (or the Puckstack signup step,
+	// which uses it too), so it is already Puckstack's answer rather than a
+	// claim, and needs no second round trip.
+	let puckstackUserId = locals.user.puckstackUserId;
+	if (!puckstackUserId) {
+		const identity = await resolvePuckstackIdentity(
+			locals.user.email,
+			locals.user.puckstackInviteToken ?? undefined
+		);
+
+		if (identity.kind === 'invitation') {
+			// Puckstack has never seen this address. `resolvePuckstackIdentity` has
+			// just minted the join link they need, so this is a next step rather
+			// than a dead end.
+			error(409, 'Join the EcoHubs Puckstack workspace first, then connect.');
+		}
+		if (identity.kind === 'error') {
+			error(identity.status, `Could not confirm your Puckstack account: ${identity.message}`);
+		}
+
+		puckstackUserId = identity.userId;
+	}
+
+	// Defence in depth. Resolution is by email and emails are unique per account,
+	// so two accounts should never reach the same id — but the database enforces
+	// this and a caller deserves an explanation rather than a constraint
+	// violation.
+	const alreadyLinked = await db.query.user.findFirst({
+		where: eq(user.puckstackUserId, puckstackUserId)
+	});
+	if (alreadyLinked && alreadyLinked.id !== locals.user.id) {
+		offcoinLogger.warn(
+			{ userId: locals.user.id, puckstackUserId, heldBy: alreadyLinked.id },
+			'Refused a Puckstack link already held by another account'
+		);
+		error(409, 'That Puckstack account is already linked to another member');
 	}
 
 	try {
@@ -77,20 +132,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					updatedAt: new Date()
 				})
 				.where(eq(user.id, locals.user.id));
-
-			// Linking is the first moment their level is knowable, and the figures
-			// were just fetched above — so seed the snapshot rather than waiting for
-			// a webhook that may not fire for months.
-			await saveOffcoinSnapshot(locals.user.id, {
-				memberId: member.id,
-				xp: xpData.xp,
-				level: xpData.level
-			});
-			offcoinLogger.info(
-				{ userId: locals.user.id, puckstackUserId },
-				'Persisted puckstackUserId to user record'
-			);
 		} catch (dbErr) {
+			// The 409 above is a check-then-act: two requests can both pass it and
+			// only one can win the unique index. Losing that race means the link is
+			// held by someone else, so this is the same refusal — reported as one.
+			// Swallowing it and returning success told the loser their link had
+			// landed when the row still points at another account.
+			if (isUniqueViolation(dbErr)) {
+				offcoinLogger.warn(
+					{ err: dbErr, userId: locals.user.id, puckstackUserId },
+					'Lost the race for a Puckstack link'
+				);
+				error(409, 'That Puckstack account is already linked to another member');
+			}
+
 			offcoinLogger.error(
 				{ err: dbErr, userId: locals.user.id, puckstackUserId },
 				'Failed to persist puckstackUserId to DB (non-fatal)'
@@ -98,8 +153,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			// Non-fatal: connection still works via localStorage, will retry next connect
 		}
 
+		// Linking is the first moment their level is knowable, and the figures were
+		// just fetched above — so seed the snapshot rather than waiting for a
+		// webhook that may not fire for months. `saveOffcoinSnapshot` never throws
+		// and reports its own failures, so it sits outside the catch above.
+		await saveOffcoinSnapshot(locals.user.id, {
+			memberId: member.id,
+			xp: xpData.xp,
+			level: xpData.level,
+			// Already fetched for the response below; persisting it costs nothing
+			// and spares a newly linked member a null balance until the next sync.
+			eco: balanceData.balance
+		});
+		offcoinLogger.info(
+			{ userId: locals.user.id, puckstackUserId },
+			'Persisted puckstackUserId to user record'
+		);
+
 		return json({
 			success: true,
+			// The client no longer supplies this, so it has to be told what the
+			// server resolved — it keys the member refresh on it.
+			puckstackUserId,
 			member: {
 				id: member.id,
 				name: member.name,
@@ -111,6 +186,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		});
 	} catch (err) {
+		// A refusal we already decided on — the 409 for a link held by someone
+		// else. Without this it would be relabelled as a 500 and the caller would
+		// be told the integration is broken rather than what actually happened.
+		if (isHttpError(err)) throw err;
+
 		if (err instanceof NotFoundError) {
 			error(
 				404,

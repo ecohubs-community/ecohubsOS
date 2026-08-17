@@ -209,6 +209,7 @@ export async function executeExit(
 		.set({
 			offcoinMemberId: null,
 			offcoinXp: null,
+			offcoinEco: null,
 			offcoinLevel: null,
 			offcoinSyncedAt: null,
 			updatedAt: new Date()

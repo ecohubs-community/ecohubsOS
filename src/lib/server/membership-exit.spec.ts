@@ -167,10 +167,10 @@ describe('clearing the Offcoin economy', () => {
 		// Without this the alias — derived from the Puckstack user id — resolves to
 		// the old member on re-application, and the level webhook promotes them
 		// past trial on arrival.
-		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		const u = await seedUser(db);
 		const result = await executeExit(u.id, 'Left', null);
 
-		expect(offcoinMembers.delete).toHaveBeenCalledWith('puckstack:ws:ps1');
+		expect(offcoinMembers.delete).toHaveBeenCalledWith(`puckstack:ws:${u.puckstackUserId}`);
 		expect(result.offcoinMemberDeleted).toBe(true);
 	});
 
@@ -187,7 +187,7 @@ describe('clearing the Offcoin economy', () => {
 			return { deleted: true };
 		});
 
-		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		const u = await seedUser(db);
 		await executeExit(u.id, 'Left', null);
 
 		expect(order).toEqual(['get', 'delete']);
@@ -195,17 +195,21 @@ describe('clearing the Offcoin economy', () => {
 	});
 
 	it('clears the local level snapshot, which gates a returning member', async () => {
-		const u = await seedUser(db, { puckstackUserId: 'ps1', offcoinXp: 900, offcoinLevel: 4 });
+		const u = await seedUser(db, { offcoinXp: 900, offcoinEco: 250, offcoinLevel: 4 });
 		await executeExit(u.id, 'Left', null);
 
 		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
 		expect(after.offcoinLevel).toBeNull();
 		expect(after.offcoinXp).toBeNull();
+		// The balance goes too. The Offcoin member it described has been deleted,
+		// so a figure left behind here is a claim about tokens that no longer
+		// exist — and the members table would show it as a real balance.
+		expect(after.offcoinEco).toBeNull();
 		expect(after.offcoinMemberId).toBeNull();
 	});
 
 	it('treats an already-deleted member as done', async () => {
-		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		const u = await seedUser(db);
 		offcoinMembers.delete.mockRejectedValue(new NotFound('gone'));
 
 		const result = await executeExit(u.id, 'Left', null);
@@ -215,7 +219,7 @@ describe('clearing the Offcoin economy', () => {
 	});
 
 	it('warns rather than failing when Offcoin is unreachable', async () => {
-		const u = await seedUser(db, { puckstackUserId: 'ps1' });
+		const u = await seedUser(db);
 		offcoinMembers.delete.mockRejectedValue(new Error('connection reset'));
 
 		const result = await executeExit(u.id, 'Left', null);

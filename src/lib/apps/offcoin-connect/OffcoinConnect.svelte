@@ -5,17 +5,10 @@
 	import { markSubStepCompletedById } from '$lib/onboarding/stepManager';
 	import Icon from '@iconify/svelte';
 
-	let puckstackUserId = $state('');
 	let status = $state<'idle' | 'loading' | 'success' | 'error'>('idle');
 	let errorMessage = $state('');
 
 	async function handleConnect() {
-		if (!puckstackUserId.trim()) {
-			errorMessage = 'Please enter your Puckstack User ID';
-			status = 'error';
-			return;
-		}
-
 		if (!auth.walletAddress) {
 			errorMessage = 'No wallet connected';
 			status = 'error';
@@ -25,7 +18,10 @@
 		status = 'loading';
 		errorMessage = '';
 
-		const success = await offcoin.connect(puckstackUserId.trim(), auth.walletAddress);
+		// No Puckstack id to collect: the server resolves it from the session's
+		// email. Asking the member to paste one meant accepting a claim about
+		// whose economy to link, from whoever happened to be signed in.
+		const success = await offcoin.connect(auth.walletAddress);
 
 		if (success) {
 			status = 'success';
@@ -41,9 +37,6 @@
 		}
 	}
 
-	function openPuckstackSettings() {
-		window.open('https://puckstack.xyz/settings', '_blank', 'noopener,noreferrer');
-	}
 </script>
 
 <div class="flex h-full flex-col p-6">
@@ -87,25 +80,12 @@
 		</div>
 	{:else}
 		<div class="flex-1 space-y-4">
-			<div>
-				<label for="puckstack-id" class="text-solar-200 mb-2 block text-sm font-medium">
-					Puckstack User ID
-				</label>
-				<input
-					id="puckstack-id"
-					type="text"
-					bind:value={puckstackUserId}
-					placeholder="e.g., UCVZAlPq2mTGC1QJlAbZvRVuR6GhejkR"
-					disabled={status === 'loading'}
-					class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-solar-400 focus:outline-none focus:ring-1 focus:ring-solar-400 disabled:opacity-50"
-				/>
-				<button
-					onclick={openPuckstackSettings}
-					class="text-solar-300 mt-2 flex items-center gap-1 text-xs hover:text-white"
-				>
-					Find your User ID in Puckstack Settings
-					<Icon icon="tabler:external-link" class="h-3 w-3" />
-				</button>
+			<div class="rounded-xl bg-white/5 p-4">
+				<h4 class="text-solar-200 mb-2 text-sm font-medium">Your Puckstack Account</h4>
+				<p class="text-xs text-white/70">
+					Matched automatically from <span class="font-mono">{auth.user?.email ?? 'your account'}</span
+					>. Make sure you have joined the EcoHubs workspace first.
+				</p>
 			</div>
 
 			{#if status === 'error' && errorMessage}
@@ -127,7 +107,7 @@
 
 		<button
 			onclick={handleConnect}
-			disabled={status === 'loading' || !puckstackUserId.trim()}
+			disabled={status === 'loading'}
 			class="mt-6 flex h-12 w-full bg-amber-400 items-center justify-center gap-2 rounded-xl bg-solar-400 font-medium text-solar-900 transition-all hover:bg-solar-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
 		>
 			{#if status === 'loading'}

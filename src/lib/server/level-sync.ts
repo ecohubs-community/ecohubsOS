@@ -33,6 +33,7 @@ export interface LevelSyncRow {
 	role: Role;
 	xp: number;
 	level: number;
+	eco: number;
 	/** Previous cached level, or null when this is the first reading. */
 	previousLevel: number | null;
 	/**
@@ -88,9 +89,20 @@ export async function syncOffcoinLevels(
 		}
 
 		try {
-			const xpData = await withMemberAlias(u.puckstackUserId, (alias) =>
-				offcoin.members.getXp(alias)
-			);
+			// Balance alongside level: this is the one run that visits every member,
+			// so fetching both here spares a second sweep for the members list.
+			//
+			// Both inside the alias fallback, not just the level read: they have to
+			// describe the same member, so a fallback to the legacy alias must take
+			// the balance with it rather than leave it pointed at an alias that
+			// resolved to nothing.
+			const { xpData, balanceData } = await withMemberAlias(u.puckstackUserId, async (alias) => {
+				const [xpData, balanceData] = await Promise.all([
+					offcoin.members.getXp(alias),
+					offcoin.members.getBalance(alias)
+				]);
+				return { xpData, balanceData };
+			});
 			const role = resolveRole(parseGroupsJson(u.groups));
 
 			result.members.push({
@@ -100,6 +112,7 @@ export async function syncOffcoinLevels(
 				role,
 				xp: xpData.xp,
 				level: xpData.level,
+				eco: balanceData.balance,
 				previousLevel: u.offcoinLevel ?? null,
 				belowMemberLevel: role !== 'trial' && xpData.level < POLICY.levels.memberFromLevel
 			});
@@ -114,7 +127,8 @@ export async function syncOffcoinLevels(
 				const written = await saveOffcoinSnapshot(u.id, {
 					memberId: xpData.memberId,
 					xp: xpData.xp,
-					level: xpData.level
+					level: xpData.level,
+					eco: balanceData.balance
 				});
 				if (written) {
 					result.synced++;

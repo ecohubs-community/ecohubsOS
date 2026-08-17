@@ -60,7 +60,10 @@ CREATE TABLE user (
   safe_owner_status TEXT,
   safe_role TEXT DEFAULT 'owner',
   safe_role_status TEXT,
-  puckstack_user_id TEXT,
+  -- UNIQUE mirrors the production schema and 0003_offcoin_link_integrity.sql.
+  -- Without it a fixture-backed test can link one Puckstack member to two
+  -- accounts and pass, which is the exact failure the constraint exists to stop.
+  puckstack_user_id TEXT UNIQUE,
   puckstack_invite_token TEXT,
   display_name TEXT,
   avatar TEXT,
@@ -84,6 +87,7 @@ CREATE TABLE user (
   puckstack_activity_synced_at INTEGER,
   offcoin_member_id TEXT,
   offcoin_xp INTEGER,
+  offcoin_eco INTEGER,
   offcoin_level INTEGER,
   offcoin_synced_at INTEGER
 );
