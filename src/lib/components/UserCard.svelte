@@ -5,7 +5,7 @@
 	import type { Role } from '$lib/policy';
 	import { authClient } from '$lib/auth-client';
 	import { offcoin } from '$lib/offcoin.svelte';
-	import { xpForNextLevel } from '$lib/utils/balances.utils';
+	import { levelProgress } from '$lib/utils/balances.utils';
 	import { goto } from '$app/navigation';
 	import { os } from '$lib/os.svelte';
 
@@ -30,9 +30,12 @@
 	}
 
 	let isLoadingLogout = $state(false);
-	const xpPercent = $derived.by(() =>
-		Math.min(100, Math.round((offcoin.xp / xpForNextLevel(offcoin.xp)) * 100))
-	);
+
+	// Progress *within* the current level. The old reading divided total XP by
+	// the XP still owed, which is a ratio of two unrelated quantities: it passed
+	// 100% as soon as a member was half way up their band and sat near zero
+	// before that, so the bar only ever looked full or empty.
+	const progress = $derived(levelProgress(offcoin.xp, offcoin.level));
 
 	async function handleLogout() {
 		isLoadingLogout = true;
@@ -132,7 +135,10 @@
 						{/if}
 					</h3>
 				</button>
-				{#if offcoin.isConnected}
+				<!-- `hasMemberData`, not just `isConnected`: a failed lookup leaves the
+				     store at its fallback 0, and printing "Lvl 0" there states
+				     something about the member we never actually read. -->
+				{#if offcoin.isConnected && offcoin.hasMemberData}
 					<p class="text-solar-300 text-xs">{offcoin.role} • Lvl {offcoin.level}</p>
 				{:else}
 					<p class="text-solar-300 text-xs">{auth.userEmail ?? 'Member'}</p>
@@ -151,16 +157,22 @@
 		</div>
 	</div>
 	{#if !offcoin.isLoading}
-		{#if offcoin.isConnected}
+		{#if offcoin.isConnected && !offcoin.hasMemberData}
+			<!-- Connected but the lookup did not land. Saying so beats drawing an
+			     empty bar under "Lvl 0", which reads as a fact about them. -->
+			<p class="text-solar-300/60 text-xs">
+				{offcoin.error ?? 'Could not load your Offcoin XP right now.'}
+			</p>
+		{:else if offcoin.isConnected}
 			<div class="space-y-2" in:fade>
 				<div class="flex justify-between text-xs opacity-70">
-					<span>Next Level: {xpForNextLevel(offcoin.xp)} XP</span>
-					<span>{xpPercent}%</span>
+					<span>{progress.xpIntoLevel} / {progress.levelSpan} XP to Lvl {progress.level + 1}</span>
+					<span>{progress.percent}%</span>
 				</div>
 				<div class="h-1.5 w-full overflow-hidden rounded-full bg-black/20">
 					<div
 						class="h-full bg-linear-to-r from-indigo-500 to-purple-300"
-						style="width: {Math.max(xpPercent, 1)}%"
+						style="width: {Math.max(progress.percent, 1)}%"
 					></div>
 				</div>
 			</div>
