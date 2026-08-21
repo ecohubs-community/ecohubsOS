@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { untrack } from 'svelte';
 	import { portal } from '$lib/actions/portal';
 	import { os } from '$lib/os.svelte';
 
@@ -32,6 +33,30 @@
 		if (os.feedbackOpen && !hasLoaded) {
 			loadList();
 		}
+	});
+
+	/**
+	 * A prefill arrives when the widget is opened from somewhere that already
+	 * knows what the message is about — an access request from a locked app, say.
+	 * Only empty fields are filled: anything the member has already written is
+	 * theirs to keep, so a prefill never overwrites it. The form is shown
+	 * regardless of which view was last up, since a prefill is only ever sent
+	 * when there is something to send.
+	 *
+	 * Tracked by reference rather than by a flag so that a second, different
+	 * prefill still lands, while re-runs from unrelated state changes do not
+	 * re-apply the same one. `os.closeFeedback()` clears the prefill itself.
+	 */
+	let appliedPrefill: { subject: string; message: string } | null = null;
+	$effect(() => {
+		const prefill = os.feedbackPrefill;
+		if (!prefill || prefill === appliedPrefill) return;
+		appliedPrefill = prefill;
+		untrack(() => {
+			if (title.trim().length === 0) title = prefill.subject.slice(0, TITLE_MAX);
+			if (message.trim().length === 0) message = prefill.message.slice(0, MESSAGE_MAX);
+		});
+		view = 'form';
 	});
 
 	async function loadList() {
