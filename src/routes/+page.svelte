@@ -4,6 +4,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { offcoin } from '$lib/offcoin.svelte';
 	import { badges } from '$lib/badges.svelte';
+	import { wayfinder } from '$lib/wayfinder.svelte';
 	import { APPS, appSurfaceFor } from '$lib/data';
 	import Window from '$lib/components/Window.svelte';
 	import Settings from '$lib/components/Settings.svelte';
@@ -28,11 +29,14 @@
 			offcoin.initFromServer(data.user.puckstackUserId);
 			// Refresh badge counts when user is authenticated
 			badges.refresh();
-			// First-timers: auto-open the welcome video once on load. Once
-			// they've watched it (introWatchedAt set) this never fires again.
+			// Wayfinder progress drives its dock badge and learning-path ring.
+			wayfinder.load();
+			// First-timers: auto-open Wayfinder once on load, sitting on the
+			// welcome video. Once they've watched it (introWatchedAt set) this
+			// never fires again.
 			if (!data.user.introWatchedAt && !welcomeAutoOpened) {
 				welcomeAutoOpened = true;
-				os.openApp('member-welcome');
+				os.openApp('wayfinder');
 			}
 		}
 	});
@@ -48,14 +52,14 @@
 		level: auth.offcoinLevel
 	});
 
-	// Dock apps: the normal (non-hidden) set, plus the Welcome app pinned to
-	// the front while the member hasn't watched the intro yet. Once watched it
-	// drops off the dock and lives only in All Apps for rewatching.
-	let dockApps = $derived(
-		auth.hasWatchedIntro
-			? APPS.filter((a) => !a.hidden)
-			: [...APPS.filter((a) => a.id === 'member-welcome'), ...APPS.filter((a) => !a.hidden)]
-	);
+	// Dock apps: the normal (non-hidden) set, with Wayfinder pinned to the front
+	// of it. Learning your way around is the one thing every member needs at
+	// hand, watched or not — so it keeps its place rather than dropping off once
+	// the welcome video is done.
+	let dockApps = $derived([
+		...APPS.filter((a) => a.id === 'wayfinder'),
+		...APPS.filter((a) => !a.hidden && a.id !== 'wayfinder')
+	]);
 
 	// Date time logic
 	let time = $state(new Date());

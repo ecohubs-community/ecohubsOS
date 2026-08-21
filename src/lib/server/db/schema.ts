@@ -65,9 +65,11 @@ export const user = sqliteTable('user', {
 	onboardingStartedAt: integer('onboarding_started_at', { mode: 'timestamp' }),
 	onboardingCompletedAt: integer('onboarding_completed_at', { mode: 'timestamp' }),
 
-	// Welcome / intro video — set once the member watches ≥90% of the
-	// onboarding presentation. Drives the auto-opening Welcome window and the
-	// "watched" column in the Members app. Null = not yet watched.
+	// Welcome video — set once the member watches ≥90% of the intro
+	// presentation in Wayfinder. Drives the auto-opening Wayfinder window, the
+	// dock pin, and the "watched" column in the Members app. Kept alongside the
+	// `wayfinder_watches` row for the welcome video so members who watched it
+	// before Wayfinder existed keep their credit. Null = not yet watched.
 	introWatchedAt: integer('intro_watched_at', { mode: 'timestamp' }),
 
 	// Personal buddy-call scheduling URL (e.g. Cal.com / Calendly). Surfaced and
@@ -108,6 +110,39 @@ export const user = sqliteTable('user', {
 	offcoinLevel: integer('offcoin_level'),
 	offcoinSyncedAt: integer('offcoin_synced_at', { mode: 'timestamp' })
 });
+
+// Which Wayfinder videos a member has finished. One row per (member, video) —
+// the row's existence *is* the "watched" flag, so re-watching never moves the
+// timestamp and the learning-path percentage cannot double-count.
+//
+// `videoId` is deliberately a plain string rather than a foreign key: the
+// catalogue lives in code ($lib/wayfinder/videos.ts), not in the database, so a
+// video can be added or retired without a migration. Rows for a retired video
+// simply stop matching the catalogue and drop out of the percentage.
+//
+// The welcome video is the one exception: it predates this table, so it is also
+// mirrored onto `user.introWatchedAt`. See $lib/server/wayfinder.ts.
+export const wayfinderWatches = sqliteTable(
+	'wayfinder_watches',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		videoId: text('video_id').notNull(),
+		watchedAt: integer('watched_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => ({
+		uniqueWatchPerUser: uniqueIndex('wayfinder_watches_user_video_unique').on(
+			table.userId,
+			table.videoId
+		)
+	})
+);
 
 // Audit trail for every membership role/status transition. Append-only —
 // downgrades are proposed by a timer but always applied by a human, and this is

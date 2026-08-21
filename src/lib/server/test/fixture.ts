@@ -39,7 +39,8 @@ export const FIXTURE_TABLES = [
 	'membership_warnings',
 	'membership_cases',
 	'member_emails',
-	'reward_grants'
+	'reward_grants',
+	'wayfinder_watches'
 ] as const;
 
 const DDL = `
@@ -238,6 +239,17 @@ CREATE TABLE reward_grants (
   announced_at INTEGER,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE wayfinder_watches (
+  id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  video_id TEXT NOT NULL,
+  watched_at INTEGER NOT NULL
+);
+-- The index is what makes marking a video watched idempotent under concurrent
+-- posts, so the fixture has to carry it or the test proves nothing.
+CREATE UNIQUE INDEX wayfinder_watches_user_video_unique
+  ON wayfinder_watches (user_id, video_id);
 `;
 
 export type TestDb = ReturnType<typeof createTestDb>['db'];
