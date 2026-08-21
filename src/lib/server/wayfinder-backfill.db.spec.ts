@@ -87,12 +87,16 @@ describe('a real run', () => {
 		const result = await backfillWayfinderRewards('admin', false);
 
 		expect(result.rewarded).toBe(1);
+		// Both ledgers, not just ECO — a member credited tokens but no XP has
+		// been shortchanged on the half that decides their membership level.
 		expect(members.addTokens).toHaveBeenCalledTimes(1);
+		expect(members.addXp).toHaveBeenCalledTimes(1);
 
 		const row = await watchRow(member.id);
 		// Not `now` — the backfill must not rewrite history to the day it ran.
 		expect(row?.watchedAt).toEqual(WATCHED_AT);
 		expect(row?.rewardEco).toBe(WELCOME_ECO);
+		expect(row?.rewardXp).toBe(WELCOME_XP);
 	});
 
 	it('pays nobody on a second run', async () => {
@@ -153,7 +157,9 @@ describe('a real run', () => {
 		const total = await settleUnclaimedRewards(member.id);
 
 		expect(total.eco).toBe(WELCOME_ECO);
+		expect(total.xp).toBe(WELCOME_XP);
 		expect(members.addTokens).toHaveBeenCalledTimes(1);
+		expect(members.addXp).toHaveBeenCalledTimes(1);
 	});
 
 	it('does not re-pay someone who earned it by watching after rewards shipped', async () => {
@@ -191,6 +197,29 @@ describe('a real run', () => {
 		expect(result.failed).toHaveLength(1);
 		expect(result.rewarded).toBe(1);
 		expect(result.recipients.map((r) => r.userId)).toContain(fine.id);
+	});
+
+	it('reports a payout that died between claiming and settling', async () => {
+		// The crash case: the claim was taken, then the process went away before
+		// the settlement write. Nothing else in the system looks for these, so
+		// the backfill report is the only place they surface.
+		const member = await seedUser(db, { introWatchedAt: WATCHED_AT });
+		await db.insert(schema.wayfinderWatches).values({
+			userId: member.id,
+			videoId: WELCOME_VIDEO_ID,
+			watchedAt: WATCHED_AT,
+			rewardClaimedAt: new Date('2026-03-02T09:00:00.000Z'),
+			rewardedAt: null
+		});
+
+		const result = await backfillWayfinderRewards('admin', true);
+
+		expect(result.stuckClaims).toContainEqual(
+			expect.objectContaining({ userId: member.id, videoId: WELCOME_VIDEO_ID })
+		);
+		// And it must not be re-paid on the way past — the claim is still held.
+		expect(result.rewarded).toBe(0);
+		expect(result.alreadyRewarded).toBe(1);
 	});
 
 	it('still pays members who have left, and flags them', async () => {

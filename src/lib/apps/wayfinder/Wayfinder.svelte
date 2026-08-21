@@ -17,15 +17,16 @@
 	let activeTag = $state<string | null>(null);
 	let justCompletedId = $state<string | null>(null);
 	/**
-	 * Videos with a save already in flight. `timeupdate` fires about four times a
-	 * second, and `wayfinder.hasWatched` does not turn true until the request
-	 * comes back — so without this every event past the threshold starts another
-	 * POST for the same video.
+	 * The video with a save already in flight, if any. `timeupdate` fires about
+	 * four times a second, and `wayfinder.hasWatched` does not turn true until
+	 * the request comes back — so without this every event past the threshold
+	 * starts another POST for the same video.
 	 *
-	 * A plain Set rather than a SvelteSet on purpose: nothing renders from it, so
-	 * making it reactive would only cost re-runs.
+	 * One id rather than a set: only the selected video is ever marked, so there
+	 * can never be two in flight. Deliberately not `$state` — nothing renders
+	 * from it.
 	 */
-	const saving = new Set<string>();
+	let savingId: string | null = null;
 
 	// Where to drop a member who hasn't picked anything yet: the welcome video
 	// while it is unwatched — it is the one video that assumes nothing — then
@@ -72,13 +73,13 @@
 	}
 
 	async function markWatched(video: WayfinderVideo) {
-		if (wayfinder.hasWatched(video.id) || saving.has(video.id)) return;
-		saving.add(video.id);
+		if (wayfinder.hasWatched(video.id) || savingId === video.id) return;
+		savingId = video.id;
 		try {
 			await wayfinder.markWatched(video.id);
 			justCompletedId = video.id;
 		} finally {
-			saving.delete(video.id);
+			savingId = null;
 		}
 	}
 

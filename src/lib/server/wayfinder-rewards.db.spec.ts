@@ -178,6 +178,22 @@ describe('when the member cannot be paid', () => {
 		expect(retry.status).toBe('granted');
 	});
 
+	it('reports a missing Offcoin record separately from an outage', async () => {
+		// These two must not be conflated: "no Offcoin record" sends a steward off
+		// to fix a link, and saying that during an outage sends them after a link
+		// that was never broken.
+		const member = await watcher();
+		resolveMemberAlias.mockRejectedValueOnce(new NotFound('no such member'));
+
+		const outcome = await rewardVideoWatch(member.id, WELCOME_VIDEO_ID);
+
+		expect(outcome).toEqual({
+			status: 'skipped',
+			reason: 'Member has no Offcoin record'
+		});
+		expect((await watchRow(member.id))?.rewardClaimedAt).toBeNull();
+	});
+
 	it('hands the claim back when Offcoin rejects the ECO outright', async () => {
 		const member = await watcher();
 		members.addTokens.mockRejectedValueOnce(new Error('rejected'));

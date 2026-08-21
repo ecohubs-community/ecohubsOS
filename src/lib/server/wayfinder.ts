@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { user, wayfinderWatches } from '$lib/server/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { WELCOME_VIDEO_ID, findWayfinderVideo } from '$lib/wayfinder/videos';
 
 export interface WayfinderWatch {
@@ -63,8 +63,16 @@ export async function markVideoWatched(
 
 	// Mirror the welcome video onto the user row, which the dock pin, the
 	// auto-open and the Members app all still read.
+	//
+	// `introWatchedAt` comes from the caller's session snapshot, which can be
+	// stale — two requests can both read null and both try to write. The
+	// `isNull` guard makes the database, not the snapshot, decide, so the
+	// timestamp cannot be dragged forward off a first watch that already landed.
 	if (videoId === WELCOME_VIDEO_ID && !introWatchedAt) {
-		await db.update(user).set({ introWatchedAt: now, updatedAt: now }).where(eq(user.id, userId));
+		await db
+			.update(user)
+			.set({ introWatchedAt: now, updatedAt: now })
+			.where(and(eq(user.id, userId), isNull(user.introWatchedAt)));
 	}
 
 	const [existing] = await db

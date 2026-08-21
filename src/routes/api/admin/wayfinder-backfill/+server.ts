@@ -13,6 +13,11 @@ import { backfillWayfinderRewards } from '$lib/server/wayfinder-backfill';
 // decides when a trial member becomes a full one — so `recipients`, `totalEco`
 // and `totalXp` are the last chance to check who is about to be paid and how
 // much, while it is still reversible by simply not running it.
+//
+// `stuckClaims` lists payouts that died between claiming and settling — a
+// crash mid-Offcoin-call. They are reported, never retried: only Offcoin's
+// ledger says whether the money actually moved, and re-running one that did
+// would pay twice. Each needs a human to check Offcoin and settle the row.
 export const POST: RequestHandler = async ({ locals, request }) => {
 	requireAdmin(locals);
 

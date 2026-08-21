@@ -30,7 +30,7 @@
 
 import { db } from '$lib/server/db';
 import { user as userTable, wayfinderWatches } from '$lib/server/db/schema';
-import { eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { WELCOME_VIDEO_ID, findWayfinderVideo } from '$lib/wayfinder/videos';
 import { rewardVideoWatch } from '$lib/server/wayfinder-rewards';
 import { xpFromEco } from '$lib/server/rewards';
@@ -45,6 +45,17 @@ export interface WayfinderBackfillResult {
 	alreadyRewarded: number;
 	/** No Offcoin link, so nothing could be paid. Their reward stays claimable. */
 	skippedNoOffcoin: number;
+	/**
+	 * Rows claimed but never settled — a payout that died mid-flight, e.g. the
+	 * process was killed between the Offcoin call and the write recording it.
+	 *
+	 * Reported rather than retried, deliberately. Whether the member was
+	 * actually credited is only knowable from Offcoin's own ledger, and
+	 * releasing the claim on a payout that did land would pay them twice —
+	 * exactly what the claim exists to prevent. Anything listed here needs a
+	 * human to check Offcoin and then clear or settle the row by hand.
+	 */
+	stuckClaims: { userId: string; videoId: string; claimedAt: string }[];
 	/** Total ECO and XP this run moved (or would move, on a dry run). */
 	totalEco: number;
 	totalXp: number;
@@ -74,6 +85,7 @@ export async function backfillWayfinderRewards(
 		rewarded: 0,
 		alreadyRewarded: 0,
 		skippedNoOffcoin: 0,
+		stuckClaims: [],
 		totalEco: 0,
 		totalXp: 0,
 		recipients: [],
@@ -88,6 +100,23 @@ export async function backfillWayfinderRewards(
 
 	const watchers = await db.select().from(userTable).where(isNotNull(userTable.introWatchedAt));
 	result.total = watchers.length;
+
+	// Payouts that died between claiming and settling. Swept over the whole
+	// table rather than just the welcome video, because this report is the only
+	// place they are visible — nothing else looks for them.
+	const stuck = await db
+		.select({
+			userId: wayfinderWatches.userId,
+			videoId: wayfinderWatches.videoId,
+			claimedAt: wayfinderWatches.rewardClaimedAt
+		})
+		.from(wayfinderWatches)
+		.where(and(isNotNull(wayfinderWatches.rewardClaimedAt), isNull(wayfinderWatches.rewardedAt)));
+	result.stuckClaims = stuck.map((row) => ({
+		userId: row.userId,
+		videoId: row.videoId,
+		claimedAt: row.claimedAt!.toISOString()
+	}));
 
 	// Every existing welcome-video row in one query rather than one per member.
 	// Only the dry run consults this — a real run lets the reward claim itself
@@ -191,6 +220,7 @@ export async function backfillWayfinderRewards(
 			rewarded: result.rewarded,
 			alreadyRewarded: result.alreadyRewarded,
 			skippedNoOffcoin: result.skippedNoOffcoin,
+			stuckClaims: result.stuckClaims.length,
 			totalEco: result.totalEco,
 			totalXp: result.totalXp,
 			failed: result.failed.length

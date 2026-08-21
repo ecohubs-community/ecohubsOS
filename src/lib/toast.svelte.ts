@@ -70,7 +70,16 @@ class ToastState {
 			durationMs
 		};
 
-		this.toasts = [...this.toasts, toast].slice(-MAX_VISIBLE);
+		// Anything pushed off the end is gone from the screen, so its timer has
+		// nothing left to dismiss — drop it now rather than leaving it to fire
+		// against an array that no longer contains it.
+		const next = [...this.toasts, toast];
+		for (const evicted of next.slice(0, -MAX_VISIBLE)) {
+			const timer = this.timers.get(evicted.id);
+			if (timer) clearTimeout(timer);
+			this.timers.delete(evicted.id);
+		}
+		this.toasts = next.slice(-MAX_VISIBLE);
 
 		if (durationMs > 0) {
 			this.timers.set(
