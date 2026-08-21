@@ -1,5 +1,6 @@
 import { auth } from '$lib/auth.svelte';
-import { WAYFINDER_VIDEOS, WELCOME_VIDEO_ID } from '$lib/wayfinder/videos';
+import { toast } from '$lib/toast.svelte';
+import { WAYFINDER_VIDEOS, WELCOME_VIDEO_ID, findWayfinderVideo } from '$lib/wayfinder/videos';
 
 /**
  * Client-side view of the member's Wayfinder progress.
@@ -71,6 +72,16 @@ class WayfinderState {
 			this.watched = { ...this.watched, [videoId]: data.watchedAt };
 			// Keep the auth store in step so the dock pin and auto-open settle too.
 			if (videoId === WELCOME_VIDEO_ID) auth.markIntroWatched(data.watchedAt);
+
+			// `reward` is set only when this request is what paid them, so the
+			// toast cannot fire twice for the same video.
+			if (data.reward) {
+				const title = findWayfinderVideo(videoId)?.title ?? 'that video';
+				toast.reward(
+					`You earned ${data.reward.eco} ECO`,
+					`+${data.reward.xp} XP for finishing “${title}”`
+				);
+			}
 		} catch (e) {
 			console.error('Failed to mark Wayfinder video as watched:', e);
 		}

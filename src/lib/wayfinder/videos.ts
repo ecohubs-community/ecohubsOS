@@ -24,6 +24,16 @@ export interface WayfinderVideo {
 	/** Free-form labels; the app derives its filter chips from these. */
 	tags: string[];
 	/**
+	 * ECO paid the first time a member finishes this video, once ever. XP follows
+	 * at the community's usual ratio, so one number sets both — see
+	 * `xpFromEco` in $lib/server/rewards.
+	 *
+	 * Per video rather than a flat rate, so the ten-minute introduction can be
+	 * worth more than a four-minute tour. Changing a value only affects future
+	 * payouts: what a member was actually paid is stored on their watch row.
+	 */
+	rewardEco: number;
+	/**
 	 * Runtime in whole seconds, used for the "4:03" hint before the file loads.
 	 * Floor the true duration — that is what the browser's own player shows, and
 	 * a hint that disagrees with the scrubber by a second reads as a bug.
@@ -46,6 +56,7 @@ export const WAYFINDER_VIDEOS: WayfinderVideo[] = [
 		description:
 			'The big picture: who we are, how membership works, and what you can expect in your first weeks. Start here.',
 		src: '/videos/wayfinder/member-onboarding.mp4',
+		rewardEco: 20,
 		tags: ['Start here', 'Membership'],
 		durationSeconds: 649
 	},
@@ -55,6 +66,7 @@ export const WAYFINDER_VIDEOS: WayfinderVideo[] = [
 		description:
 			'A tour of ecohubsOS itself — the dock, All Apps, windows, and where to find the things you need.',
 		src: '/videos/wayfinder/desktop-intro.mp4',
+		rewardEco: 10,
 		tags: ['Start here', 'ecohubsOS'],
 		durationSeconds: 243
 	},
@@ -64,6 +76,7 @@ export const WAYFINDER_VIDEOS: WayfinderVideo[] = [
 		description:
 			'Filling in your profile, what each field is used for, and how you show up to the rest of the community.',
 		src: '/videos/wayfinder/membership-profile.mp4',
+		rewardEco: 10,
 		tags: ['Membership', 'Apps'],
 		durationSeconds: 217
 	},
@@ -73,6 +86,7 @@ export const WAYFINDER_VIDEOS: WayfinderVideo[] = [
 		description:
 			'How decisions get made: proposals, how a vote runs, and what your vote actually does.',
 		src: '/videos/wayfinder/voting.mp4',
+		rewardEco: 15,
 		tags: ['Governance', 'Apps'],
 		durationSeconds: 353
 	}

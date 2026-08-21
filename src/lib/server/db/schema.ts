@@ -134,7 +134,30 @@ export const wayfinderWatches = sqliteTable(
 		videoId: text('video_id').notNull(),
 		watchedAt: integer('watched_at', { mode: 'timestamp' })
 			.notNull()
-			.$defaultFn(() => new Date())
+			.$defaultFn(() => new Date()),
+
+		// --- Reward ----------------------------------------------------------
+		// Watching a video earns ECO and XP once, ever. The unique index above
+		// makes the row itself the claim ticket, and these two timestamps split
+		// that claim into its two halves:
+		//
+		//   rewardClaimedAt — taken *before* Offcoin is called, by an update
+		//     conditional on it still being null. Whoever wins that update owns
+		//     the payout; everyone else sees the row already claimed and stops.
+		//     This is what stops a double-click, two tabs, or a retried request
+		//     from paying twice.
+		//   rewardedAt — set *after* both Offcoin writes land. A row that is
+		//     claimed but not rewarded is a payout that died in flight; the
+		//     claim is released again when nothing reached Offcoin, and kept
+		//     when something did, so a half-landed grant is never repeated.
+		rewardClaimedAt: integer('reward_claimed_at', { mode: 'timestamp' }),
+		rewardedAt: integer('rewarded_at', { mode: 'timestamp' }),
+		/** What was actually paid, which may differ from today's catalogue value. */
+		rewardEco: integer('reward_eco'),
+		rewardXp: integer('reward_xp'),
+		/** Offcoin ledger ids, so the two ledgers stay reconcilable. */
+		offcoinEcoTxId: text('offcoin_eco_tx_id'),
+		offcoinXpTxId: text('offcoin_xp_tx_id')
 	},
 	(table) => ({
 		uniqueWatchPerUser: uniqueIndex('wayfinder_watches_user_video_unique').on(

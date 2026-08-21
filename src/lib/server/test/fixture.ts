@@ -244,7 +244,13 @@ CREATE TABLE wayfinder_watches (
   id TEXT PRIMARY KEY NOT NULL,
   user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
   video_id TEXT NOT NULL,
-  watched_at INTEGER NOT NULL
+  watched_at INTEGER NOT NULL,
+  reward_claimed_at INTEGER,
+  rewarded_at INTEGER,
+  reward_eco INTEGER,
+  reward_xp INTEGER,
+  offcoin_eco_tx_id TEXT,
+  offcoin_xp_tx_id TEXT
 );
 -- The index is what makes marking a video watched idempotent under concurrent
 -- posts, so the fixture has to carry it or the test proves nothing.
