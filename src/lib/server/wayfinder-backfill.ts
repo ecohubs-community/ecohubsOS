@@ -41,7 +41,12 @@ export interface WayfinderBackfillResult {
 	total: number;
 	/** Paid by this run. */
 	rewarded: number;
-	/** Already settled, by an earlier run or by watching after rewards shipped. */
+	/**
+	 * Genuinely settled — `rewardedAt` is set. Deliberately excludes rows that
+	 * are only *claimed*: those are stuck payouts, reported under `stuckClaims`,
+	 * and counting them here would tell an admin someone had been paid when
+	 * nobody has been.
+	 */
 	alreadyRewarded: number;
 	/** No Offcoin link, so nothing could be paid. Their reward stays claimable. */
 	skippedNoOffcoin: number;
@@ -117,16 +122,21 @@ export async function backfillWayfinderRewards(
 		videoId: row.videoId,
 		claimedAt: row.claimedAt!.toISOString()
 	}));
+	const stuckKeys = new Set(result.stuckClaims.map((c) => `${c.userId}:${c.videoId}`));
 
 	// Every existing welcome-video row in one query rather than one per member.
 	// Only the dry run consults this — a real run lets the reward claim itself
 	// answer the question, since that is the only answer that cannot race.
-	const existingByUser = new Map<string, { rewardClaimedAt: Date | null }>();
+	const existingByUser = new Map<
+		string,
+		{ rewardClaimedAt: Date | null; rewardedAt: Date | null }
+	>();
 	if (dryRun) {
 		const rows = await db
 			.select({
 				userId: wayfinderWatches.userId,
-				rewardClaimedAt: wayfinderWatches.rewardClaimedAt
+				rewardClaimedAt: wayfinderWatches.rewardClaimedAt,
+				rewardedAt: wayfinderWatches.rewardedAt
 			})
 			.from(wayfinderWatches)
 			.where(eq(wayfinderWatches.videoId, WELCOME_VIDEO_ID));
@@ -149,8 +159,15 @@ export async function backfillWayfinderRewards(
 			// Report against the stored row rather than guessing: someone who
 			// watched after rewards shipped has already been paid, and listing
 			// them here would overstate what a real run is about to move.
-			if (existingByUser.get(member.id)?.rewardClaimedAt) {
+			const existing = existingByUser.get(member.id);
+			if (existing?.rewardedAt) {
 				result.alreadyRewarded++;
+				continue;
+			}
+			// Claimed but never settled. Not payable — the claim is held — but not
+			// settled either, so it counts as neither. It is already listed under
+			// `stuckClaims`, which is where it needs a human to look.
+			if (existing?.rewardClaimedAt) {
 				continue;
 			}
 			if (!member.puckstackUserId) {
@@ -194,7 +211,12 @@ export async function backfillWayfinderRewards(
 				result.totalXp += outcome.reward.xp;
 				result.recipients.push({ ...entry, ...outcome.reward });
 			} else if (outcome.status === 'already') {
-				result.alreadyRewarded++;
+				// 'already' means the claim could not be taken, which covers both a
+				// settled reward and a stuck one. Only the settled kind counts here;
+				// a stuck row is reported under `stuckClaims` instead.
+				if (!stuckKeys.has(`${member.id}:${WELCOME_VIDEO_ID}`)) {
+					result.alreadyRewarded++;
+				}
 			} else if (outcome.status === 'skipped') {
 				// Either no Offcoin link yet or no Offcoin record behind it. Both
 				// leave the claim untaken on the row written above, so both are

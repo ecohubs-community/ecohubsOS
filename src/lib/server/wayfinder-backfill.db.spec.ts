@@ -217,9 +217,32 @@ describe('a real run', () => {
 		expect(result.stuckClaims).toContainEqual(
 			expect.objectContaining({ userId: member.id, videoId: WELCOME_VIDEO_ID })
 		);
-		// And it must not be re-paid on the way past — the claim is still held.
+		// Not re-paid — the claim is still held — but not counted as settled
+		// either. Reporting it as "already rewarded" would tell an admin this
+		// member had been paid when nobody has been.
 		expect(result.rewarded).toBe(0);
-		expect(result.alreadyRewarded).toBe(1);
+		expect(result.alreadyRewarded).toBe(0);
+	});
+
+	it('does not count a stuck claim as settled on a real run either', async () => {
+		// The real path learns the same thing from `rewardVideoWatch` returning
+		// 'already', which covers both settled and stuck rows — so the two have
+		// to be told apart there too, not just in the dry run.
+		const member = await seedUser(db, { introWatchedAt: WATCHED_AT });
+		await db.insert(schema.wayfinderWatches).values({
+			userId: member.id,
+			videoId: WELCOME_VIDEO_ID,
+			watchedAt: WATCHED_AT,
+			rewardClaimedAt: new Date('2026-03-02T09:00:00.000Z'),
+			rewardedAt: null
+		});
+
+		const result = await backfillWayfinderRewards('admin', false);
+
+		expect(result.alreadyRewarded).toBe(0);
+		expect(result.rewarded).toBe(0);
+		expect(result.stuckClaims).toHaveLength(1);
+		expect(members.addTokens).not.toHaveBeenCalled();
 	});
 
 	it('still pays members who have left, and flags them', async () => {

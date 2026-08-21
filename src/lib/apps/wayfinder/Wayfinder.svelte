@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { wayfinder } from '$lib/wayfinder.svelte';
 	import {
 		WAYFINDER_VIDEOS,
@@ -17,16 +18,17 @@
 	let activeTag = $state<string | null>(null);
 	let justCompletedId = $state<string | null>(null);
 	/**
-	 * The video with a save already in flight, if any. `timeupdate` fires about
-	 * four times a second, and `wayfinder.hasWatched` does not turn true until
-	 * the request comes back — so without this every event past the threshold
-	 * starts another POST for the same video.
+	 * Videos with a save already in flight. `timeupdate` fires about four times a
+	 * second, and `wayfinder.hasWatched` does not turn true until the request
+	 * comes back — so without this every event past the threshold starts another
+	 * POST for the same video.
 	 *
-	 * One id rather than a set: only the selected video is ever marked, so there
-	 * can never be two in flight. Deliberately not `$state` — nothing renders
-	 * from it.
+	 * A set rather than one id, because two saves really can overlap: if the
+	 * first request stalls, the member can switch videos and finish the next one
+	 * while it is still pending. With a single slot the stalled request's
+	 * cleanup would clear the second video's guard and let duplicates through.
 	 */
-	let savingId: string | null = null;
+	const saving = new SvelteSet<string>();
 
 	// Where to drop a member who hasn't picked anything yet: the welcome video
 	// while it is unwatched — it is the one video that assumes nothing — then
@@ -73,13 +75,15 @@
 	}
 
 	async function markWatched(video: WayfinderVideo) {
-		if (wayfinder.hasWatched(video.id) || savingId === video.id) return;
-		savingId = video.id;
+		if (wayfinder.hasWatched(video.id) || saving.has(video.id)) return;
+		saving.add(video.id);
 		try {
 			await wayfinder.markWatched(video.id);
 			justCompletedId = video.id;
 		} finally {
-			savingId = null;
+			// Only this video's guard — never a blanket clear, which is what would
+			// release a sibling request that is still in flight.
+			saving.delete(video.id);
 		}
 	}
 
