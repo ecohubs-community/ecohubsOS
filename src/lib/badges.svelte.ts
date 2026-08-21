@@ -1,6 +1,6 @@
 // Badge counts for apps with pending items
 
-import { auth } from '$lib/auth.svelte';
+import { wayfinder } from '$lib/wayfinder.svelte';
 
 interface BadgeCounts {
 	'membership-manager': number;
@@ -167,9 +167,12 @@ function createBadgesStore() {
 		if (appId === 'feedback-admin') return counts['feedback-admin'];
 		if (appId === 'admin-logs') return counts['admin-logs'];
 		if (appId === 'member-onboarding') return counts['member-onboarding'];
-		// Derived live from the auth store (not the fetched counts) so the badge
-		// clears the instant the member finishes the video — no refresh needed.
-		if (appId === 'member-welcome') return auth.hasWatchedIntro ? 0 : 1;
+		// How many Wayfinder videos are still unwatched. Read live from the
+		// wayfinder store rather than the fetched counts, so the badge ticks down
+		// the instant a video finishes — and back up when a new one ships. Held
+		// at zero until progress lands, so it never flashes a number that is
+		// about to be corrected downwards.
+		if (appId === 'wayfinder') return wayfinder.loaded ? wayfinder.unwatchedCount : 0;
 		return 0;
 	}
 

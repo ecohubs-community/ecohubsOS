@@ -9,6 +9,8 @@
  * On new devices, initFromServer() bootstraps the connection from the DB.
  */
 
+import { toast } from '$lib/toast.svelte';
+
 const STORAGE_KEY = 'offcoin-connection';
 
 export interface OffcoinMember {
@@ -171,6 +173,17 @@ class OffcoinState {
 				puckstackUserId: data.puckstackUserId,
 				connectedAt: new Date().toISOString()
 			});
+
+			// Wayfinder videos they finished before there was an account to pay
+			// into are settled server-side on connect. Non-zero only when that
+			// actually paid something out, so this cannot fire on a re-connect.
+			if (data.wayfinderRewards?.eco > 0) {
+				const { eco, xp } = data.wayfinderRewards;
+				toast.reward(
+					`You earned ${eco} ECO`,
+					`+${xp} XP for the Wayfinder videos you already watched`
+				);
+			}
 
 			return true;
 		} catch (err) {

@@ -8,6 +8,7 @@ import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { offcoinLogger } from '$lib/server/logger';
 import { resolvePuckstackIdentity } from '$lib/server/puckstack-identity';
+import { settleUnclaimedRewards } from '$lib/server/wayfinder-rewards';
 
 /**
  * Whether a driver error is the unique index on `puckstack_user_id` refusing a
@@ -170,11 +171,29 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			'Persisted puckstackUserId to user record'
 		);
 
+		// Videos they finished before there was an account to pay into. The
+		// welcome video auto-opens on a member's first load, so this is the
+		// common case, not an edge one — without this sweep those rewards would
+		// sit unclaimed forever. Never fatal: a payout problem must not read as a
+		// failure to link.
+		let wayfinderRewards = { eco: 0, xp: 0 };
+		try {
+			wayfinderRewards = await settleUnclaimedRewards(locals.user.id);
+		} catch (rewardErr) {
+			offcoinLogger.error(
+				{ err: rewardErr, userId: locals.user.id },
+				'Failed to settle Wayfinder rewards on connect'
+			);
+		}
+
 		return json({
 			success: true,
 			// The client no longer supplies this, so it has to be told what the
 			// server resolved — it keys the member refresh on it.
 			puckstackUserId,
+			// Non-zero only when linking just paid out a backlog, so the client can
+			// tell them what they earned rather than letting it land silently.
+			wayfinderRewards,
 			member: {
 				id: member.id,
 				name: member.name,

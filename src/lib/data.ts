@@ -20,8 +20,8 @@ import AdminLogs from './apps/admin-logs/AdminLogs.svelte';
 import FeedbackAdmin from './apps/feedback-admin/FeedbackAdmin.svelte';
 import MyProfile from './apps/my-profile/MyProfile.svelte';
 import MyProfileFavicon from './apps/my-profile/favicon.svg';
-import WelcomeVideo from './apps/member-welcome/WelcomeVideo.svelte';
-import WelcomeFavicon from './assets/icons/welcome.svg';
+import Wayfinder from './apps/wayfinder/Wayfinder.svelte';
+import WayfinderFavicon from './assets/icons/wayfinder.svg';
 import VotingFavicon from './assets/icons/voting.svg';
 import ForumFavicon from './assets/icons/forum.svg';
 import BlueprintFavicon from './assets/icons/blueprint.svg';
@@ -266,17 +266,17 @@ export const APPS: AppDefinition[] = [
 	// 	hidden: true // Only accessible via onboarding, not shown in dock
 	// },
 	{
-		id: 'member-welcome',
-		name: 'Welcome',
-		icon: WelcomeFavicon,
+		id: 'wayfinder',
+		name: 'Wayfinder',
+		icon: WayfinderFavicon,
 		category: 'ops',
 		isInternalApp: true,
-		component: WelcomeVideo,
-		description: 'Watch the intro presentation about ecohubsOS.',
-		// Hidden from the dock by default — it's surfaced on the dock only
-		// while unwatched (handled in +page.svelte) and auto-opens for
-		// first-timers. Once watched it lives in All Apps for rewatching.
-		hidden: true,
+		component: Wayfinder,
+		description: 'Learn your way around ecohubsOS and the apps inside it.',
+		// Always on the dock, and pinned to the front of it (see +page.svelte) —
+		// this is where a member goes to find their feet, so it should never be
+		// something they have to go looking for. Auto-opens for first-timers who
+		// haven't watched the welcome video yet.
 		allowFullscreen: true
 	},
 	{
