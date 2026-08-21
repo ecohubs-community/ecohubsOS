@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { markVideoWatched } from '$lib/server/wayfinder';
-import { rewardVideoWatch } from '$lib/server/wayfinder-rewards';
+import { rewardVideoWatch, type RewardOutcome } from '$lib/server/wayfinder-rewards';
 import { findWayfinderVideo } from '$lib/wayfinder/videos';
 import { onboardingLogger } from '$lib/server/logger';
 
@@ -34,7 +34,21 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		locals.user.introWatchedAt ?? null
 	);
 
-	const outcome = await rewardVideoWatch(locals.user.id, videoId);
+	// The watch is already committed above, so a payout that blows up must not
+	// take the request down with it — `rewardVideoWatch` handles Offcoin failures
+	// itself, but a database error underneath it would otherwise turn a saved
+	// watch into a 500 and leave the member looking at an untouched progress bar.
+	// The reward is not lost: the claim stays untaken and the next sweep pays it.
+	let outcome: RewardOutcome;
+	try {
+		outcome = await rewardVideoWatch(locals.user.id, videoId);
+	} catch (err) {
+		onboardingLogger.error(
+			{ err, userId: locals.user.id, videoId },
+			'Wayfinder reward threw; the watch itself still stands'
+		);
+		outcome = { status: 'failed', reason: 'Reward could not be processed', partial: false };
+	}
 
 	onboardingLogger.info(
 		{ userId: locals.user.id, userName: locals.user.name, videoId, reward: outcome.status },

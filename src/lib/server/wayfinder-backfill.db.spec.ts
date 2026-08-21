@@ -27,6 +27,7 @@ vi.mock('$lib/server/offcoin', () => ({
 vi.mock('$lib/server/discord', () => ({ sendDiscordMessage: vi.fn(async () => true) }));
 
 const { backfillWayfinderRewards } = await import('./wayfinder-backfill');
+const { settleUnclaimedRewards } = await import('./wayfinder-rewards');
 const { WELCOME_VIDEO_ID, findWayfinderVideo } = await import('$lib/wayfinder/videos');
 
 const WELCOME_ECO = findWayfinderVideo(WELCOME_VIDEO_ID)!.rewardEco;
@@ -125,9 +126,34 @@ describe('a real run', () => {
 
 		expect(result.skippedNoOffcoin).toBe(1);
 		expect(result.recipients.map((r) => r.userId)).not.toContain(member.id);
-		// No claim taken, so they still earn it once they connect Offcoin.
+		// The row must exist even though nobody could be paid: it is the thing
+		// that holds the unclaimed reward. Without it there is nothing for
+		// settleUnclaimedRewards to find, and the reward is destroyed rather than
+		// deferred — the member can never re-trigger it, because the client
+		// already shows the welcome video as watched via introWatchedAt.
 		const row = await watchRow(member.id);
+		expect(row).toBeDefined();
 		expect(row?.rewardClaimedAt ?? null).toBeNull();
+	});
+
+	it('pays a skipped member once they connect Offcoin', async () => {
+		// The end-to-end version of the case above: backfill first, link later.
+		const member = await seedUser(db, {
+			introWatchedAt: WATCHED_AT,
+			puckstackUserId: null
+		});
+		await backfillWayfinderRewards('admin', false);
+		expect(members.addTokens).not.toHaveBeenCalled();
+
+		await db
+			.update(schema.user)
+			.set({ puckstackUserId: 'ps-linked-later' })
+			.where(eq(schema.user.id, member.id));
+
+		const total = await settleUnclaimedRewards(member.id);
+
+		expect(total.eco).toBe(WELCOME_ECO);
+		expect(members.addTokens).toHaveBeenCalledTimes(1);
 	});
 
 	it('does not re-pay someone who earned it by watching after rewards shipped', async () => {

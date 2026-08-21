@@ -48,13 +48,6 @@ class WayfinderState {
 		return !!this.watched[videoId];
 	}
 
-	watchedAt(videoId: string): string | null {
-		return (
-			this.watched[videoId] ??
-			(videoId === WELCOME_VIDEO_ID ? (auth.user?.introWatchedAt ?? null) : null)
-		);
-	}
-
 	/**
 	 * Persist a finished video and mirror it locally. Idempotent on both sides:
 	 * a repeat call is a no-op here and the first watch wins on the server.

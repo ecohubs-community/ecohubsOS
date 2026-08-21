@@ -20,15 +20,17 @@
  *
  * - Members with no `introWatchedAt` are untouched. They never finished it, and
  *   paying them would be inventing a watch.
- * - Members who have not connected Offcoin are skipped **without** claiming the
- *   reward, so it is still waiting for them when they link their account.
+ * - Members who have not connected Offcoin still get their watch row, with the
+ *   reward left unclaimed on it, so `settleUnclaimedRewards` can pay them the
+ *   moment they link an account. The row is the thing that holds the reward —
+ *   without it there is nothing for that sweep to find.
  * - The watch row is dated to `introWatchedAt`, not to now, so the backfill does
  *   not rewrite when people actually watched.
  */
 
 import { db } from '$lib/server/db';
 import { user as userTable, wayfinderWatches } from '$lib/server/db/schema';
-import { isNotNull } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { WELCOME_VIDEO_ID, findWayfinderVideo } from '$lib/wayfinder/videos';
 import { rewardVideoWatch } from '$lib/server/wayfinder-rewards';
 import { xpFromEco } from '$lib/server/rewards';
@@ -87,6 +89,21 @@ export async function backfillWayfinderRewards(
 	const watchers = await db.select().from(userTable).where(isNotNull(userTable.introWatchedAt));
 	result.total = watchers.length;
 
+	// Every existing welcome-video row in one query rather than one per member.
+	// Only the dry run consults this — a real run lets the reward claim itself
+	// answer the question, since that is the only answer that cannot race.
+	const existingByUser = new Map<string, { rewardClaimedAt: Date | null }>();
+	if (dryRun) {
+		const rows = await db
+			.select({
+				userId: wayfinderWatches.userId,
+				rewardClaimedAt: wayfinderWatches.rewardClaimedAt
+			})
+			.from(wayfinderWatches)
+			.where(eq(wayfinderWatches.videoId, WELCOME_VIDEO_ID));
+		for (const row of rows) existingByUser.set(row.userId, row);
+	}
+
 	for (const member of watchers) {
 		const watchedAt = member.introWatchedAt!;
 		const entry = {
@@ -99,20 +116,16 @@ export async function backfillWayfinderRewards(
 			exited: member.membershipStatus === 'exited'
 		};
 
-		if (!member.puckstackUserId) {
-			result.skippedNoOffcoin++;
-			continue;
-		}
-
 		if (dryRun) {
 			// Report against the stored row rather than guessing: someone who
 			// watched after rewards shipped has already been paid, and listing
 			// them here would overstate what a real run is about to move.
-			const existing = await db.query.wayfinderWatches.findFirst({
-				where: (w, { and, eq }) => and(eq(w.userId, member.id), eq(w.videoId, WELCOME_VIDEO_ID))
-			});
-			if (existing?.rewardClaimedAt) {
+			if (existingByUser.get(member.id)?.rewardClaimedAt) {
 				result.alreadyRewarded++;
+				continue;
+			}
+			if (!member.puckstackUserId) {
+				result.skippedNoOffcoin++;
 				continue;
 			}
 			result.rewarded++;
@@ -123,15 +136,27 @@ export async function backfillWayfinderRewards(
 		}
 
 		try {
-			// The watch row has to exist before it can be claimed — for a member
-			// who predates the table there is nothing to pay against yet. Dated to
-			// when they actually watched, and conflict-tolerant so a member who
-			// already has a row keeps theirs untouched.
+			// The watch row is created for *everyone* who watched, including
+			// members with no Offcoin link yet — deliberately before the payment
+			// attempt below.
+			//
+			// The row is what holds the unclaimed reward. Skipping its creation for
+			// an unlinked member does not defer their reward, it destroys it:
+			// `settleUnclaimedRewards` sweeps watch rows, so with no row there is
+			// nothing for it to find when they finally connect, and they can never
+			// re-trigger it by watching again either — `getWatchedVideos` folds
+			// `introWatchedAt` in, so the client already shows the video as watched
+			// and never posts.
+			//
+			// Dated to when they actually watched, and conflict-tolerant so a
+			// member who already has a row keeps theirs untouched.
 			await db
 				.insert(wayfinderWatches)
 				.values({ userId: member.id, videoId: WELCOME_VIDEO_ID, watchedAt })
 				.onConflictDoNothing();
 
+			// Now the reward is safely claimable, an unlinked member can be passed
+			// over: `rewardVideoWatch` leaves the claim untaken for them.
 			const outcome = await rewardVideoWatch(member.id, WELCOME_VIDEO_ID);
 
 			if (outcome.status === 'granted') {
@@ -142,8 +167,10 @@ export async function backfillWayfinderRewards(
 			} else if (outcome.status === 'already') {
 				result.alreadyRewarded++;
 			} else if (outcome.status === 'skipped') {
-				// The only skip reachable here is a missing Offcoin record — the
-				// catalogue and reward amount were checked above.
+				// Either no Offcoin link yet or no Offcoin record behind it. Both
+				// leave the claim untaken on the row written above, so both are
+				// "waiting to be paid" rather than a failure. The catalogue and
+				// reward amount were checked before the loop.
 				result.skippedNoOffcoin++;
 			} else {
 				result.failed.push({ email: member.email, error: outcome.reason });
