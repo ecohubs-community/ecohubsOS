@@ -87,7 +87,7 @@ export const STRICT_RATE_LIMIT: RateLimitConfig = {
 };
 
 // Voting: prevent flooding the proposal table with junk submissions.
-// Authoring requires Offcoin Level >= 3 already, this is the secondary gate.
+// Authoring already requires the Member role, this is the secondary gate.
 export const PROPOSAL_CREATE_RATE_LIMIT: RateLimitConfig = {
 	name: 'proposal-create',
 	windowMs: 60 * 60 * 1000, // 1 hour

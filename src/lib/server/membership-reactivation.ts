@@ -6,9 +6,10 @@
  * a 3-day majority vote with no deliberation or ratification phase, so no new
  * voting configuration is needed.
  *
- * The member cannot author the proposal themselves (`proposal.create` is
- * steward-gated) and cannot vote on it (`proposal.vote` requires active), so
- * both go through the system path here.
+ * The member cannot author the proposal themselves and cannot vote on it —
+ * both `proposal.create` and `proposal.vote` require an *active* membership,
+ * which is precisely what standby isn't — so both go through the system path
+ * here.
  */
 
 import { db } from '$lib/server/db';

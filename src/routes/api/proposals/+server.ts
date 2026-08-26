@@ -12,6 +12,7 @@ import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
 import { getMembershipVisibility } from '$lib/server/membership-visibility';
 import { requireCapability } from '$lib/server/membership';
+import { PROPOSAL_TYPE_CAPABILITY } from '$lib/policy';
 import { recordParticipation } from '$lib/server/participation';
 
 const TITLE_MAX = 140;
@@ -187,12 +188,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	return json({ proposals: result });
 };
 
-// POST /api/proposals — create a steward- or admin-authored proposal.
+// POST /api/proposals — create a member-, steward- or admin-authored proposal.
 //
-// Authorship is a role, not a level: members bring ideas through a Discord
-// discussion and a steward carries the ones that fit the manifesto forward. The
-// former Offcoin Level 3 gate is gone — it made authorship depend on a live
-// Offcoin call that failed closed, so an outage silently removed the right.
+// Authorship is a role, not a level: the former Offcoin Level 3 gate is gone —
+// it made authorship depend on a live Offcoin call that failed closed, so an
+// outage silently removed the right.
+//
+// Two gates, because the types differ in what they can move. Members author
+// `operational` proposals directly; `strategic` and `constitutional` ones
+// change direction or the rules themselves and stay with stewards and admins.
+// Trial members hold neither and are still pointed at the Discord discussion.
 export const POST: RequestHandler = async ({ request, locals }) => {
 	requireCapability('proposal.create', locals);
 
@@ -222,6 +227,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!type || !isValidProposalType(type)) {
 		error(400, 'Invalid type — must be one of operational, strategic, constitutional');
 	}
+	// Per-type gate. Resolves to `proposal.create` for operational, which the
+	// caller already holds, so this only ever bites on strategic/constitutional.
+	requireCapability(PROPOSAL_TYPE_CAPABILITY[type], locals);
+
 	if (typeof title !== 'string' || title.trim().length === 0) {
 		error(400, 'Title is required');
 	}

@@ -26,10 +26,14 @@
 
 	let availableTags = $state<TagOption[]>([]);
 
-	// Authorship is a role now, not an Offcoin level. Members who can't author
-	// still see the button — it opens an invitation to bring the idea to Discord
-	// rather than vanishing, so the path forward is visible.
+	// Authorship is a role now, not an Offcoin level. Members author operational
+	// proposals themselves; the strategic and constitutional types stay with
+	// stewards and admins, which the form enforces on the type picker.
+	//
+	// Trial members still see the button — it opens an invitation to bring the
+	// idea to Discord rather than vanishing, so the path forward is visible.
 	const canAuthor = $derived(auth.can('proposal.create').allowed);
+	const canAuthorGovernance = $derived(auth.can('proposal.create.governance').allowed);
 
 	// Vote eligibility is resolved in ProposalDetail, next to the ballot it gates.
 	let showProposeHint = $state(false);
@@ -162,13 +166,18 @@
 			<div class="centered-error">Loading…</div>
 		{/if}
 	{:else if view === 'form'}
-		<ProposalForm {availableTags} onCancel={backToList} onCreated={onProposalCreated} />
+		<ProposalForm
+			{availableTags}
+			{canAuthorGovernance}
+			onCancel={backToList}
+			onCreated={onProposalCreated}
+		/>
 	{/if}
 </div>
 
 {#if showProposeHint}
-	<!-- Proposals are authored by stewards, but the idea still has a home. This
-	     points members at the discussion rather than showing them a dead end. -->
+	<!-- Trial members can't author yet, but the idea still has a home. This
+	     points them at the discussion rather than showing them a dead end. -->
 	<div
 		class="hint-backdrop"
 		role="dialog"

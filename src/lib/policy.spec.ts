@@ -4,6 +4,7 @@ import {
 	CAPABILITIES,
 	ROLE_GROUPS,
 	GRANT_GROUPS,
+	PROPOSAL_TYPE_CAPABILITY,
 	can,
 	allowed,
 	appSurface,
@@ -98,26 +99,48 @@ describe('voting rights', () => {
 });
 
 describe('proposal creation', () => {
-	it('is closed to members — stewards and admins only', () => {
-		expect(allowed('proposal.create', member())).toBe(false);
+	it('is open to members, stewards and admins', () => {
+		expect(allowed('proposal.create', member())).toBe(true);
 		expect(allowed('proposal.create', steward())).toBe(true);
 		expect(allowed('proposal.create', admin())).toBe(true);
 	});
 
+	it('is closed to trial members, who are pointed at Discord instead', () => {
+		expect(allowed('proposal.create', trial())).toBe(false);
+	});
+
+	it('maps operational proposals to the member-level gate', () => {
+		expect(PROPOSAL_TYPE_CAPABILITY.operational).toBe('proposal.create');
+		expect(allowed(PROPOSAL_TYPE_CAPABILITY.operational, member())).toBe(true);
+	});
+
+	it('keeps strategic and constitutional proposals with stewards and admins', () => {
+		for (const type of ['strategic', 'constitutional'] as const) {
+			const capability = PROPOSAL_TYPE_CAPABILITY[type];
+			expect(allowed(capability, trial())).toBe(false);
+			expect(allowed(capability, member())).toBe(false);
+			expect(allowed(capability, steward())).toBe(true);
+			expect(allowed(capability, admin())).toBe(true);
+		}
+	});
+
 	it('offers no automatic unlock level, because steward is request + approval', () => {
-		const result = can('proposal.create', member());
+		const result = can('proposal.create.governance', member());
 		expect(result).toMatchObject({ reason: 'needs_role', unlockAtLevel: null });
 	});
 
 	it('tells a level-eligible member they can ask to become a steward', () => {
-		const result = can('proposal.create', member({ level: POLICY.levels.stewardMinLevel }));
+		const result = can(
+			'proposal.create.governance',
+			member({ level: POLICY.levels.stewardMinLevel })
+		);
 		expect(result.allowed).toBe(false);
 		if (result.allowed) return;
 		expect(result.message).toContain('ask an admin about becoming a steward');
 	});
 
 	it('does not dangle stewardship at a member below the level bar', () => {
-		const result = can('proposal.create', member({ level: 1 }));
+		const result = can('proposal.create.governance', member({ level: 1 }));
 		expect(result.allowed).toBe(false);
 		if (result.allowed) return;
 		expect(result.message).not.toContain('ask an admin');
