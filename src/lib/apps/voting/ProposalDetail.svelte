@@ -124,6 +124,21 @@
 		<MarkdownView source={proposal.body} />
 	</section>
 
+	{#if proposal.motion}
+		<!-- Set apart from the description on purpose: this is the text a Yes
+		     ratifies, so it must not read as more prose about the proposal. -->
+		<section class="motion-section">
+			<h2 class="motion-head">
+				<Icon icon="tabler:gavel" class="h-4 w-4" />
+				Motion
+			</h2>
+			<p class="motion-note">This is the exact wording being voted on.</p>
+			<div class="motion-body">
+				<MarkdownView source={proposal.motion} />
+			</div>
+		</section>
+	{/if}
+
 	{#if proposal.linkedApplicationId}
 		<button class="view-application-btn" onclick={() => (applicationOpen = true)}>
 			<Icon icon="tabler:file-text" class="h-4 w-4" />
@@ -275,6 +290,30 @@
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 255, 255, 0.06);
 		border-radius: 10px;
+	}
+	.motion-section {
+		padding: 1rem 1.2rem;
+		background: rgba(99, 102, 241, 0.07);
+		border: 1px solid rgba(99, 102, 241, 0.28);
+		border-left-width: 3px;
+		border-radius: 10px;
+	}
+	.motion-head {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: #c7d2fe;
+	}
+	.motion-note {
+		margin: 0.2rem 0 0.8rem;
+		font-size: 0.78rem;
+		color: rgba(255, 255, 255, 0.5);
+	}
+	.motion-body {
+		font-size: 0.95rem;
 	}
 	.view-application-btn {
 		align-self: flex-start;

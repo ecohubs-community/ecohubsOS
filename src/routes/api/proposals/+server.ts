@@ -8,6 +8,7 @@ import { newProposalMessage } from '$lib/server/discord-templates';
 import { votingLogger } from '$lib/server/logger';
 import { computePeriods, isValidProposalType, TYPE_CONFIG } from '$lib/server/voting/periods';
 import { getChoices } from '$lib/server/voting/choice-sets';
+import { normaliseMotion } from '$lib/server/voting/motion';
 import { materialiseAllStale } from '$lib/server/voting/materialise';
 import { checkRateLimit, PROPOSAL_CREATE_RATE_LIMIT } from '$lib/server/rateLimit';
 import { getMembershipVisibility } from '$lib/server/membership-visibility';
@@ -216,11 +217,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		type,
 		title,
 		body: proposalBody,
+		motion,
 		tags
 	} = body as {
 		type?: string;
 		title?: string;
 		body?: string;
+		motion?: unknown;
 		tags?: unknown;
 	};
 
@@ -239,6 +242,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(400, 'Body is required');
 	}
 	if (proposalBody.length > BODY_MAX) error(400, `Body must be ≤ ${BODY_MAX} characters`);
+
+	const normalisedMotion = normaliseMotion(motion);
 
 	const normalisedTags: string[] = [];
 	if (Array.isArray(tags)) {
@@ -265,6 +270,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			type,
 			title: title.trim(),
 			body: proposalBody,
+			motion: normalisedMotion,
 			authorUserId: locals.user.id,
 			tags: JSON.stringify(normalisedTags),
 			choiceSetKey: 'default',

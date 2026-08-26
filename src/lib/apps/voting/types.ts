@@ -47,6 +47,11 @@ export interface VoterRow {
 
 export interface ProposalDetail extends ProposalListRow {
 	body: string;
+	/**
+	 * The exact wording being agreed to, when the proposal carries one. `body`
+	 * describes what the proposal is about; this is what a Yes ratifies.
+	 */
+	motion: string | null;
 	voters: VoterRow[];
 }
 

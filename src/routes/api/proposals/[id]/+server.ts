@@ -109,6 +109,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			type: proposal.type,
 			title: proposal.title,
 			body: proposal.body,
+			motion: proposal.motion,
 			tags: parseTags(proposal.tags),
 			choiceSetKey: proposal.choiceSetKey,
 			choices: parseChoices(proposal.choices),

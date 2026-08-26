@@ -21,19 +21,27 @@
 
 	const TITLE_MAX = 140;
 	const BODY_MAX = 10000;
+	const MOTION_MAX = 5000;
 	const TAG_MAX = 5;
 
 	let type = $state<ProposalType>('operational');
 	let title = $state('');
 	let body = $state('');
+	let motion = $state('');
 	let tagInput = $state('');
 	let tags = $state<string[]>([]);
 	let submitting = $state(false);
 	let submittedSuccessfully = $state(false);
 	let error = $state<string | null>(null);
 
+	// Collapsed by default: most proposals are a question to the community, not
+	// a text to ratify, and an empty motion box invites people to fill it in
+	// with a restatement of the description.
+	let motionOpen = $state(false);
+
 	const titleOver = $derived(title.length > TITLE_MAX);
 	const bodyOver = $derived(body.length > BODY_MAX);
+	const motionOver = $derived(motion.length > MOTION_MAX);
 
 	// Form has unsaved changes whenever the user has typed anything OR
 	// added a tag. Once submission succeeds, dirty resets to false so
@@ -42,6 +50,7 @@
 		!submittedSuccessfully &&
 			(title.trim().length > 0 ||
 				body.trim().length > 0 ||
+				motion.trim().length > 0 ||
 				tags.length > 0 ||
 				tagInput.trim().length > 0)
 	);
@@ -135,13 +144,24 @@
 			error = `Body must be ≤ ${BODY_MAX} characters`;
 			return;
 		}
+		if (motionOver) {
+			error = `Motion must be ≤ ${MOTION_MAX} characters`;
+			return;
+		}
 
 		submitting = true;
 		try {
 			const res = await fetch('/api/proposals', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ type, title: title.trim(), body, tags })
+				// Whitespace-only means "no motion" — the same rule the server applies.
+				body: JSON.stringify({
+					type,
+					title: title.trim(),
+					body,
+					motion: motion.trim() ? motion : undefined,
+					tags
+				})
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
@@ -210,7 +230,41 @@
 
 	<div class="field">
 		<label for="proposal-body">Description (Markdown)</label>
+		<span class="field-note">What the proposal is about — the context, the reasoning, the ask.</span
+		>
 		<MarkdownEditor bind:value={body} maxLength={BODY_MAX} />
+	</div>
+
+	<div class="field">
+		<button
+			type="button"
+			class="disclosure"
+			aria-expanded={motionOpen}
+			aria-controls="proposal-motion"
+			onclick={() => (motionOpen = !motionOpen)}
+		>
+			<Icon icon={motionOpen ? 'tabler:chevron-down' : 'tabler:chevron-right'} class="h-4 w-4" />
+			<span>Motion <span class="hint-inline">(optional)</span></span>
+			{#if !motionOpen && motion.trim()}
+				<!-- Collapsing must not hide that a motion exists, or an author can
+				     submit wording they've forgotten they wrote. -->
+				<span class="disclosure-badge">written</span>
+			{/if}
+		</button>
+		{#if motionOpen}
+			<div id="proposal-motion">
+				<span class="field-note">
+					The exact wording being agreed to. A Yes vote ratifies this text verbatim. Leave it out
+					when the vote is a direction or a question rather than a text.
+				</span>
+				<MarkdownEditor
+					bind:value={motion}
+					maxLength={MOTION_MAX}
+					rows={8}
+					placeholder="We hereby resolve that…"
+				/>
+			</div>
+		{/if}
 	</div>
 
 	<div class="field">
@@ -251,7 +305,7 @@
 			type="button"
 			class="btn-primary"
 			onclick={submit}
-			disabled={submitting || titleOver || bodyOver}
+			disabled={submitting || titleOver || bodyOver || motionOver}
 		>
 			{submitting ? 'Submitting…' : 'Submit Proposal'}
 		</button>
@@ -302,6 +356,39 @@
 	}
 	.counter.over {
 		color: #fca5a5;
+	}
+	.field-note {
+		font-size: 0.78rem;
+		line-height: 1.5;
+		font-weight: 400;
+		color: rgba(255, 255, 255, 0.45);
+		margin-bottom: 0.15rem;
+		display: block;
+	}
+	.disclosure {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		align-self: flex-start;
+		background: transparent;
+		border: none;
+		padding: 0;
+		color: rgba(255, 255, 255, 0.92);
+		font-family: inherit;
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.disclosure:hover {
+		color: white;
+	}
+	.disclosure-badge {
+		padding: 0.1rem 0.45rem;
+		border-radius: 999px;
+		background: rgba(99, 102, 241, 0.18);
+		color: #c7d2fe;
+		font-size: 0.7rem;
+		font-weight: 500;
 	}
 	.field-hint {
 		margin: 0;
