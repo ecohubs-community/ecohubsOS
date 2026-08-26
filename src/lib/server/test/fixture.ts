@@ -127,6 +127,7 @@ CREATE TABLE proposals (
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
+  motion TEXT,
   author_user_id TEXT REFERENCES user(id) ON DELETE SET NULL,
   tags TEXT NOT NULL DEFAULT '[]',
   choice_set_key TEXT NOT NULL,

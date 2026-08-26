@@ -440,6 +440,12 @@ export const proposals = sqliteTable('proposals', {
 	title: text('title').notNull(),
 	body: text('body').notNull(),
 
+	// The motion: the exact wording being agreed to, as opposed to `body`, which
+	// describes what the proposal is *about*. Nullable because not every vote
+	// carries one — a "should we explore X?" proposal has nothing to ratify
+	// verbatim. System-generated proposals never set it.
+	motion: text('motion'),
+
 	// nullable for system-generated proposals
 	authorUserId: text('author_user_id').references(() => user.id, { onDelete: 'set null' }),
 
