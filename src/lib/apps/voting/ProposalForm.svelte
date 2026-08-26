@@ -1,22 +1,29 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import MarkdownEditor from './MarkdownEditor.svelte';
-	import type { TagOption } from './types';
+	import type { ProposalType, TagOption } from './types';
 	import { os } from '$lib/os.svelte';
 
 	interface Props {
 		availableTags: TagOption[];
+		/**
+		 * Whether the author may pick `strategic` or `constitutional`. Members
+		 * may not — those types change direction or the rules themselves, so they
+		 * stay with stewards and admins. The server enforces the same split; this
+		 * only keeps the picker honest about it.
+		 */
+		canAuthorGovernance: boolean;
 		onCancel: () => void;
 		onCreated: (id: string) => void;
 	}
 
-	let { availableTags, onCancel, onCreated }: Props = $props();
+	let { availableTags, canAuthorGovernance, onCancel, onCreated }: Props = $props();
 
 	const TITLE_MAX = 140;
 	const BODY_MAX = 10000;
 	const TAG_MAX = 5;
 
-	let type = $state<'operational' | 'strategic' | 'constitutional'>('operational');
+	let type = $state<ProposalType>('operational');
 	let title = $state('');
 	let body = $state('');
 	let tagInput = $state('');
@@ -167,11 +174,22 @@
 		<label for="proposal-type">Type</label>
 		<select id="proposal-type" class="input" bind:value={type}>
 			<option value="operational">Operational — 3 day vote</option>
-			<option value="strategic">Strategic — 5 day deliberation, 7 day vote</option>
-			<option value="constitutional">
+			<option value="strategic" disabled={!canAuthorGovernance}>
+				Strategic — 5 day deliberation, 7 day vote
+			</option>
+			<option value="constitutional" disabled={!canAuthorGovernance}>
 				Constitutional — 15 day deliberation, 14 day vote, 30 day ratification
 			</option>
 		</select>
+		{#if !canAuthorGovernance}
+			<!-- Shown rather than hiding the options: knowing the other two types
+			     exist, and who carries them, is the useful part. -->
+			<p class="field-hint">
+				Members propose operational changes — the day-to-day decisions. Strategic and constitutional
+				proposals change our direction or our rules, so a steward or admin carries those forward.
+				Bring the idea to Discord and we'll go from there.
+			</p>
+		{/if}
 	</div>
 
 	<div class="field">
@@ -284,6 +302,12 @@
 	}
 	.counter.over {
 		color: #fca5a5;
+	}
+	.field-hint {
+		margin: 0;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		color: rgba(255, 255, 255, 0.5);
 	}
 	.hint-inline {
 		font-weight: 400;

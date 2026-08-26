@@ -87,12 +87,24 @@ describe('requireCapability', () => {
 		expect(() => requireCapability('proposal.vote', locals([ROLE_GROUPS.member]))).not.toThrow();
 	});
 
-	it('403s a member on proposal creation — stewards and admins only', () => {
+	it('passes a member through on proposal creation', () => {
+		expect(() => requireCapability('proposal.create', locals([ROLE_GROUPS.member]))).not.toThrow();
+	});
+
+	it('403s a trial member on proposal creation', () => {
+		expect(thrown(() => requireCapability('proposal.create', locals([]))).status).toBe(403);
+	});
+
+	it('403s a member on strategic and constitutional proposals', () => {
 		expect(
-			thrown(() => requireCapability('proposal.create', locals([ROLE_GROUPS.member]))).status
+			thrown(() => requireCapability('proposal.create.governance', locals([ROLE_GROUPS.member])))
+				.status
 		).toBe(403);
 		expect(() =>
-			requireCapability('proposal.create', locals([ROLE_GROUPS.member, ROLE_GROUPS.steward]))
+			requireCapability(
+				'proposal.create.governance',
+				locals([ROLE_GROUPS.member, ROLE_GROUPS.steward])
+			)
 		).not.toThrow();
 	});
 
@@ -115,7 +127,7 @@ describe('requireCapability', () => {
 
 	it('uses an overridden level in the denial message', () => {
 		const err = thrown(() =>
-			requireCapability('proposal.create', locals([ROLE_GROUPS.member]), {
+			requireCapability('proposal.create.governance', locals([ROLE_GROUPS.member]), {
 				level: POLICY.levels.stewardMinLevel
 			})
 		);

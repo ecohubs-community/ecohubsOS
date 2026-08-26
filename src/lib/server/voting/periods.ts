@@ -1,4 +1,9 @@
-export type ProposalType = 'operational' | 'strategic' | 'constitutional';
+import type { ProposalType } from '$lib/policy';
+
+// One definition of the union, in `$lib/policy`, so the authoring gate there
+// stays exhaustive over exactly the types this module knows how to schedule.
+export type { ProposalType };
+
 export type Threshold = 'majority' | 'supermajority';
 
 export interface TypeConfig {

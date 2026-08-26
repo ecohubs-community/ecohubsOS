@@ -1,4 +1,7 @@
-export type ProposalType = 'operational' | 'strategic' | 'constitutional';
+import type { ProposalType } from '$lib/policy';
+
+export type { ProposalType };
+
 export type ProposalStatus =
 	| 'deliberating'
 	| 'active'

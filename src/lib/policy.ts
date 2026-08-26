@@ -100,6 +100,7 @@ export type Capability =
 	| 'voting.view'
 	| 'proposal.vote'
 	| 'proposal.create'
+	| 'proposal.create.governance'
 	| 'blog.write'
 	| 'newsletter.write'
 	| 'blueprint.admin'
@@ -138,7 +139,16 @@ export const CAPABILITIES: Record<Capability, CapabilitySpec> = {
 	// decide, they just cannot vote or propose.
 	'voting.view': { label: 'The Voting app', minRole: 'trial', statuses: ['active'] },
 	'proposal.vote': { label: 'Voting', minRole: 'member', statuses: ['active'] },
-	'proposal.create': { label: 'Creating proposals', minRole: 'steward', statuses: ['active'] },
+	// Authoring splits by what a proposal can move. Members carry their own
+	// operational ideas — the day-to-day, 3-day-vote decisions — straight into
+	// the Voting app. Strategic and constitutional proposals change direction or
+	// the rules themselves, so they stay with stewards and admins.
+	'proposal.create': { label: 'Creating proposals', minRole: 'member', statuses: ['active'] },
+	'proposal.create.governance': {
+		label: 'Creating strategic and constitutional proposals',
+		minRole: 'steward',
+		statuses: ['active']
+	},
 
 	'blog.write': {
 		label: 'Blog writing',
@@ -174,6 +184,31 @@ export const CAPABILITIES: Record<Capability, CapabilitySpec> = {
 	},
 	'membership.exit': { label: 'Exiting members', minRole: 'steward', statuses: ['active'] },
 	'admin.apps': { label: 'Admin apps', minRole: 'admin', statuses: ['active'] }
+};
+
+// ---------------------------------------------------------------------------
+// Proposal types
+// ---------------------------------------------------------------------------
+
+/**
+ * The three proposal types, defined here rather than in the voting module so
+ * that the authoring gate below is exhaustive over them. Voting *timings* for
+ * each type live in `$lib/server/voting/periods.ts`, which re-exports this type.
+ */
+export type ProposalType = 'operational' | 'strategic' | 'constitutional';
+
+/**
+ * Which capability authoring a proposal of each type requires.
+ *
+ * Both gates are real: `proposal.create` decides whether someone may author at
+ * all, and this decides what they may author. A member who picks
+ * `constitutional` is refused with the steward-shaped message, not a generic
+ * "you can't propose".
+ */
+export const PROPOSAL_TYPE_CAPABILITY: Record<ProposalType, Capability> = {
+	operational: 'proposal.create',
+	strategic: 'proposal.create.governance',
+	constitutional: 'proposal.create.governance'
 };
 
 // ---------------------------------------------------------------------------
