@@ -45,6 +45,13 @@ export const user = sqliteTable('user', {
 	// Cleared once `puckstackUserId` is set.
 	puckstackInviteToken: text('puckstack_invite_token'),
 
+	// Discord link, written by the Discord OAuth callback. The id is what exit
+	// uses to strip the role. `discordConnectedAt` is set only once the Member
+	// role was actually granted — it, not the client, is what completes the
+	// `discord-connect` onboarding step.
+	discordUserId: text('discord_user_id'),
+	discordConnectedAt: integer('discord_connected_at', { mode: 'timestamp' }),
+
 	// Profile fields (user-editable)
 	displayName: text('display_name'),
 	avatar: text('avatar'),

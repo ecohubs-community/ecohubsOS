@@ -11,7 +11,7 @@
 		isSubStepEnabled,
 		markSubStepCompleted,
 		markStepCompleted,
-		markSubStepCompletedById,
+		withoutServerVerified,
 		getActionButton,
 		performAction,
 		applyProgress,
@@ -64,7 +64,7 @@
 	onMount(() => {
 		// 1. Load localStorage steps and extract their progress
 		const localSteps = loadSteps();
-		const localProgress = extractProgress(localSteps);
+		const localProgress = withoutServerVerified(extractProgress(localSteps));
 
 		// 2. Merge: union of server + local progress (server wins on conflicts)
 		const mergedProgress: OnboardingProgress = { ...localProgress, ...serverProgress };
@@ -105,24 +105,10 @@
 			isExpanded = !isCompleted;
 		}
 
-		// 7. Check if returning from Discord OAuth (via query param or cookie)
-		if (browser) {
-			const urlParams = new URLSearchParams(window.location.search);
-			const hasDiscordQueryParam = urlParams.get('discord') === 'connected';
-			const hasDiscordCookie = document.cookie.includes('discord_connected=');
-
-			if (hasDiscordQueryParam || hasDiscordCookie) {
-				// Mark Discord step as completed (also syncs to server)
-				markSubStepCompletedById('discord-connect');
-				// Reload steps to reflect the change
-				steps = loadSteps();
-				// Clean up URL if query param present
-				if (hasDiscordQueryParam) {
-					window.history.replaceState({}, '', window.location.pathname);
-				}
-				// Clean up cookie
-				document.cookie = 'discord_connected=; path=/; max-age=0';
-			}
+		// 7. Discord OAuth return needs no handling: the callback records the
+		//    step server-side once the role is granted (see SERVER_VERIFIED_SUBSTEP_IDS).
+		if (browser && new URLSearchParams(window.location.search).has('discord')) {
+			window.history.replaceState({}, '', window.location.pathname);
 		}
 
 		// 8. Listen for step completion events from apps (e.g., OffcoinConnect)

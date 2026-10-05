@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
-import { user, account } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { user } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
 import { onboardingLogger } from '$lib/server/logger';
 
 export type OnboardingProgress = Record<string, string>;
@@ -41,16 +41,11 @@ export async function getOnboardingProgress(userId: string): Promise<OnboardingP
 		progress['safe-proposal'] = new Date().toISOString();
 	}
 
-	// Auto-detect: discord-connect
-	try {
-		const discordAccount = await db.query.account.findFirst({
-			where: and(eq(account.userId, userId), eq(account.providerId, 'discord'))
-		});
-		if (discordAccount && !progress['discord-connect']) {
-			progress['discord-connect'] = discordAccount.createdAt.toISOString();
-		}
-	} catch (err) {
-		onboardingLogger.warn({ err, userId }, 'Failed to check Discord account for auto-detection');
+	// Auto-detect: discord-connect. Set by the OAuth callback only once the
+	// Member role was granted. (This used to look for a better-auth `discord`
+	// account, which never exists — Discord is not a sign-in provider here.)
+	if (dbUser.discordConnectedAt && !progress['discord-connect']) {
+		progress['discord-connect'] = dbUser.discordConnectedAt.toISOString();
 	}
 
 	return progress;
@@ -121,3 +116,20 @@ export const VALID_SUBSTEP_IDS = [
 	'discord-introduce',
 	'profile-setup'
 ] as const;
+
+/**
+ * Record a server-verified substep (see `SERVER_VERIFIED_SUBSTEP_IDS`) in the
+ * stored progress JSON, so everything that reads that JSON directly — the admin
+ * members list, the onboarding board — agrees with the wizard.
+ */
+export async function recordVerifiedSubstep(userId: string, substepId: string): Promise<void> {
+	const dbUser = await db.query.user.findFirst({ where: eq(user.id, userId) });
+	if (!dbUser) return;
+	const progress = parseOnboardingProgress(dbUser.onboardingProgress);
+	if (progress[substepId]) return;
+	progress[substepId] = new Date().toISOString();
+	await db
+		.update(user)
+		.set({ onboardingProgress: JSON.stringify(progress), updatedAt: new Date() })
+		.where(eq(user.id, userId));
+}

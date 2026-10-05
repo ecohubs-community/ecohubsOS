@@ -9,11 +9,11 @@
 		saveSteps,
 		isSubStepEnabled,
 		markSubStepCompleted,
-		markSubStepCompletedById,
 		getActionButton,
 		performAction,
 		applyProgress,
-		extractProgress
+		extractProgress,
+		withoutServerVerified
 	} from '$lib/onboarding/stepManager';
 	import type { Step, SubStep, OnboardingProgress } from '$lib/onboarding/stepManager';
 	import OnboardingAppFrame from './OnboardingAppFrame.svelte';
@@ -55,6 +55,10 @@
 	let currentStepIndex = $state(0);
 	let activeApp = $state<{ component: Component; title: string } | null>(null);
 	let showCompletion = $state(false);
+	// Shown on the Discord step after a failed or cancelled connect.
+	let discordNotice = $state<string | null>(null);
+	// Shown by the Finish button when the server refuses completion.
+	let completeError = $state<string | null>(null);
 
 	// Reference to the inline profile fields component, so the wizard
 	// can drive its save() from the Next button.
@@ -179,10 +183,17 @@
 	}
 
 	async function handleComplete() {
+		completeError = null;
 		const response = await fetch('/api/onboarding/complete', { method: 'POST' });
 		if (response.ok) {
 			window.location.href = '/';
+			return;
 		}
+		// Used to fail silently, leaving the member on the welcome screen with a
+		// button that did nothing.
+		const body = await response.json().catch(() => null);
+		completeError = body?.message ?? 'Could not finish setup. Please try again.';
+		showCompletion = false;
 	}
 
 	function handleFinishSetup() {
@@ -192,7 +203,9 @@
 	onMount(() => {
 		// 1. Merge server + local progress
 		const localSteps = loadSteps();
-		const localProgress = extractProgress(localSteps);
+		// Server-verified steps (Discord) only count when the server says so —
+		// a stale or hand-edited localStorage entry must not tick them.
+		const localProgress = withoutServerVerified(extractProgress(localSteps));
 		const mergedProgress: OnboardingProgress = { ...localProgress, ...serverProgress };
 
 		// 2. Apply to fresh step tree
@@ -217,19 +230,19 @@
 		// 4. Set initial step to the first incomplete one
 		currentStepIndex = frontierIndex;
 
-		// 5. Handle Discord OAuth return
+		// 5. Handle Discord OAuth return. A successful connect is already in
+		//    `serverProgress` (the callback records it once the role is granted),
+		//    so there is nothing to mark here — only failures to explain.
 		if (browser) {
-			const urlParams = new URLSearchParams(window.location.search);
-			const hasDiscordQueryParam = urlParams.get('discord') === 'connected';
-			const hasDiscordCookie = document.cookie.includes('discord_connected=');
-
-			if (hasDiscordQueryParam || hasDiscordCookie) {
-				markSubStepCompletedById('discord-connect');
-				steps = loadSteps();
-				if (hasDiscordQueryParam) {
-					window.history.replaceState({}, '', window.location.pathname);
-				}
-				document.cookie = 'discord_connected=; path=/; max-age=0';
+			const discordResult = new URLSearchParams(window.location.search).get('discord');
+			if (discordResult === 'failed') {
+				discordNotice =
+					"Discord is connected, but we couldn't give you the Member role. Please try again — if it keeps failing, tell a steward.";
+			} else if (discordResult === 'denied') {
+				discordNotice = 'Discord connection was cancelled. Connect again when you are ready.';
+			}
+			if (discordResult) {
+				window.history.replaceState({}, '', window.location.pathname);
 			}
 		}
 
@@ -543,6 +556,14 @@
 										<PuckstackIllustration />
 									</div>
 								{:else if currentStep.id === 'discord'}
+									{#if discordNotice}
+										<p
+											role="alert"
+											class="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+										>
+											{discordNotice}
+										</p>
+									{/if}
 									<div class="mt-auto pt-6">
 										<DiscordIllustration />
 									</div>
@@ -567,6 +588,9 @@
 						</button>
 
 						<div class="flex items-center gap-3">
+							{#if completeError}
+								<p role="alert" class="text-sm text-red-300">{completeError}</p>
+							{/if}
 							{#if allDone}
 								<button
 									type="button"

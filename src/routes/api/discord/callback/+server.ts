@@ -1,73 +1,66 @@
 import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { getOffcoinClient } from '$lib/server/offcoin';
+import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
+import { db } from '$lib/server/db';
+import { user as userTable } from '$lib/server/db/schema';
+import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
+import { grantDiscordMemberRole } from '$lib/server/discord';
+import { DISCORD_STATE_COOKIE, readDiscordState } from '$lib/server/discord-oauth';
+import { recordVerifiedSubstep } from '$lib/server/onboarding';
 import { discordLogger } from '$lib/server/logger';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
 /**
  * Discord OAuth2 Callback Endpoint
- * Handles the OAuth2 callback from Discord:
- * 1. Exchange code for access token
- * 2. Get Discord user ID
- * 3. Add discord:<userId> alias to Offcoin member
- * 4. Assign "Member" role via Bot API
- * 5. Redirect back to main page
+ *
+ * 1. Check `state` against the nonce cookie set by /api/discord/auth
+ * 2. Exchange the code and read the Discord user id
+ * 3. Grant the Member role (joining the guild if needed)
+ * 4. Store the Discord id; only if the role landed, mark `discord-connect` done
+ * 5. Redirect back with `?discord=connected` or `?discord=failed`
+ *
+ * The step used to be marked done by the browser on any return here, and role
+ * failures were only logged — so a member could finish onboarding without the
+ * role, and nobody knew.
  */
-export const GET: RequestHandler = async ({ url, cookies }) => {
+export const GET: RequestHandler = async ({ url, cookies, locals }) => {
+	// The session cookie is SameSite=Lax, so it survives the top-level redirect
+	// back from Discord. Acting on the session rather than an id in `state`
+	// means a forged state cannot point the result at someone else.
+	if (!locals.user) {
+		redirect(302, '/login');
+	}
+
+	const verified = readDiscordState(
+		url.searchParams.get('state'),
+		cookies.get(DISCORD_STATE_COOKIE)
+	);
+	cookies.delete(DISCORD_STATE_COOKIE, { path: '/api/discord' });
+
+	if (!verified) {
+		discordLogger.warn(
+			{ userId: locals.user.id },
+			'Discord callback with invalid or expired state'
+		);
+		error(400, 'Discord authorization expired or was not started here — please try again');
+	}
+	const { returnTo } = verified;
+
+	if (url.searchParams.get('error')) {
+		discordLogger.info(
+			{ error: url.searchParams.get('error') },
+			'User denied Discord authorization'
+		);
+		redirect(302, `${returnTo}?discord=denied`);
+	}
+
 	const code = url.searchParams.get('code');
-	const state = url.searchParams.get('state');
-	const errorParam = url.searchParams.get('error');
-
-	// Handle user denying authorization
-	// Try to extract returnTo from state even on error
-	let errorReturnTo = '/';
-	if (state) {
-		try {
-			const stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-			if (stateData.returnTo && typeof stateData.returnTo === 'string' && stateData.returnTo.startsWith('/') && !stateData.returnTo.startsWith('//')) {
-				errorReturnTo = stateData.returnTo;
-			}
-		} catch {
-			// ignore parse errors for error case
-		}
-	}
-	if (errorParam) {
-		discordLogger.info({ error: errorParam }, 'User denied Discord authorization');
-		redirect(302, `${errorReturnTo}?discord=denied`);
-	}
-
 	if (!code) {
 		error(400, 'Missing authorization code');
 	}
 
-	// Verify state parameter to prevent CSRF
-	if (!state) {
-		error(400, 'Missing state parameter');
-	}
-
-	// Parse state to get user info (state contains the user ID even if session expired)
-	let walletAddress: string | null;
-	let returnTo = '/';
-	try {
-		const stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-		walletAddress = stateData.wallet ?? null;
-		// Extract returnTo from state (validated: must start with /, no //)
-		if (stateData.returnTo && typeof stateData.returnTo === 'string' && stateData.returnTo.startsWith('/') && !stateData.returnTo.startsWith('//')) {
-			returnTo = stateData.returnTo;
-		}
-
-		// Check timestamp (15 min expiry)
-		if (Date.now() - stateData.timestamp > 15 * 60 * 1000) {
-			error(400, 'Authorization expired - please try again');
-		}
-	} catch (err) {
-		discordLogger.error({ err }, 'State verification failed');
-		error(400, 'Invalid state parameter');
-	}
-
-	// Exchange code for access token
 	const tokenResponse = await fetch(`${DISCORD_API}/oauth2/token`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -81,113 +74,67 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	});
 
 	if (!tokenResponse.ok) {
-		const errorText = await tokenResponse.text();
-		discordLogger.error({ errorText }, 'Discord token exchange failed');
-		error(500, 'Failed to authenticate with Discord');
+		discordLogger.error({ errorText: await tokenResponse.text() }, 'Discord token exchange failed');
+		redirect(302, `${returnTo}?discord=failed`);
 	}
 
 	const tokens = await tokenResponse.json();
 
-	// Get Discord user info
 	const userResponse = await fetch(`${DISCORD_API}/users/@me`, {
 		headers: { Authorization: `Bearer ${tokens.access_token}` }
 	});
 
 	if (!userResponse.ok) {
 		discordLogger.error({ response: await userResponse.text() }, 'Failed to get Discord user info');
-		error(500, 'Failed to get Discord user info');
+		redirect(302, `${returnTo}?discord=failed`);
 	}
 
 	const discordUser = await userResponse.json();
-	const discordUserId = discordUser.id;
-	const discordUsername = discordUser.username;
+	const discordUserId: string = discordUser.id;
 
-	// Add Discord alias to Offcoin member (if wallet is connected)
-	if (walletAddress !== null) {
-		try {
-			const offcoin = getOffcoinClient();
-			const walletAlias = `wallet:${walletAddress.toLowerCase()}`;
-			const discordAlias = `discord:${discordUserId}`;
+	const granted = await grantDiscordMemberRole(discordUserId, tokens.access_token);
 
-			// Get member by wallet alias and add Discord alias
-			const member = await offcoin.members.get(walletAlias);
-			if (!member.aliases?.includes(discordAlias)) {
-				await offcoin.members.addAlias(walletAlias, discordAlias);
-				discordLogger.info({ discordAlias, memberName: member.name }, 'Added Discord alias to member');
-			}
-		} catch (err) {
-			discordLogger.error({ err }, 'Failed to add Discord alias to Offcoin');
-			// Continue anyway - role assignment is more important for user experience
-		}
-	}
+	// Store the id either way — it is what exit uses to strip the role, and what
+	// a steward needs to look into a failed grant. Only a granted role sets
+	// `discordConnectedAt`, which is what completes the onboarding step.
+	await db
+		.update(userTable)
+		.set({
+			discordUserId,
+			...(granted ? { discordConnectedAt: new Date() } : {}),
+			updatedAt: new Date()
+		})
+		.where(eq(userTable.id, locals.user.id));
 
-	// Assign "Member" role via Bot API
-	const guildId = env.DISCORD_GUILD_ID;
-	const roleId = env.DISCORD_MEMBER_ROLE_ID;
-	const botToken = env.DISCORD_BOT_TOKEN;
-
-	if (guildId && roleId && botToken) {
-		try {
-			// First, try to add user to guild (in case they're not a member yet)
-			// This requires the guilds.join scope
-			const addMemberResponse = await fetch(
-				`${DISCORD_API}/guilds/${guildId}/members/${discordUserId}`,
-				{
-					method: 'PUT',
-					headers: {
-						Authorization: `Bot ${botToken}`,
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						access_token: tokens.access_token,
-						roles: [roleId] // Assign role immediately when adding
-					})
-				}
-			);
-
-			if (addMemberResponse.status === 201) {
-				// User was added to guild with role
-				discordLogger.info({ discordUsername }, 'Added Discord user to guild with Member role');
-			} else if (addMemberResponse.status === 204) {
-				// User was already in guild, need to add role separately
-				const addRoleResponse = await fetch(
-					`${DISCORD_API}/guilds/${guildId}/members/${discordUserId}/roles/${roleId}`,
-					{
-						method: 'PUT',
-						headers: { Authorization: `Bot ${botToken}` }
-					}
-				);
-
-				if (addRoleResponse.ok) {
-					discordLogger.info({ discordUsername }, 'Assigned Member role to existing Discord user');
-				} else {
-					discordLogger.error({ response: await addRoleResponse.text() }, 'Failed to assign role');
-				}
-			} else {
-				discordLogger.error({ response: await addMemberResponse.text() }, 'Failed to add member to guild');
-			}
-		} catch (err) {
-			discordLogger.error({ err }, 'Discord role assignment error');
-			// Continue anyway - user can still see that Discord was connected
-		}
+	if (granted) {
+		await recordVerifiedSubstep(locals.user.id, 'discord-connect');
 	} else {
-		discordLogger.warn('Discord guild/role not configured - skipping role assignment');
+		discordLogger.error(
+			{ userId: locals.user.id, discordUserId, discordUsername: discordUser.username },
+			'Discord connected but Member role not granted — onboarding step left open'
+		);
 	}
 
-	// Store Discord connection info in a cookie for the client to read
-	cookies.set(
-		'discord_connected',
-		JSON.stringify({
-			userId: discordUserId,
-			username: discordUsername
-		}),
-		{
-			path: '/',
-			httpOnly: false, // Allow client-side read
-			maxAge: 60 // Short-lived - just for the redirect
+	// Mirror the link on the Offcoin member, addressed by Puckstack id. It was
+	// addressed by wallet, which onboarding no longer collects, so most members
+	// never got it. Best-effort: the local column is the record that matters.
+	if (locals.user.puckstackUserId) {
+		try {
+			const discordAlias = `discord:${discordUserId}`;
+			await withMemberAlias(locals.user.puckstackUserId, async (alias) => {
+				const offcoin = getOffcoinClient();
+				const member = await offcoin.members.get(alias);
+				if (!member.aliases?.includes(discordAlias)) {
+					await offcoin.members.addAlias(alias, discordAlias);
+				}
+			});
+		} catch (err) {
+			discordLogger.error(
+				{ err, userId: locals.user.id },
+				'Failed to add Discord alias to Offcoin'
+			);
 		}
-	);
+	}
 
-	// Redirect back to the originating page - client will handle step completion
-	redirect(302, `${returnTo}?discord=connected`);
+	redirect(302, `${returnTo}?discord=${granted ? 'connected' : 'failed'}`);
 };
