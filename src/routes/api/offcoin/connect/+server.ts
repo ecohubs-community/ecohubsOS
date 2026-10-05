@@ -2,6 +2,7 @@ import { json, error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
+import { promoteIfEligible } from '$lib/server/promotion';
 import { NotFoundError } from '@offcoin/sdk';
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
@@ -165,6 +166,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			// and spares a newly linked member a null balance until the next sync.
 			eco: balanceData.balance
 		});
+		await promoteIfEligible(locals.user.id, xpData.level);
 		offcoinLogger.info(
 			{ userId: locals.user.id, puckstackUserId },
 			'Persisted puckstackUserId to user record'

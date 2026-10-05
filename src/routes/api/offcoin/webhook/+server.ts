@@ -4,15 +4,10 @@ import { verifyWebhookSignature, WebhookEventTypes } from '@offcoin/sdk';
 import type { XpUpdatedData } from '@offcoin/sdk';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
-import { user as userTable, membershipEvents } from '$lib/server/db/schema';
+import { user as userTable } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { POLICY, ROLE_GROUPS, resolveRole } from '$lib/policy';
 import { parsePuckstackUserId, getOffcoinClient } from '$lib/server/offcoin';
-import {
-	getAuthentikGroupByName,
-	getAuthentikUserByEmail,
-	addUserToAuthentikGroup
-} from '$lib/server/authentik';
+import { promoteIfEligible } from '$lib/server/promotion';
 import { offcoinLogger } from '$lib/server/logger';
 import { recordParticipation } from '$lib/server/participation';
 
@@ -20,7 +15,8 @@ import { recordParticipation } from '$lib/server/participation';
  * POST /api/offcoin/webhook — Offcoin event receiver.
  *
  * Keeps the Offcoin snapshot on `user` fresh and promotes trial members the
- * moment they reach `POLICY.levels.memberFromLevel`. Promotion is applied
+ * moment they reach `POLICY.levels.memberFromLevel` (via `promoteIfEligible`,
+ * which every other level read calls too). Promotion is applied
  * automatically because it only *grants* rights; every downgrade in this system
  * waits for a human.
  *
@@ -86,7 +82,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		void recordParticipation(dbUser.id, 'offcoin_xp');
 	}
 
-	const promoted = await maybePromote(dbUser, xp);
+	const promoted = (await promoteIfEligible(dbUser.id, xp.newLevel)).kind === 'promoted';
 
 	return json({ received: true, handled: true, promoted });
 };
@@ -131,67 +127,4 @@ async function findUserForMember(memberId: string) {
 			where: eq(userTable.puckstackUserId, puckstackUserId)
 		})) ?? null
 	);
-}
-
-/**
- * Grant the Member group when a level-up crosses the threshold.
- *
- * Idempotent by construction: it checks the group the user already holds rather
- * than trusting `previousLevel`, so a redelivered event cannot double-apply and
- * a member who somehow skipped the crossing event still gets promoted on their
- * next one.
- */
-async function maybePromote(
-	dbUser: typeof userTable.$inferSelect,
-	xp: XpUpdatedData
-): Promise<boolean> {
-	if (xp.newLevel < POLICY.levels.memberFromLevel) return false;
-	if (dbUser.membershipStatus !== 'active') return false;
-
-	let groups: string[] = [];
-	try {
-		const parsed = dbUser.groups ? JSON.parse(dbUser.groups) : [];
-		groups = Array.isArray(parsed) ? parsed : [];
-	} catch {
-		groups = [];
-	}
-
-	if (groups.includes(ROLE_GROUPS.member)) return false;
-
-	try {
-		const groupUuid = await getAuthentikGroupByName(ROLE_GROUPS.member);
-		if (!groupUuid) {
-			offcoinLogger.error({ group: ROLE_GROUPS.member }, 'Member group missing — cannot promote');
-			return false;
-		}
-
-		const authentikUserPk = await getAuthentikUserByEmail(dbUser.email);
-		if (authentikUserPk === null) {
-			offcoinLogger.error({ userId: dbUser.id }, 'No Authentik user — cannot promote');
-			return false;
-		}
-
-		await addUserToAuthentikGroup(groupUuid, authentikUserPk);
-
-		// Mirror locally so the new rights apply before their next OIDC login.
-		const nextGroups = [...groups, ROLE_GROUPS.member];
-		await db
-			.update(userTable)
-			.set({ groups: JSON.stringify(nextGroups), updatedAt: new Date() })
-			.where(eq(userTable.id, dbUser.id));
-
-		await db.insert(membershipEvents).values({
-			userId: dbUser.id,
-			fromRole: resolveRole(groups),
-			toRole: resolveRole(nextGroups),
-			reason: `Reached Offcoin Level ${xp.newLevel}`,
-			actorUserId: null // system-applied
-		});
-
-		offcoinLogger.info({ userId: dbUser.id, level: xp.newLevel }, 'Promoted to Member');
-		return true;
-	} catch (err) {
-		offcoinLogger.error({ err, userId: dbUser.id }, 'Promotion failed');
-		return false;
-	}
 }

@@ -27,6 +27,13 @@ vi.mock('$lib/server/offcoin', () => ({
 	withMemberAlias: (id: string, op: (alias: string) => unknown) => op(`puckstack:ws:${id}`)
 }));
 
+const authentik = vi.hoisted(() => ({
+	getAuthentikGroupByName: vi.fn(async () => 'group-uuid'),
+	getAuthentikUserByEmail: vi.fn(async (_email: string) => 42),
+	addUserToAuthentikGroup: vi.fn(async () => undefined)
+}));
+vi.mock('$lib/server/authentik', () => authentik);
+
 const { syncOffcoinLevels } = await import('./level-sync');
 
 const asMember = JSON.stringify([ROLE_GROUPS.member]);
@@ -34,6 +41,7 @@ const asTrial = JSON.stringify([]);
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	authentik.getAuthentikUserByEmail.mockImplementation(async () => 42);
 	members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 0, level: 0 });
 	members.getBalance.mockResolvedValue({ balance: 0 });
 });
@@ -154,7 +162,53 @@ describe('the report', () => {
 	});
 });
 
+describe('promotion', () => {
+	it('promotes a trial member whose level already earns Member', async () => {
+		// The stuck case: the level-up happened, the event that should have
+		// promoted them never arrived.
+		const u = await seedUser(db, { groups: asTrial });
+		members.getXp.mockImplementation(async (alias: string) =>
+			alias.includes(u.puckstackUserId!)
+				? { memberId: 'oc-1', xp: 150, level: POLICY.levels.memberFromLevel }
+				: { memberId: 'oc-1', xp: 0, level: 0 }
+		);
+
+		const result = await syncOffcoinLevels(null);
+
+		expect(result.promoted).toContainEqual({
+			email: u.email,
+			level: POLICY.levels.memberFromLevel
+		});
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(JSON.parse(after.groups!)).toContain(ROLE_GROUPS.member);
+	});
+
+	it('reports a failed grant rather than hiding it', async () => {
+		const u = await seedUser(db, { groups: asTrial });
+		members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 150, level: 1 });
+		authentik.getAuthentikUserByEmail.mockImplementation(async (email: string) => {
+			if (email === u.email) throw new Error('403');
+			return 42;
+		});
+
+		const result = await syncOffcoinLevels(null);
+
+		expect(result.promotionFailed.map((f) => f.email)).toContain(u.email);
+	});
+});
+
 describe('the dry run', () => {
+	it('lists who would be promoted without granting anything', async () => {
+		const u = await seedUser(db, { groups: asTrial });
+		members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 150, level: 1 });
+
+		const result = await syncOffcoinLevels(null, true);
+
+		expect(result.members.find((m) => m.userId === u.id)?.eligibleForPromotion).toBe(true);
+		expect(result.promoted).toHaveLength(0);
+		expect(authentik.addUserToAuthentikGroup).not.toHaveBeenCalled();
+	});
+
 	it('reads and reports without writing', async () => {
 		const u = await seedUser(db, { offcoinLevel: null, groups: asMember });
 		members.getXp.mockResolvedValue({ memberId: 'oc-1', xp: 250, level: 2 });

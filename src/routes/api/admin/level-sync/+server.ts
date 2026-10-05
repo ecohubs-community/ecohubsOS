@@ -12,6 +12,10 @@ import { syncOffcoinLevels } from '$lib/server/level-sync';
 // `belowMemberLevel` marking anyone holding the Member group while under the
 // level that earns it. That flag is a list to look at, not a verdict: the
 // membership backfill grandfathered people in on purpose.
+//
+// A real run also promotes trial members whose level already earns Member —
+// the backstop for level-ups the webhook missed. Dry run lists them as
+// `eligibleForPromotion` without granting anything.
 export const POST: RequestHandler = async ({ locals, request }) => {
 	requireAdmin(locals);
 
@@ -25,5 +29,5 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	const result = await syncOffcoinLevels(locals.user!.id, dryRun);
 
-	return json({ success: result.failed.length === 0, dryRun, ...result });
+	return json({ success: result.failed.length === 0 && result.promotionFailed.length === 0, dryRun, ...result });
 };

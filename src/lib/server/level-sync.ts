@@ -24,6 +24,7 @@ import { NotFoundError } from '@offcoin/sdk';
 import { POLICY, parseGroupsJson, resolveRole, type Role } from '$lib/policy';
 import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
+import { isEligibleForPromotion, promoteIfEligible } from '$lib/server/promotion';
 import { offcoinLogger } from '$lib/server/logger';
 
 export interface LevelSyncRow {
@@ -43,6 +44,12 @@ export interface LevelSyncRow {
 	 * anyone should be moved back to trial.
 	 */
 	belowMemberLevel: boolean;
+	/**
+	 * Trial member whose level earns Member. On a real run they are promoted
+	 * (see `promoted` / `promotionFailed`); on a dry run this is the list of who
+	 * would be.
+	 */
+	eligibleForPromotion: boolean;
 }
 
 export interface LevelSyncResult {
@@ -58,6 +65,10 @@ export interface LevelSyncResult {
 	/** Every member read, with the figures. */
 	members: LevelSyncRow[];
 	failed: { email: string; error: string }[];
+	/** Trial members moved to Member by this run. Always empty on a dry run. */
+	promoted: { email: string; level: number }[];
+	/** Eligible for Member, but the Authentik grant did not land. */
+	promotionFailed: { email: string; error: string }[];
 }
 
 export async function syncOffcoinLevels(
@@ -71,7 +82,9 @@ export async function syncOffcoinLevels(
 		skippedExited: 0,
 		notFoundInOffcoin: [],
 		members: [],
-		failed: []
+		failed: [],
+		promoted: [],
+		promotionFailed: []
 	};
 
 	const users = await db.select().from(userTable);
@@ -114,7 +127,8 @@ export async function syncOffcoinLevels(
 				level: xpData.level,
 				eco: balanceData.balance,
 				previousLevel: u.offcoinLevel ?? null,
-				belowMemberLevel: role !== 'trial' && xpData.level < POLICY.levels.memberFromLevel
+				belowMemberLevel: role !== 'trial' && xpData.level < POLICY.levels.memberFromLevel,
+				eligibleForPromotion: isEligibleForPromotion(u, xpData.level)
 			});
 
 			// Count the write, not the read. saveOffcoinSnapshot swallows database
@@ -132,6 +146,13 @@ export async function syncOffcoinLevels(
 				});
 				if (written) {
 					result.synced++;
+					// The sweep is the backstop for level-ups the webhook never saw.
+					const outcome = await promoteIfEligible(u.id, xpData.level);
+					if (outcome.kind === 'promoted') {
+						result.promoted.push({ email: u.email, level: xpData.level });
+					} else if (outcome.kind === 'failed') {
+						result.promotionFailed.push({ email: u.email, error: outcome.error });
+					}
 				} else {
 					result.members.pop();
 					result.failed.push({ email: u.email, error: 'Snapshot could not be written' });
@@ -160,6 +181,9 @@ export async function syncOffcoinLevels(
 			total: result.total,
 			synced: result.synced,
 			belowMemberLevel: result.members.filter((m) => m.belowMemberLevel).length,
+			eligibleForPromotion: result.members.filter((m) => m.eligibleForPromotion).length,
+			promoted: result.promoted.length,
+			promotionFailed: result.promotionFailed.length,
 			notFound: result.notFoundInOffcoin.length,
 			failed: result.failed.length
 		},
