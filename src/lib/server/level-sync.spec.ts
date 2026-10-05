@@ -29,7 +29,7 @@ vi.mock('$lib/server/offcoin', () => ({
 
 const authentik = vi.hoisted(() => ({
 	getAuthentikGroupByName: vi.fn(async () => 'group-uuid'),
-	getAuthentikUserByEmail: vi.fn(async (_email: string) => 42),
+	getAuthentikUserByEmail: vi.fn<(email: string) => Promise<number | null>>(async () => 42),
 	addUserToAuthentikGroup: vi.fn(async () => undefined)
 }));
 vi.mock('$lib/server/authentik', () => authentik);

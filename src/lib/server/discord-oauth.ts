@@ -27,3 +27,15 @@ export function readDiscordState(
 		return null;
 	}
 }
+
+export type DiscordResult = 'connected' | 'failed' | 'denied' | 'already_linked';
+
+/**
+ * `returnTo` with `?discord=<result>` set properly. Appending a literal
+ * `?discord=` broke any returnTo that already had a query or a fragment.
+ */
+export function withDiscordResult(returnTo: string, result: DiscordResult): string {
+	const u = new URL(returnTo, 'http://local');
+	u.searchParams.set('discord', result);
+	return `${u.pathname}${u.search}${u.hash}`;
+}

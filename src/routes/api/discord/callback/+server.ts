@@ -6,7 +6,11 @@ import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
 import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { grantDiscordMemberRole } from '$lib/server/discord';
-import { DISCORD_STATE_COOKIE, readDiscordState } from '$lib/server/discord-oauth';
+import {
+	DISCORD_STATE_COOKIE,
+	readDiscordState,
+	withDiscordResult
+} from '$lib/server/discord-oauth';
 import { recordVerifiedSubstep } from '$lib/server/onboarding';
 import { discordLogger } from '$lib/server/logger';
 
@@ -19,7 +23,7 @@ const DISCORD_API = 'https://discord.com/api/v10';
  * 2. Exchange the code and read the Discord user id
  * 3. Grant the Member role (joining the guild if needed)
  * 4. Store the Discord id; only if the role landed, mark `discord-connect` done
- * 5. Redirect back with `?discord=connected` or `?discord=failed`
+ * 5. Redirect back with `?discord=connected`, `failed`, `denied` or `already_linked`
  *
  * The step used to be marked done by the browser on any return here, and role
  * failures were only logged — so a member could finish onboarding without the
@@ -53,7 +57,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 			{ error: url.searchParams.get('error') },
 			'User denied Discord authorization'
 		);
-		redirect(302, `${returnTo}?discord=denied`);
+		redirect(302, withDiscordResult(returnTo, 'denied'));
 	}
 
 	const code = url.searchParams.get('code');
@@ -75,7 +79,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 
 	if (!tokenResponse.ok) {
 		discordLogger.error({ errorText: await tokenResponse.text() }, 'Discord token exchange failed');
-		redirect(302, `${returnTo}?discord=failed`);
+		redirect(302, withDiscordResult(returnTo, 'failed'));
 	}
 
 	const tokens = await tokenResponse.json();
@@ -86,11 +90,28 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 
 	if (!userResponse.ok) {
 		discordLogger.error({ response: await userResponse.text() }, 'Failed to get Discord user info');
-		redirect(302, `${returnTo}?discord=failed`);
+		redirect(302, withDiscordResult(returnTo, 'failed'));
 	}
 
 	const discordUser = await userResponse.json();
 	const discordUserId: string = discordUser.id;
+
+	// One Discord account per member once the role is granted. Switching would
+	// hand the role to a second account while exit only knows one id, leaving
+	// the other's role beyond cleanup — so refuse before granting anything. A
+	// link whose role never landed has nothing to clean up and may be replaced.
+	const existing = await db.query.user.findFirst({ where: eq(userTable.id, locals.user.id) });
+	if (
+		existing?.discordUserId &&
+		existing.discordConnectedAt &&
+		existing.discordUserId !== discordUserId
+	) {
+		discordLogger.warn(
+			{ userId: locals.user.id, linked: existing.discordUserId, attempted: discordUserId },
+			'Refused to link a second Discord account'
+		);
+		redirect(302, withDiscordResult(returnTo, 'already_linked'));
+	}
 
 	const granted = await grantDiscordMemberRole(discordUserId, tokens.access_token);
 
@@ -136,5 +157,5 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 		}
 	}
 
-	redirect(302, `${returnTo}?discord=${granted ? 'connected' : 'failed'}`);
+	redirect(302, withDiscordResult(returnTo, granted ? 'connected' : 'failed'));
 };

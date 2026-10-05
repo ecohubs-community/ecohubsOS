@@ -118,6 +118,46 @@ describe('role granted', () => {
 	});
 });
 
+describe('relinking', () => {
+	it('refuses a second Discord account once the role was granted, before granting', async () => {
+		const u = await seedUser(db, { discordUserId: 'd-old', discordConnectedAt: new Date() });
+
+		const res = await call(request(u));
+
+		expect(res).toMatchObject({ status: 302, location: '/onboarding?discord=already_linked' });
+		expect(discord.grantDiscordMemberRole).not.toHaveBeenCalled();
+		expect((await reload(u.id)).discordUserId).toBe('d-old');
+	});
+
+	it('lets a link whose role never landed be replaced', async () => {
+		discord.grantDiscordMemberRole.mockResolvedValue(true);
+		const u = await seedUser(db, { discordUserId: 'd-old', discordConnectedAt: null });
+
+		const res = await call(request(u));
+
+		expect(res.location).toBe('/onboarding?discord=connected');
+		expect((await reload(u.id)).discordUserId).toBe('d-123');
+	});
+
+	it('lets the same Discord account retry', async () => {
+		discord.grantDiscordMemberRole.mockResolvedValue(true);
+		const u = await seedUser(db, { discordUserId: 'd-123', discordConnectedAt: new Date() });
+
+		expect((await call(request(u))).location).toBe('/onboarding?discord=connected');
+	});
+});
+
+describe('redirect', () => {
+	it('keeps an existing query on returnTo intact', async () => {
+		discord.grantDiscordMemberRole.mockResolvedValue(false);
+		const u = await seedUser(db);
+
+		const res = await call(request(u, { stateParam: state(NONCE, '/onboarding?tab=x#top') }));
+
+		expect(res.location).toBe('/onboarding?tab=x&discord=failed#top');
+	});
+});
+
 describe('role not granted', () => {
 	it('keeps the id but leaves the step open, and says failed', async () => {
 		discord.grantDiscordMemberRole.mockResolvedValue(false);

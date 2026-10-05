@@ -91,6 +91,11 @@ describe('promoteIfEligible', () => {
 
 		expect(outcome).toEqual({ kind: 'failed', error: '403 forbidden' });
 		expect(JSON.parse((await reload(u.id)).groups!)).toEqual([]);
+		const events = await db
+			.select()
+			.from(schema.membershipEvents)
+			.where(eq(schema.membershipEvents.userId, u.id));
+		expect(events).toHaveLength(0);
 	});
 
 	it('reports a missing Authentik user', async () => {

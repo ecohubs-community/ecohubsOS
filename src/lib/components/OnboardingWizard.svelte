@@ -238,6 +238,9 @@
 			if (discordResult === 'failed') {
 				discordNotice =
 					"Discord is connected, but we couldn't give you the Member role. Please try again — if it keeps failing, tell a steward.";
+			} else if (discordResult === 'already_linked') {
+				discordNotice =
+					'Your account is already linked to a different Discord account. Ask a steward if you need to change it.';
 			} else if (discordResult === 'denied') {
 				discordNotice = 'Discord connection was cancelled. Connect again when you are ready.';
 			}

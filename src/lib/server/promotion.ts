@@ -74,17 +74,23 @@ export async function promoteIfEligible(userId: string, level: number): Promise<
 		// Mirror locally so the new rights apply before their next OIDC login.
 		const groups = parseGroupsJson(dbUser.groups);
 		const nextGroups = [...groups, ROLE_GROUPS.member];
-		await db
-			.update(userTable)
-			.set({ groups: JSON.stringify(nextGroups), updatedAt: new Date() })
-			.where(eq(userTable.id, userId));
-
-		await db.insert(membershipEvents).values({
-			userId,
-			fromRole: resolveRole(groups),
-			toRole: resolveRole(nextGroups),
-			reason: `Reached Offcoin Level ${level}`,
-			actorUserId: null // system-applied
+		// One transaction: a group without its audit row would never be repaired,
+		// because the next call sees a member and returns `not_eligible`.
+		// better-sqlite3 transactions are synchronous, hence `.run()`.
+		db.transaction((tx) => {
+			tx.update(userTable)
+				.set({ groups: JSON.stringify(nextGroups), updatedAt: new Date() })
+				.where(eq(userTable.id, userId))
+				.run();
+			tx.insert(membershipEvents)
+				.values({
+					userId,
+					fromRole: resolveRole(groups),
+					toRole: resolveRole(nextGroups),
+					reason: `Reached Offcoin Level ${level}`,
+					actorUserId: null // system-applied
+				})
+				.run();
 		});
 
 		offcoinLogger.info({ userId, level }, 'Promoted to Member');
