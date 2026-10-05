@@ -150,14 +150,20 @@ export async function executeExit(
 		result.warnings.push('Newsletter unsubscribe did not complete');
 	}
 
-	// 5. Discord. The Discord user id is not stored locally — it lives as a
-	//    `discord:<id>` alias on the Offcoin member, added during the Discord
-	//    OAuth callback. Look it up there.
+	// 5. Discord. The id is stored on the user by the OAuth callback; members
+	//    who connected before that column existed only have it as a
+	//    `discord:<id>` alias on their Offcoin member, so fall back to that.
 	try {
-		const discordUserId = await findDiscordUserId(member.puckstackUserId);
+		const discordUserId = member.discordUserId ?? (await findDiscordUserId(member.puckstackUserId));
 		if (discordUserId) {
 			result.discordRoleRemoved = await removeDiscordMemberRole(discordUserId);
-			if (!result.discordRoleRemoved) {
+			if (result.discordRoleRemoved) {
+				// Kept until the role is really gone, so a failed removal can be retried.
+				await db
+					.update(userTable)
+					.set({ discordUserId: null, discordConnectedAt: null, updatedAt: new Date() })
+					.where(eq(userTable.id, userId));
+			} else {
 				result.warnings.push('Discord role removal did not complete');
 			}
 		}

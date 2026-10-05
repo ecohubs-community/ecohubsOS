@@ -181,6 +181,20 @@ export function requiredSubstepIds(): string[] {
 }
 
 /**
+ * Substeps only the server may mark complete, because completing them is a
+ * fact the server checked rather than a click. The progress PATCH drops them
+ * and the wizard ignores them in localStorage — otherwise opening
+ * `/onboarding?discord=connected` was enough to skip Discord entirely.
+ */
+export const SERVER_VERIFIED_SUBSTEP_IDS = ['discord-connect'] as const;
+
+/** Drop server-verified entries from client-held progress. */
+export function withoutServerVerified(progress: OnboardingProgress): OnboardingProgress {
+	const verified = new Set<string>(SERVER_VERIFIED_SUBSTEP_IDS);
+	return Object.fromEntries(Object.entries(progress).filter(([id]) => !verified.has(id)));
+}
+
+/**
  * Substeps that are part of the flow but do NOT block "onboarding complete"
  * for admin-status / backfill purposes. The "Introduce yourself" step is a
  * soft, self-attested action many members skip after connecting Discord, so

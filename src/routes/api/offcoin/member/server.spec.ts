@@ -17,6 +17,8 @@ vi.mock('$lib/server/offcoin', () => ({
 
 const snapshot = vi.hoisted(() => ({ saveOffcoinSnapshot: vi.fn(async () => true) }));
 vi.mock('$lib/server/offcoin-snapshot', () => snapshot);
+const promotion = vi.hoisted(() => ({ promoteIfEligible: vi.fn(async () => ({ kind: 'not_eligible' })) }));
+vi.mock('$lib/server/promotion', () => promotion);
 vi.mock('@offcoin/sdk', () => ({ NotFoundError: class extends Error {} }));
 
 const { GET } = await import('./+server');
@@ -64,7 +66,21 @@ describe('cross-user lookups', () => {
 		expect(snapshot.saveOffcoinSnapshot).toHaveBeenCalledWith('me', {
 			memberId: 'oc-1',
 			xp: 900,
-			level: 5
+			level: 5,
+			eco: 10
 		});
+	});
+
+	it('promotes from the level it just read, so a missed level-up is caught', async () => {
+		await call({ ...req('ps-me'), locals: locals() });
+
+		expect(promotion.promoteIfEligible).toHaveBeenCalledWith('me', 5);
+	});
+
+	it('does not promote on a refused lookup', async () => {
+		await expect(call({ ...req('ps-someone-else'), locals: locals() })).rejects.toMatchObject({
+			status: 403
+		});
+		expect(promotion.promoteIfEligible).not.toHaveBeenCalled();
 	});
 });

@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getOffcoinClient, withMemberAlias } from '$lib/server/offcoin';
 import { saveOffcoinSnapshot } from '$lib/server/offcoin-snapshot';
+import { promoteIfEligible } from '$lib/server/promotion';
 import { NotFoundError } from '@offcoin/sdk';
 
 /**
@@ -59,8 +60,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		await saveOffcoinSnapshot(locals.user.id, {
 			memberId: member.id,
 			xp: xpData.xp,
-			level: xpData.level
+			level: xpData.level,
+			eco: balanceData.balance
 		});
+		// A member whose level-up event was missed is promoted the next time
+		// their own page reads the level, rather than waiting for more XP.
+		await promoteIfEligible(locals.user.id, xpData.level);
 
 		return json({
 			success: true,

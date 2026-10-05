@@ -24,6 +24,9 @@ vi.mock('$lib/server/offcoin', () => ({
 
 const snapshot = vi.hoisted(() => ({ saveOffcoinSnapshot: vi.fn(async () => true) }));
 vi.mock('$lib/server/offcoin-snapshot', () => snapshot);
+vi.mock('$lib/server/promotion', () => ({
+	promoteIfEligible: vi.fn(async () => ({ kind: 'not_eligible' }))
+}));
 vi.mock('@offcoin/sdk', () => ({ NotFoundError: class extends Error {} }));
 
 const identity = vi.hoisted(() => ({ resolvePuckstackIdentity: vi.fn() }));

@@ -10,6 +10,7 @@ import {
 	type OnboardingProgress
 } from '$lib/server/onboarding';
 import { onboardingLogger } from '$lib/server/logger';
+import { SERVER_VERIFIED_SUBSTEP_IDS } from '$lib/onboarding/stepManager';
 
 /**
  * GET /api/onboarding/progress
@@ -44,39 +45,44 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		error(400, 'Invalid payload: completedSteps must be an object');
 	}
 
-	// Validate and sanitize substep IDs against whitelist
+	// Validate and sanitize substep IDs against whitelist. Server-verified steps
+	// (Discord) are dropped: only the server may say those happened.
 	const validIds = new Set<string>(VALID_SUBSTEP_IDS);
+	const serverOnly = new Set<string>(SERVER_VERIFIED_SUBSTEP_IDS);
 	const sanitized: OnboardingProgress = {};
 	for (const [key, value] of Object.entries(completedSteps)) {
-		if (validIds.has(key) && typeof value === 'string') {
+		if (validIds.has(key) && !serverOnly.has(key) && typeof value === 'string') {
 			sanitized[key] = value;
+		}
+	}
+
+	const dbUser = await db.query.user.findFirst({
+		where: eq(user.id, locals.user.id)
+	});
+
+	let existing: OnboardingProgress = {};
+	if (dbUser?.onboardingProgress) {
+		try {
+			existing = JSON.parse(dbUser.onboardingProgress);
+		} catch {
+			onboardingLogger.warn(
+				{ userId: locals.user.id },
+				'Corrupt onboarding progress JSON in database, starting fresh merge'
+			);
 		}
 	}
 
 	let merged: OnboardingProgress;
 
 	if (reset) {
-		// Reset mode: replace all progress with the provided (sanitized) entries
-		merged = sanitized;
+		// Reset mode: replace client-reported progress with the provided entries,
+		// but keep server-verified ones — the client could not have set them, so
+		// it cannot clear them either.
+		const kept = Object.fromEntries(Object.entries(existing).filter(([id]) => serverOnly.has(id)));
+		merged = { ...kept, ...sanitized };
 		onboardingLogger.info({ userId: locals.user.id }, 'Onboarding progress reset');
 	} else {
 		// Merge mode: union with existing (never remove entries)
-		const dbUser = await db.query.user.findFirst({
-			where: eq(user.id, locals.user.id)
-		});
-
-		let existing: OnboardingProgress = {};
-		if (dbUser?.onboardingProgress) {
-			try {
-				existing = JSON.parse(dbUser.onboardingProgress);
-			} catch {
-				onboardingLogger.warn(
-					{ userId: locals.user.id },
-					'Corrupt onboarding progress JSON in database, starting fresh merge'
-				);
-			}
-		}
-
 		merged = { ...existing, ...sanitized };
 	}
 

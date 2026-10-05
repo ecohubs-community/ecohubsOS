@@ -66,6 +66,8 @@ CREATE TABLE user (
   -- accounts and pass, which is the exact failure the constraint exists to stop.
   puckstack_user_id TEXT UNIQUE,
   puckstack_invite_token TEXT,
+  discord_user_id TEXT,
+  discord_connected_at INTEGER,
   display_name TEXT,
   avatar TEXT,
   bio TEXT,

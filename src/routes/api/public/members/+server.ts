@@ -94,7 +94,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		// detached job would not.
 		await Promise.allSettled(
 			[...offcoinMap.entries()].map(([userId, oc]) =>
-				saveOffcoinSnapshot(userId, { xp: oc.xp, level: oc.level })
+				saveOffcoinSnapshot(userId, { xp: oc.xp, level: oc.level, eco: oc.eco })
 			)
 		);
 
@@ -105,7 +105,7 @@ export const GET: RequestHandler = async ({ request }) => {
 			// transient outage shows a stale figure rather than zeroing everyone.
 			const xp = oc?.xp ?? member.offcoinXp ?? 0;
 			const level = oc?.level ?? member.offcoinLevel ?? 0;
-			const eco = oc?.eco ?? 0;
+			const eco = oc?.eco ?? member.offcoinEco ?? 0;
 			const role = resolveRole(parseGroupsJson(member.groups));
 
 			// Build display name with priority logic

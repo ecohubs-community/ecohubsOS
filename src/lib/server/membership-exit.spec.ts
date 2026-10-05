@@ -175,8 +175,9 @@ describe('clearing the Offcoin economy', () => {
 	});
 
 	it('reads the Discord id before deleting, not after', async () => {
-		// The Discord user id is only stored as an alias on the Offcoin member, so
-		// deleting first would destroy the means of stripping the Discord role.
+		// For members who connected before the id was stored locally, the alias on
+		// the Offcoin member is the only record, so deleting first would destroy
+		// the means of stripping the Discord role.
 		const order: string[] = [];
 		offcoinMembers.get.mockImplementation(async () => {
 			order.push('get');
@@ -192,6 +193,25 @@ describe('clearing the Offcoin economy', () => {
 
 		expect(order).toEqual(['get', 'delete']);
 		expect(discord.removeDiscordMemberRole).toHaveBeenCalledWith('12345');
+	});
+
+	it('prefers the stored Discord id, and clears it once the role is gone', async () => {
+		const u = await seedUser(db, { discordUserId: '777', discordConnectedAt: new Date() });
+		await executeExit(u.id, 'Left', null);
+
+		expect(discord.removeDiscordMemberRole).toHaveBeenCalledWith('777');
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(after.discordUserId).toBeNull();
+		expect(after.discordConnectedAt).toBeNull();
+	});
+
+	it('keeps the stored Discord id when removal fails, so it can be retried', async () => {
+		discord.removeDiscordMemberRole.mockResolvedValue(false);
+		const u = await seedUser(db, { discordUserId: '888' });
+		await executeExit(u.id, 'Left', null);
+
+		const [after] = await db.select().from(schema.user).where(eq(schema.user.id, u.id));
+		expect(after.discordUserId).toBe('888');
 	});
 
 	it('clears the local level snapshot, which gates a returning member', async () => {
